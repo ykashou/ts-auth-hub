@@ -27,7 +27,7 @@ type EmailLoginForm = z.infer<typeof emailLoginSchema>;
 type UuidLoginForm = z.infer<typeof uuidLoginSchema>;
 
 export default function LoginPage() {
-  const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("email");
+  const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("uuid");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
