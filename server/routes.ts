@@ -317,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get service by ID
+  // Get service by ID (public-safe - excludes secret)
   app.get("/api/services/:id", verifyToken, async (req, res) => {
     try {
       const service = await storage.getService(req.params.id);
@@ -326,7 +326,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
       
-      res.json(service);
+      // Exclude secret from response for security
+      const { secret, ...serviceWithoutSecret } = service;
+      
+      res.json(serviceWithoutSecret);
     } catch (error: any) {
       console.error("Get service error:", error);
       res.status(500).json({ error: "Failed to fetch service" });
