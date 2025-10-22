@@ -28,6 +28,10 @@ export default function WidgetLoginPage() {
   const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("uuid");
   const { toast } = useToast();
 
+  // Get parent origin from URL params for secure postMessage
+  const urlParams = new URLSearchParams(window.location.search);
+  const parentOrigin = urlParams.get('parentOrigin') ? decodeURIComponent(urlParams.get('parentOrigin')!) : '*';
+
   const emailForm = useForm<EmailLoginForm>({
     resolver: zodResolver(emailLoginSchema),
     defaultValues: {
@@ -43,13 +47,17 @@ export default function WidgetLoginPage() {
     },
   });
 
-  // Send message to parent window
+  // Send message to parent window with origin validation
   const sendMessageToParent = (type: string, data: any) => {
     if (window.opener) {
+      // Use validated parent origin from URL params
+      // Never send sensitive data with '*' as targetOrigin
+      const targetOrigin = parentOrigin !== '*' ? parentOrigin : window.opener.location.origin;
+      
       window.opener.postMessage({
         type,
         ...data
-      }, '*'); // In production, specify the exact origin
+      }, targetOrigin);
     }
   };
 

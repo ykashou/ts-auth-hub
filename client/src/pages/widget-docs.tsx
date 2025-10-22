@@ -548,11 +548,12 @@ function App() {
           </CardHeader>
           <CardContent>
             <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-              <li>Always store JWT tokens securely (httpOnly cookies recommended for production)</li>
-              <li>The widget uses secure postMessage communication between popup and parent window</li>
-              <li>Tokens have a 7-day expiration by default</li>
-              <li>HTTPS is required for production deployments</li>
-              <li>Validate tokens on your backend for all protected endpoints</li>
+              <li><strong>Origin Validation:</strong> The widget automatically validates parent window origins via query parameters before sending JWT tokens via postMessage</li>
+              <li><strong>Token Storage:</strong> Always store JWT tokens securely (httpOnly cookies recommended for production)</li>
+              <li><strong>Secure Communication:</strong> PostMessage uses validated targetOrigin (never '*') to prevent token leakage to unauthorized domains</li>
+              <li><strong>Token Expiration:</strong> JWT tokens have a 7-day expiration by default</li>
+              <li><strong>HTTPS Required:</strong> Always use HTTPS in production deployments</li>
+              <li><strong>Backend Validation:</strong> Always validate tokens on your backend for all protected endpoints</li>
             </ul>
           </CardContent>
         </Card>

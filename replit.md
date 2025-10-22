@@ -8,6 +8,16 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** Embeddable Authentication Widget System
+  - Created JavaScript SDK for external service integration
+  - Popup-based authentication flow (avoids third-party cookie issues)
+  - PostMessage communication between popup and parent window
+  - Widget SDK available at /authhub-widget.js
+  - Streamlined /widget-login page optimized for popups
+  - Comprehensive /widget-docs page with integration examples
+  - Support for both UUID and email/password authentication
+  - Secure token exchange via JWT
+
 - **2025-10-22:** Arcane Blue Theme Applied
   - Implemented cohesive mystical blue color scheme across entire UI
   - Light mode: Deep mystical blue primary (HSL 248° 100% 28%)
@@ -67,13 +77,22 @@ AuthHub is a centralized authentication service that serves as a single source o
    - User statistics and activity metrics
    - Clean, professional table interface
 
-4. **API Documentation**
+4. **Embeddable Widget System**
+   - JavaScript SDK for seamless integration into external websites
+   - Popup-based authentication flow (modern, no cookie issues)
+   - PostMessage secure communication between widget and parent
+   - Simple 3-step integration: include SDK, initialize, trigger login
+   - Full documentation with HTML, React examples
+   - Works with all AuthHub authentication methods (UUID, email/password)
+   - JWT token returned to parent application
+
+5. **API Documentation**
    - Complete endpoint documentation for SaaS integration
    - Example requests and responses
    - API key authentication for external services
    - Copy-to-clipboard functionality
 
-5. **Visual Design**
+6. **Visual Design**
    - Quest Log-inspired interface
    - Poppins font family throughout
    - Custom color scheme: Deep blue primary (#12008f), light grey secondary (#c4c4c4)
@@ -91,9 +110,14 @@ client/src/
 │   ├── dashboard.tsx      # Admin user management
 │   ├── config.tsx         # Service card configuration
 │   ├── services.tsx       # Service cards display
-│   └── api-docs.tsx       # API documentation for SaaS products
+│   ├── api-docs.tsx       # API documentation for SaaS products
+│   ├── widget-login.tsx   # Popup login page for widget
+│   └── widget-docs.tsx    # Widget integration documentation
 ├── components/ui/         # Shadcn UI components
 └── App.tsx               # Main router
+
+client/public/
+└── authhub-widget.js     # Embeddable widget SDK
 ```
 
 ### Backend Structure
@@ -199,7 +223,34 @@ shared/
 - `npm run db:studio` - Open Drizzle Studio (database GUI)
 
 ## Integration Guide for SaaS Products
-External SaaS applications can integrate with AuthHub using the API endpoints. All requests require an API key in the `X-API-Key` header. See `/api-docs` page for complete documentation and examples.
+
+### Widget Integration (Recommended)
+The easiest way to integrate AuthHub authentication into your website:
+
+1. **Include the SDK:**
+   ```html
+   <script src="https://your-authhub.com/authhub-widget.js"></script>
+   ```
+
+2. **Initialize and handle authentication:**
+   ```javascript
+   const authHub = new AuthHubWidget({
+     domain: 'https://your-authhub.com',
+     onSuccess: (token, user) => {
+       // Store token and update UI
+       localStorage.setItem('authToken', token);
+     },
+     onError: (error) => console.error(error)
+   });
+   
+   // Trigger login
+   authHub.login();
+   ```
+
+See `/widget-docs` for complete examples and React integration.
+
+### API Integration (Advanced)
+External SaaS applications can also integrate with AuthHub using direct API endpoints. All requests require an API key in the `X-API-Key` header. See `/api-docs` page for complete documentation and examples.
 
 ## Security Features
 - Password hashing with bcrypt

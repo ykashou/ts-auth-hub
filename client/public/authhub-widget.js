@@ -55,8 +55,9 @@
       const left = (window.screen.width / 2) - (this.config.width / 2);
       const top = (window.screen.height / 2) - (this.config.height / 2);
 
-      // Open popup window
-      const popupUrl = `${this.config.domain}/widget-login`;
+      // Pass parent origin to popup for secure postMessage
+      const parentOrigin = encodeURIComponent(window.location.origin);
+      const popupUrl = `${this.config.domain}/widget-login?parentOrigin=${parentOrigin}`;
       const popupFeatures = `width=${this.config.width},height=${this.config.height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`;
 
       this._log('Opening popup:', popupUrl);
