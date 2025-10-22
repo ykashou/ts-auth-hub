@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,11 +26,26 @@ type UuidLoginForm = z.infer<typeof uuidLoginSchema>;
 
 export default function WidgetLoginPage() {
   const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("uuid");
+  const [redirectUri, setRedirectUri] = useState<string | null>(null);
+  const [parentOrigin, setParentOrigin] = useState<string>('*');
   const { toast } = useToast();
 
-  // Get parent origin from URL params for secure postMessage
-  const urlParams = new URLSearchParams(window.location.search);
-  const parentOrigin = urlParams.get('parentOrigin') ? decodeURIComponent(urlParams.get('parentOrigin')!) : '*';
+  // Read URL parameters on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Check for redirect_uri (OAuth redirect flow)
+    const redirect = urlParams.get('redirect_uri');
+    if (redirect) {
+      setRedirectUri(decodeURIComponent(redirect));
+    }
+    
+    // Get parent origin for postMessage (popup flow)
+    const origin = urlParams.get('parentOrigin');
+    if (origin) {
+      setParentOrigin(decodeURIComponent(origin));
+    }
+  }, []);
 
   const emailForm = useForm<EmailLoginForm>({
     resolver: zodResolver(emailLoginSchema),
@@ -72,16 +87,22 @@ export default function WidgetLoginPage() {
         description: "Redirecting...",
       });
 
-      // Send token to parent window
-      sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
-        token: data.token,
-        user: data.user
-      });
+      if (redirectUri) {
+        // OAuth redirect flow: redirect back to external service with token
+        const separator = redirectUri.includes('?') ? '&' : '?';
+        window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(data.token)}&user_id=${encodeURIComponent(data.user.id)}`;
+      } else {
+        // Popup flow: send token to parent window via postMessage
+        sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
+          token: data.token,
+          user: data.user
+        });
 
-      // Close popup after short delay
-      setTimeout(() => {
-        window.close();
-      }, 500);
+        // Close popup after short delay
+        setTimeout(() => {
+          window.close();
+        }, 500);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -109,16 +130,22 @@ export default function WidgetLoginPage() {
         description: "Redirecting...",
       });
 
-      // Send token to parent window
-      sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
-        token: data.token,
-        user: data.user
-      });
+      if (redirectUri) {
+        // OAuth redirect flow: redirect back to external service with token
+        const separator = redirectUri.includes('?') ? '&' : '?';
+        window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(data.token)}&user_id=${encodeURIComponent(data.user.id)}`;
+      } else {
+        // Popup flow: send token to parent window via postMessage
+        sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
+          token: data.token,
+          user: data.user
+        });
 
-      // Close popup after short delay
-      setTimeout(() => {
-        window.close();
-      }, 500);
+        // Close popup after short delay
+        setTimeout(() => {
+          window.close();
+        }, 500);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -144,16 +171,24 @@ export default function WidgetLoginPage() {
         description: `Your new Account ID: ${data.user.id}`,
       });
 
-      // Send token to parent window
-      sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
-        token: data.token,
-        user: data.user
-      });
+      if (redirectUri) {
+        // OAuth redirect flow: redirect back to external service with token
+        const separator = redirectUri.includes('?') ? '&' : '?';
+        setTimeout(() => {
+          window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(data.token)}&user_id=${encodeURIComponent(data.user.id)}`;
+        }, 1000);
+      } else {
+        // Popup flow: send token to parent window via postMessage
+        sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
+          token: data.token,
+          user: data.user
+        });
 
-      // Close popup after short delay
-      setTimeout(() => {
-        window.close();
-      }, 1000);
+        // Close popup after short delay
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      }
     },
     onError: (error: any) => {
       toast({
