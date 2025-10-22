@@ -19,10 +19,10 @@ export interface IStorage {
   getAllApiKeys(): Promise<ApiKey[]>;
 
   // Service operations
-  createService(service: InsertService): Promise<Service>;
+  createService(service: InsertService & { hashedSecret?: string; secretPreview?: string }): Promise<Service>;
   getService(id: string): Promise<Service | undefined>;
   getAllServices(): Promise<Service[]>;
-  updateService(id: string, service: Partial<InsertService>): Promise<Service>;
+  updateService(id: string, service: Partial<Service>): Promise<Service>;
   deleteService(id: string): Promise<void>;
 }
 
@@ -90,7 +90,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Service operations
-  async createService(insertService: InsertService): Promise<Service> {
+  async createService(insertService: InsertService & { hashedSecret?: string; secretPreview?: string }): Promise<Service> {
     const [service] = await db
       .insert(services)
       .values(insertService)
@@ -107,7 +107,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(services);
   }
 
-  async updateService(id: string, updateData: Partial<InsertService>): Promise<Service> {
+  async updateService(id: string, updateData: Partial<Service>): Promise<Service> {
     const [service] = await db
       .update(services)
       .set(updateData)

@@ -321,6 +321,23 @@ export default function Config() {
                   />
                   <FormField
                     control={form.control}
+                    name="redirectUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Redirect URL (Optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://example.com/dashboard (defaults to Service URL)"
+                            {...field}
+                            data-testid="input-redirect-url"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                     name="icon"
                     render={({ field }) => (
                       <FormItem>
@@ -462,17 +479,40 @@ export default function Config() {
                             </a>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              {(service as any).hasSecret ? (
-                                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded" data-testid={`text-secret-status-${service.id}`}>
-                                  Configured
-                                </span>
-                              ) : (
-                                <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded" data-testid={`text-secret-status-${service.id}`}>
-                                  Not Configured
-                                </span>
-                              )}
-                            </div>
+                            {service.secretPreview ? (
+                              <div className="flex items-center gap-2">
+                                <code className="text-xs bg-muted px-2 py-1 rounded font-mono" data-testid={`text-secret-${service.id}`}>
+                                  {service.secretPreview}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    if (service.secretPreview) {
+                                      navigator.clipboard.writeText(service.secretPreview);
+                                      setCopiedSecret(service.id);
+                                      toast({
+                                        title: "Copied!",
+                                        description: "Secret preview copied to clipboard",
+                                      });
+                                      setTimeout(() => setCopiedSecret(null), 2000);
+                                    }
+                                  }}
+                                  data-testid={`button-copy-secret-${service.id}`}
+                                >
+                                  {copiedSecret === service.id ? (
+                                    <Check className="w-3 h-3 text-green-600" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground" data-testid={`text-secret-status-${service.id}`}>
+                                No secret
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
