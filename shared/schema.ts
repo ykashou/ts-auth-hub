@@ -20,6 +20,17 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Services table - configured service cards that appear after login
+export const services = pgTable("services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  url: text("url").notNull(),
+  icon: text("icon").notNull().default("Globe"),
+  color: text("color"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -31,6 +42,17 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
   name: true,
+});
+
+export const insertServiceSchema = createInsertSchema(services).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  name: z.string().min(1, "Service name is required"),
+  description: z.string().min(1, "Description is required"),
+  url: z.string().url("Invalid URL format"),
+  icon: z.string().default("Globe"),
+  color: z.string().optional(),
 });
 
 // Login schema
@@ -49,5 +71,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertService = z.infer<typeof insertServiceSchema>;
+export type Service = typeof services.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;

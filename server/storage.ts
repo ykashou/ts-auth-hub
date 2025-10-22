@@ -1,5 +1,5 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, type User, type InsertUser, type ApiKey, type InsertApiKey } from "@shared/schema";
+import { users, apiKeys, services, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -17,6 +17,13 @@ export interface IStorage {
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
   getApiKeyByKey(key: string): Promise<ApiKey | undefined>;
   getAllApiKeys(): Promise<ApiKey[]>;
+
+  // Service operations
+  createService(service: InsertService): Promise<Service>;
+  getService(id: string): Promise<Service | undefined>;
+  getAllServices(): Promise<Service[]>;
+  updateService(id: string, service: Partial<InsertService>): Promise<Service>;
+  deleteService(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -80,6 +87,37 @@ export class DatabaseStorage implements IStorage {
 
   async getAllApiKeys(): Promise<ApiKey[]> {
     return await db.select().from(apiKeys);
+  }
+
+  // Service operations
+  async createService(insertService: InsertService): Promise<Service> {
+    const [service] = await db
+      .insert(services)
+      .values(insertService)
+      .returning();
+    return service;
+  }
+
+  async getService(id: string): Promise<Service | undefined> {
+    const [service] = await db.select().from(services).where(eq(services.id, id));
+    return service || undefined;
+  }
+
+  async getAllServices(): Promise<Service[]> {
+    return await db.select().from(services);
+  }
+
+  async updateService(id: string, updateData: Partial<InsertService>): Promise<Service> {
+    const [service] = await db
+      .update(services)
+      .set(updateData)
+      .where(eq(services.id, id))
+      .returning();
+    return service;
+  }
+
+  async deleteService(id: string): Promise<void> {
+    await db.delete(services).where(eq(services.id, id));
   }
 }
 

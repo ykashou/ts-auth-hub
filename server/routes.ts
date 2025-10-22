@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -98,7 +98,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find user by email
       const user = await storage.getUserByEmail(validatedData.email);
-      if (!user) {
+      if (!user || !user.password) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
@@ -180,7 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find user by email
       const user = await storage.getUserByEmail(validatedData.email);
-      if (!user) {
+      if (!user || !user.password) {
         return res.json({ valid: false });
       }
 
@@ -263,6 +263,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Get API keys error:", error);
       res.status(500).json({ error: "Failed to fetch API keys" });
+    }
+  });
+
+  // Service Management Routes
+
+  // Create new service
+  app.post("/api/services", verifyToken, async (req, res) => {
+    try {
+      const validatedData = insertServiceSchema.parse(req.body);
+      
+      const service = await storage.createService(validatedData);
+      
+      res.status(201).json(service);
+    } catch (error: any) {
+      console.error("Create service error:", error);
+      res.status(400).json({ error: error.message || "Failed to create service" });
+    }
+  });
+
+  // Get all services
+  app.get("/api/services", verifyToken, async (req, res) => {
+    try {
+      const services = await storage.getAllServices();
+      
+      res.json(services);
+    } catch (error: any) {
+      console.error("Get services error:", error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Get service by ID
+  app.get("/api/services/:id", verifyToken, async (req, res) => {
+    try {
+      const service = await storage.getService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      res.json(service);
+    } catch (error: any) {
+      console.error("Get service error:", error);
+      res.status(500).json({ error: "Failed to fetch service" });
+    }
+  });
+
+  // Update service
+  app.patch("/api/services/:id", verifyToken, async (req, res) => {
+    try {
+      const service = await storage.getService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const validatedData = insertServiceSchema.partial().parse(req.body);
+      
+      const updatedService = await storage.updateService(req.params.id, validatedData);
+      
+      res.json(updatedService);
+    } catch (error: any) {
+      console.error("Update service error:", error);
+      res.status(400).json({ error: error.message || "Failed to update service" });
+    }
+  });
+
+  // Delete service
+  app.delete("/api/services/:id", verifyToken, async (req, res) => {
+    try {
+      const service = await storage.getService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      await storage.deleteService(req.params.id);
+      
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Delete service error:", error);
+      res.status(500).json({ error: "Failed to delete service" });
     }
   });
 
