@@ -56,7 +56,10 @@ export const insertServiceSchema = createInsertSchema(services).omit({
   name: z.string().min(1, "Service name is required"),
   description: z.string().min(1, "Description is required"),
   url: z.string().url("Invalid URL format"),
-  redirectUrl: z.string().url("Invalid URL format").optional(),
+  redirectUrl: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+    z.string().url("Invalid URL format").optional()
+  ),
   icon: z.string().default("Globe"),
   color: z.string().optional(),
 });
