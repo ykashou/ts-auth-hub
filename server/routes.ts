@@ -131,19 +131,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Login user with UUID (anonymous authentication)
+  // If UUID is provided: login if exists, auto-register if not
+  // If no UUID provided: generate new UUID and auto-register
   app.post("/api/auth/uuid-login", async (req, res) => {
     try {
       const validatedData = uuidLoginSchema.parse(req.body);
+      let user;
 
-      // Find user by UUID
-      const user = await storage.getUser(validatedData.uuid);
-      if (!user) {
-        return res.status(401).json({ error: "Invalid UUID - user not found" });
+      if (validatedData.uuid) {
+        // UUID provided - try to find it
+        user = await storage.getUser(validatedData.uuid);
+        
+        // If UUID doesn't exist, auto-register it
+        if (!user) {
+          user = await storage.createUserWithUuid(validatedData.uuid);
+        }
+      } else {
+        // No UUID provided - generate new anonymous user
+        user = await storage.createAnonymousUser();
       }
 
       // Generate JWT token
       const token = jwt.sign(
-        { id: user.id, email: user.email },
+        { id: user.id, email: user.email || null },
         JWT_SECRET,
         { expiresIn: "7d" }
       );

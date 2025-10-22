@@ -20,7 +20,7 @@ const emailLoginSchema = z.object({
 });
 
 const uuidLoginSchema = z.object({
-  accountId: z.string().min(1, "Account ID is required"),
+  accountId: z.string().optional(),
 });
 
 type EmailLoginForm = z.infer<typeof emailLoginSchema>;
@@ -70,14 +70,18 @@ export default function LoginPage() {
 
   const uuidLoginMutation = useMutation({
     mutationFn: async (data: UuidLoginForm) => {
-      const response = await apiRequest("POST", "/api/auth/uuid-login", { uuid: data.accountId });
+      const response = await apiRequest("POST", "/api/auth/uuid-login", { 
+        uuid: data.accountId || undefined 
+      });
       return response;
     },
     onSuccess: (data) => {
       setToken(data.token);
       toast({
         title: "Login successful",
-        description: `Welcome back! Logged in with UUID`,
+        description: data.user.email 
+          ? `Welcome back! Your UUID is ${data.user.id}`
+          : `New UUID created: ${data.user.id}`,
       });
       setLocation("/dashboard");
     },
@@ -85,6 +89,29 @@ export default function LoginPage() {
       toast({
         title: "UUID login failed",
         description: error.message || "Invalid UUID - please check and try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateNewUuidMutation = useMutation({
+    mutationFn: async () => {
+      // Call without UUID to auto-generate
+      const response = await apiRequest("POST", "/api/auth/uuid-login", {});
+      return response;
+    },
+    onSuccess: (data) => {
+      setToken(data.token);
+      toast({
+        title: "UUID Generated!",
+        description: `Your new Account ID: ${data.user.id}`,
+      });
+      setLocation("/dashboard");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Generation failed",
+        description: error.message || "Failed to generate UUID",
         variant: "destructive",
       });
     },
@@ -142,7 +169,7 @@ export default function LoginPage() {
 
           <p className="text-xs text-center text-muted-foreground">
             {loginMethod === "uuid" 
-              ? "Generate or use an account ID for secure, anonymous authentication"
+              ? "Use an existing Account ID or generate a new one for anonymous authentication"
               : "Sign in with your email and password"}
           </p>
 
@@ -150,45 +177,79 @@ export default function LoginPage() {
 
           {/* UUID Login Form */}
           {loginMethod === "uuid" && (
-            <Form {...uuidForm}>
-              <form onSubmit={uuidForm.handleSubmit(onUuidLogin)} className="space-y-4">
-                <FormField
-                  control={uuidForm.control}
-                  name="accountId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium">Account ID</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Enter your account ID"
-                          className="h-11"
-                          data-testid="input-account-id"
-                          disabled={uuidLoginMutation.isPending}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <>
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-3">
+                    GENERATE NEW ACCOUNT ID
+                  </p>
+                  <Button
+                    type="button"
+                    className="w-full h-11"
+                    variant="default"
+                    data-testid="button-generate-uuid"
+                    onClick={() => generateNewUuidMutation.mutate()}
+                    disabled={generateNewUuidMutation.isPending || uuidLoginMutation.isPending}
+                  >
+                    {generateNewUuidMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      "Generate New Account ID"
+                    )}
+                  </Button>
+                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full h-11"
-                  data-testid="button-uuid-submit"
-                  disabled={uuidLoginMutation.isPending}
-                >
-                  {uuidLoginMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Logging in...
-                    </>
-                  ) : (
-                    "Log In"
-                  )}
-                </Button>
-              </form>
-            </Form>
+                <Separator />
+                
+                <p className="text-xs text-center text-muted-foreground">
+                  OR USE EXISTING ACCOUNT ID
+                </p>
+
+                <Form {...uuidForm}>
+                  <form onSubmit={uuidForm.handleSubmit(onUuidLogin)} className="space-y-4">
+                    <FormField
+                      control={uuidForm.control}
+                      name="accountId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">Account ID (Optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="Enter your existing account ID"
+                              className="h-11"
+                              data-testid="input-account-id"
+                              disabled={uuidLoginMutation.isPending || generateNewUuidMutation.isPending}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      className="w-full h-11"
+                      data-testid="button-uuid-submit"
+                      disabled={uuidLoginMutation.isPending || generateNewUuidMutation.isPending}
+                    >
+                      {uuidLoginMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Logging in...
+                        </>
+                      ) : (
+                        "Log In with Existing ID"
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </div>
+            </>
           )}
 
           {/* Email Login Form */}
@@ -268,26 +329,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Generate New ID Button */}
-          {loginMethod === "uuid" && (
-            <>
-              <Separator className="my-4" />
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-3">
-                  OR LOG IN WITH EXISTING ID
-                </p>
-                <Button
-                  type="button"
-                  className="w-full h-11"
-                  variant="default"
-                  data-testid="button-generate-new-id"
-                  onClick={() => setLocation("/register")}
-                >
-                  Generate New Account ID
-                </Button>
-              </div>
-            </>
-          )}
         </CardContent>
       </Card>
     </div>

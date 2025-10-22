@@ -4,10 +4,11 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Users table - stores user credentials and UUIDs
+// Email and password are optional for anonymous UUID-only users
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
+  email: text("email").unique(),
+  password: text("password"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -38,9 +39,9 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-// UUID login schema
+// UUID login schema - can optionally provide a UUID, or auto-generate one
 export const uuidLoginSchema = z.object({
-  uuid: z.string().uuid("Invalid UUID format"),
+  uuid: z.string().uuid("Invalid UUID format").optional(),
 });
 
 // Types

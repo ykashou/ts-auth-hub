@@ -9,6 +9,8 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createAnonymousUser(): Promise<User>;
+  createUserWithUuid(uuid: string): Promise<User>;
   getAllUsers(): Promise<User[]>;
 
   // API Key operations
@@ -39,6 +41,24 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async createAnonymousUser(): Promise<User> {
+    // Create anonymous user with auto-generated UUID, no email/password
+    const [user] = await db
+      .insert(users)
+      .values({})
+      .returning();
+    return user;
+  }
+
+  async createUserWithUuid(uuid: string): Promise<User> {
+    // Create user with specific UUID, no email/password
+    const [user] = await db
+      .insert(users)
+      .values({ id: uuid })
+      .returning();
+    return user;
   }
 
   // API Key operations
