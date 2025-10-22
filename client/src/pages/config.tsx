@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2 } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2, Copy, Check } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated } from "@/lib/auth";
@@ -32,6 +32,7 @@ export default function Config() {
   const [, setLocation] = useLocation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -170,6 +171,24 @@ export default function Config() {
   const getIcon = (iconName: string) => {
     const IconComponent = (Icons as any)[iconName] || Icons.Globe;
     return IconComponent;
+  };
+
+  const copySecret = async (secret: string, serviceId: string) => {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopiedSecret(serviceId);
+      toast({
+        title: "Secret copied",
+        description: "Service secret copied to clipboard",
+      });
+      setTimeout(() => setCopiedSecret(null), 2000);
+    } catch (error) {
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy secret to clipboard",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -351,6 +370,7 @@ export default function Config() {
                       <TableHead className="font-semibold">Name</TableHead>
                       <TableHead className="font-semibold">Description</TableHead>
                       <TableHead className="font-semibold">URL</TableHead>
+                      <TableHead className="font-semibold">Secret</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -385,6 +405,25 @@ export default function Config() {
                               Visit
                               <ExternalLink className="w-3 h-3" />
                             </a>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs bg-muted px-2 py-1 rounded font-mono max-w-[200px] truncate" data-testid={`text-secret-${service.id}`}>
+                                {service.secret}
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => copySecret(service.secret!, service.id)}
+                                data-testid={`button-copy-secret-${service.id}`}
+                              >
+                                {copiedSecret === service.id ? (
+                                  <Check className="w-3 h-3 text-green-600" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </Button>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
