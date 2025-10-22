@@ -8,6 +8,17 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** Service Card Configuration System Completed
+  - Implemented complete service card management: admin can add, edit, delete service cards via /config page
+  - Built services page (/services) displaying configured cards to authenticated users
+  - Added 4 default service cards: Git Garden, Iron Path, BTCPay Dashboard, PurpleGreen
+  - Created services database table with fields: name, description, url, icon (Lucide), color
+  - Implemented full CRUD API endpoints (GET/POST/PATCH/DELETE) with JWT authentication
+  - Fixed DELETE endpoint to return JSON instead of 204 No Content (prevents parsing errors)
+  - Fixed PATCH endpoint to properly handle partial updates without resetting custom colors
+  - Fixed auth guards across all protected pages to use useEffect (prevents React state mutation warnings)
+  - Updated navigation to seamlessly link dashboard, config, services, and API docs pages
+
 - **2025-10-22:** UUID Auto-Registration Feature Completed
   - Implemented true anonymous authentication: users can generate UUIDs instantly without email/password
   - Added auto-registration: any UUID can be used to login, auto-creates user if doesn't exist
@@ -31,19 +42,27 @@ AuthHub is a centralized authentication service that serves as a single source o
    - Secure password hashing with bcrypt
    - JWT token-based session management
 
-2. **Admin Dashboard**
+2. **Service Card Configuration**
+   - Admin config page (/config) for managing service cards
+   - Add, edit, delete service cards with custom icons and colors
+   - Default service cards: Git Garden, Iron Path, BTCPay Dashboard, PurpleGreen
+   - Services page (/services) displays cards to authenticated users
+   - Lucide icons library integration for consistent iconography
+   - Custom colors or automatic primary theme color
+
+3. **Admin Dashboard**
    - View all registered users with UUIDs
    - Search functionality (email or UUID)
    - User statistics and activity metrics
    - Clean, professional table interface
 
-3. **API Documentation**
+4. **API Documentation**
    - Complete endpoint documentation for SaaS integration
    - Example requests and responses
    - API key authentication for external services
    - Copy-to-clipboard functionality
 
-4. **Visual Design**
+5. **Visual Design**
    - Quest Log-inspired interface
    - Poppins font family throughout
    - Custom color scheme: Deep blue primary (#12008f), light grey secondary (#c4c4c4)
@@ -59,6 +78,8 @@ client/src/
 │   ├── login.tsx          # Dual authentication (UUID/Email)
 │   ├── register.tsx       # User registration with UUID generation
 │   ├── dashboard.tsx      # Admin user management
+│   ├── config.tsx         # Service card configuration
+│   ├── services.tsx       # Service cards display
 │   └── api-docs.tsx       # API documentation for SaaS products
 ├── components/ui/         # Shadcn UI components
 └── App.tsx               # Main router
@@ -94,6 +115,15 @@ shared/
 - `key` (text, unique, required)
 - `createdAt` (timestamp, auto-generated)
 
+### Services Table
+- `id` (UUID, primary key, auto-generated)
+- `name` (text, required)
+- `description` (text, required)
+- `url` (text, required)
+- `icon` (text, required) - Lucide icon name
+- `color` (text, optional) - Custom hex/hsl color or defaults to primary
+- `createdAt` (timestamp, auto-generated)
+
 ## API Endpoints
 
 ### Authentication (Implemented)
@@ -106,6 +136,13 @@ shared/
 
 ### User Management (Implemented)
 - `GET /api/users` - List all users (requires authentication)
+
+### Service Management (Implemented)
+- `POST /api/services` - Create new service card (requires authentication)
+- `GET /api/services` - List all service cards (requires authentication)
+- `GET /api/services/:id` - Get single service card (requires authentication)
+- `PATCH /api/services/:id` - Update service card with partial data (requires authentication)
+- `DELETE /api/services/:id` - Delete service card (requires authentication, returns JSON)
 
 ### API Key Management (Planned)
 - `POST /api/keys` - Generate new API key
