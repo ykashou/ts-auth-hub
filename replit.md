@@ -45,7 +45,11 @@ AuthHub is a centralized authentication service that serves as a single source o
 2. **Service Card Configuration**
    - Admin config page (/config) for managing service cards
    - Add, edit, delete service cards with custom icons and colors
-   - Default service cards: Git Garden, Iron Path, BTCPay Dashboard, PurpleGreen
+   - Default service cards: 
+     - Git Garden (git-based portfolio-as-a-service)
+     - Iron Path (fitness tracking)
+     - BTCPay Dashboard (Bitcoin payment processing)
+     - PurpleGreen (wealth management and accounting)
    - Services page (/services) displays cards to authenticated users
    - Lucide icons library integration for consistent iconography
    - Custom colors or automatic primary theme color
