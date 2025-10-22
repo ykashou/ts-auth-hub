@@ -13,10 +13,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Loader2, Settings2, ExternalLink, ArrowLeft, Shield, Boxes, FileText } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, ExternalLink } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
-import { clearToken, isAuthenticated } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
+import Navbar from "@/components/Navbar";
 
 // Popular icon options for services
 const ICON_OPTIONS = [
@@ -43,14 +44,6 @@ export default function Config() {
     return null;
   }
 
-  const handleLogout = () => {
-    clearToken();
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully",
-    });
-    setLocation("/login");
-  };
 
   // Fetch all services
   const { data: services = [], isLoading } = useQuery<Service[]>({
@@ -176,47 +169,10 @@ export default function Config() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <Settings2 className="w-6 h-6 text-primary" data-testid="icon-settings" />
-              <div>
-                <h1 className="text-xl font-semibold text-foreground">Service Configuration</h1>
-                <p className="text-sm text-muted-foreground">Manage service cards displayed after login</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setLocation("/dashboard")}
-                data-testid="button-dashboard"
-              >
-                <Shield className="w-4 h-4 mr-2" />
-                Dashboard
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setLocation("/services")}
-                data-testid="button-services"
-              >
-                <Boxes className="w-4 h-4 mr-2" />
-                Services
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setLocation("/api-docs")}
-                data-testid="button-api-docs"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                API Docs
-              </Button>
-            </div>
-          </div>
+      <Navbar />
+
+      <main className="container mx-auto px-6 py-8">
+        <div className="mb-6">
           <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
@@ -356,10 +312,6 @@ export default function Config() {
             </DialogContent>
           </Dialog>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
         <Card>
           <CardHeader>
             <CardTitle>Configured Services</CardTitle>

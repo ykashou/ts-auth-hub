@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Code, Copy, CheckCircle2, ExternalLink, Shield, Zap, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getToken } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
+import Navbar from "@/components/Navbar";
 
 export default function WidgetDocsPage() {
   const [, setLocation] = useLocation();
@@ -14,11 +15,14 @@ export default function WidgetDocsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!isAuthenticated()) {
       setLocation("/login");
     }
   }, [setLocation]);
+
+  if (!isAuthenticated()) {
+    return null;
+  }
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -185,37 +189,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Shield className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">AuthHub</h1>
-              <p className="text-xs text-muted-foreground">Widget Integration Guide</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard" data-testid="link-dashboard">
-              <Button variant="outline" size="sm">
-                Dashboard
-              </Button>
-            </Link>
-            <Link href="/services" data-testid="link-services">
-              <Button variant="outline" size="sm">
-                Services
-              </Button>
-            </Link>
-            <Link href="/api-docs" data-testid="link-api-docs">
-              <Button variant="outline" size="sm">
-                API Docs
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
+      <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Introduction */}

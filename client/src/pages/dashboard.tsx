@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Shield, LogOut, Copy, CheckCircle2, Loader2, FileText, Settings2, Boxes, Code2 } from "lucide-react";
+import { Search, Copy, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { clearToken, isAuthenticated } from "@/lib/auth";
-import { Link, useLocation } from "wouter";
+import { isAuthenticated } from "@/lib/auth";
+import { useLocation } from "wouter";
 import type { User } from "@shared/schema";
+import Navbar from "@/components/Navbar";
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,80 +49,9 @@ export default function DashboardPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleLogout = () => {
-    clearToken();
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully",
-    });
-    setLocation("/login");
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <Shield className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold text-foreground">AuthHub Admin</h1>
-                <p className="text-xs text-muted-foreground">User Management Dashboard</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="button-services"
-                onClick={() => setLocation("/services")}
-              >
-                <Boxes className="w-4 h-4 mr-2" />
-                Services
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="button-config"
-                onClick={() => setLocation("/config")}
-              >
-                <Settings2 className="w-4 h-4 mr-2" />
-                Config
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="button-api-docs"
-                onClick={() => setLocation("/api-docs")}
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                API Docs
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="button-widget-docs"
-                onClick={() => setLocation("/widget-docs")}
-              >
-                <Code2 className="w-4 h-4 mr-2" />
-                Widget
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                data-testid="button-logout"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

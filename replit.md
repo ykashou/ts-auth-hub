@@ -8,6 +8,14 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** Unified Navigation System
+  - Created centralized Navbar component (`client/src/components/Navbar.tsx`) used consistently across all authenticated pages
+  - All pages (Dashboard, Config, Services, API Docs, Widget Docs) now share identical navigation experience
+  - Navbar includes: AuthHub branding, all navigation links (always visible), and logout button
+  - Removed individual page headers in favor of unified navbar
+  - Verified end-to-end navigation flow between all pages
+  - UUID login remains default active tab on login page
+
 - **2025-10-22:** Embeddable Authentication Widget System
   - Created JavaScript SDK for external service integration
   - Popup-based authentication flow (avoids third-party cookie issues)
