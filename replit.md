@@ -1,0 +1,148 @@
+# AuthHub - Unified Authentication System
+
+## Overview
+AuthHub is a centralized authentication service that serves as a single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and API endpoints for external applications to authenticate users.
+
+## Project Status
+**Current Phase:** Development
+**Last Updated:** October 22, 2025
+
+## Recent Changes
+- **2025-10-22:** Initial implementation
+  - Created complete data models (users, API keys)
+  - Configured design system with custom color palette (#12008f primary, #c4c4c4 secondary, coral accents)
+  - Built all frontend components (login, register, dashboard, API docs)
+  - Designed card-based UI with Poppins font and 0.8rem border radius
+
+## Core Features
+1. **User Authentication**
+   - Email/password registration with automatic UUID generation
+   - Dual login methods: UUID-based or email/password
+   - Secure password hashing with bcrypt
+   - JWT token-based session management
+
+2. **Admin Dashboard**
+   - View all registered users with UUIDs
+   - Search functionality (email or UUID)
+   - User statistics and activity metrics
+   - Clean, professional table interface
+
+3. **API Documentation**
+   - Complete endpoint documentation for SaaS integration
+   - Example requests and responses
+   - API key authentication for external services
+   - Copy-to-clipboard functionality
+
+4. **Visual Design**
+   - Quest Log-inspired interface
+   - Poppins font family throughout
+   - Custom color scheme: Deep blue primary (#12008f), light grey secondary (#c4c4c4)
+   - 0.8rem border radius for professional appearance
+   - Minimal shadows, clean card-based layouts
+
+## Project Architecture
+
+### Frontend Structure
+```
+client/src/
+├── pages/
+│   ├── login.tsx          # Dual authentication (UUID/Email)
+│   ├── register.tsx       # User registration with UUID generation
+│   ├── dashboard.tsx      # Admin user management
+│   └── api-docs.tsx       # API documentation for SaaS products
+├── components/ui/         # Shadcn UI components
+└── App.tsx               # Main router
+```
+
+### Backend Structure
+```
+server/
+├── routes.ts             # API endpoints
+├── storage.ts            # Database abstraction layer
+└── db.ts                 # PostgreSQL connection
+```
+
+### Shared Types
+```
+shared/
+└── schema.ts             # Drizzle ORM models and Zod schemas
+```
+
+## Data Models
+
+### Users Table
+- `id` (UUID, primary key, auto-generated)
+- `email` (text, unique, required)
+- `password` (text, hashed, required)
+- `createdAt` (timestamp, auto-generated)
+
+### API Keys Table
+- `id` (UUID, primary key, auto-generated)
+- `name` (text, required)
+- `key` (text, unique, required)
+- `createdAt` (timestamp, auto-generated)
+
+## API Endpoints (Planned)
+
+### Authentication
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - User login with JWT
+- `POST /api/auth/verify` - Verify credentials (for SaaS products)
+
+### User Management
+- `GET /api/users` - List all users (admin)
+- `GET /api/users/:id` - Get user by UUID
+
+### API Key Management
+- `POST /api/keys` - Generate new API key
+- `GET /api/keys` - List API keys
+
+## Design System
+
+### Colors
+- **Primary:** #12008f (248° 100% 28%) - Deep blue for buttons, links, branding
+- **Secondary:** #c4c4c4 (0° 0% 77%) - Light grey for borders, inactive states
+- **Background:** #f0f0f0 (0° 0% 94%) - Off-white page background
+- **Card:** #fcfcfc (0° 0% 99%) - White cards and form containers
+- **Text:** #1a1a1a (0° 0% 10%) - Dark text for readability
+- **Accent:** hsl(9, 75%, 61%) - Coral for errors and destructive actions
+
+### Typography
+- **Font Family:** Poppins (all weights)
+- **Heading sizes:** 2rem (H1), 1.5rem (H2), 1.25rem (H3)
+- **Body:** 0.875rem (14px)
+- **Small:** 0.75rem (12px)
+
+### Components
+- **Border Radius:** 0.8rem (12.8px) consistently
+- **Spacing:** 4, 6, 8 units for micro, standard, section spacing
+- **Shadows:** Minimal (shadow-sm, shadow-md)
+
+## User Preferences
+- Professional, trustworthy aesthetic
+- Clean, minimal design without decorative elements
+- Card-based architecture for all forms and content
+- Centered layouts for authentication flows
+
+## Technology Stack
+- **Frontend:** React, TypeScript, Tailwind CSS, Shadcn UI, Wouter (routing), TanStack Query
+- **Backend:** Express.js, Node.js
+- **Database:** PostgreSQL with Drizzle ORM
+- **Authentication:** bcrypt (password hashing), JWT (session tokens)
+- **Validation:** Zod schemas
+
+## Development Commands
+- `npm run dev` - Start development server (frontend + backend)
+- `npm run db:push` - Push database schema changes
+- `npm run db:studio` - Open Drizzle Studio (database GUI)
+
+## Integration Guide for SaaS Products
+External SaaS applications can integrate with AuthHub using the API endpoints. All requests require an API key in the `X-API-Key` header. See `/api-docs` page for complete documentation and examples.
+
+## Security Features
+- Password hashing with bcrypt
+- UUID-based user identification
+- JWT token authentication
+- API key validation for external services
+- Input validation with Zod schemas
+- PostgreSQL database for secure data persistence
