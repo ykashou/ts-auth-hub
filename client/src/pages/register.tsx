@@ -12,7 +12,7 @@ import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { setToken } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -29,6 +29,29 @@ export default function RegisterPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [generatedUuid, setGeneratedUuid] = useState<string | null>(null);
+  const [redirectUri, setRedirectUri] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  // Read redirect_uri from URL parameters on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirect_uri');
+    if (redirect) {
+      setRedirectUri(decodeURIComponent(redirect));
+    }
+  }, []);
+
+  // Helper to handle post-authentication redirect
+  const handlePostAuthRedirect = (token: string, userId: string) => {
+    if (redirectUri) {
+      // OAuth redirect flow: redirect back to external service with token
+      const separator = redirectUri.includes('?') ? '&' : '?';
+      window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(token)}&user_id=${encodeURIComponent(userId)}`;
+    } else {
+      // Internal flow: go to dashboard
+      setLocation("/dashboard");
+    }
+  };
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -49,14 +72,15 @@ export default function RegisterPage() {
     },
     onSuccess: (data) => {
       setToken(data.token);
+      setAuthToken(data.token);
       setGeneratedUuid(data.user.id);
       toast({
         title: "Account created successfully!",
         description: "Your unique UUID has been generated",
       });
-      // Redirect to dashboard after 3 seconds to show UUID
+      // Redirect after 3 seconds to show UUID
       setTimeout(() => {
-        setLocation("/dashboard");
+        handlePostAuthRedirect(data.token, data.user.id);
       }, 3000);
     },
     onError: (error: any) => {
@@ -100,10 +124,10 @@ export default function RegisterPage() {
 
             <Button
               className="w-full"
-              onClick={() => setLocation("/dashboard")}
+              onClick={() => authToken && handlePostAuthRedirect(authToken, generatedUuid!)}
               data-testid="button-continue"
             >
-              Continue to Dashboard
+              {redirectUri ? "Continue to Application" : "Continue to Dashboard"}
             </Button>
           </CardContent>
         </Card>
