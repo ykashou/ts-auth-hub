@@ -8,6 +8,13 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** Arcane Blue Theme Applied
+  - Implemented cohesive mystical blue color scheme across entire UI
+  - Light mode: Deep mystical blue primary (HSL 248° 100% 28%)
+  - Dark mode: Bright electric blue primary (HSL 230° 75% 62%)
+  - Electric blue highlights and focus rings for interactive elements
+  - All pages tested and verified with proper contrast and readability
+
 - **2025-10-22:** Service Card Configuration System Completed
   - Implemented complete service card management: admin can add, edit, delete service cards via /config page
   - Built services page (/services) displaying configured cards to authenticated users
