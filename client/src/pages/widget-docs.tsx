@@ -220,10 +220,10 @@ function App() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Introduction */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-3">Embeddable Authentication Widget</h2>
+          <h2 className="text-3xl font-bold mb-3">AuthHub Integration</h2>
           <p className="text-muted-foreground mb-4">
-            Integrate AuthHub authentication into your website or application with just a few lines of code.
-            The widget provides a popup-based authentication flow that works seamlessly across all modern browsers.
+            Integrate AuthHub authentication into your website or application with your choice of two integration patterns:
+            a <strong>popup widget</strong> for seamless SPA experiences, or a <strong>redirect flow</strong> for standard OAuth integration.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -424,6 +424,138 @@ function App() {
                   <Copy className="w-4 h-4" />
                 )}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator className="my-8" />
+
+        {/* OAuth Redirect Flow Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-3">OAuth Redirect Flow</h2>
+          <p className="text-muted-foreground mb-4">
+            For traditional web applications or when popup blockers are a concern, use the redirect-based OAuth flow.
+            This is the standard authentication pattern used by providers like Google, GitHub, and Auth0.
+          </p>
+        </div>
+
+        {/* Redirect Flow Example */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Redirect Flow Implementation</CardTitle>
+            <CardDescription>Standard OAuth redirect pattern - works on all devices</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative">
+              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm max-h-96">
+                <code>{`// Step 1: Redirect user to AuthHub with redirect_uri parameter
+function loginWithAuthHub() {
+  const redirectUri = window.location.origin + '/auth/callback';
+  window.location.href = '${currentDomain}/login?redirect_uri=' + 
+    encodeURIComponent(redirectUri);
+}
+
+// Step 2: Handle the callback - AuthHub redirects back with token
+// Create a callback route at /auth/callback
+function handleAuthCallback() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  const userId = urlParams.get('user_id');
+  
+  if (token && userId) {
+    // Store the token
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('userId', userId);
+    
+    // Redirect to your app
+    window.location.href = '/dashboard';
+  } else {
+    // Handle error
+    console.error('Authentication failed');
+    window.location.href = '/login';
+  }
+}
+
+// Example: Full page with login button
+<button onclick="loginWithAuthHub()">
+  Login with AuthHub
+</button>`}</code>
+              </pre>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute top-2 right-2"
+                onClick={() => copyToClipboard(`// Step 1: Redirect user to AuthHub with redirect_uri parameter
+function loginWithAuthHub() {
+  const redirectUri = window.location.origin + '/auth/callback';
+  window.location.href = '${currentDomain}/login?redirect_uri=' + 
+    encodeURIComponent(redirectUri);
+}
+
+// Step 2: Handle the callback - AuthHub redirects back with token
+// Create a callback route at /auth/callback
+function handleAuthCallback() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  const userId = urlParams.get('user_id');
+  
+  if (token && userId) {
+    // Store the token
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('userId', userId);
+    
+    // Redirect to your app
+    window.location.href = '/dashboard';
+  } else {
+    // Handle error
+    console.error('Authentication failed');
+    window.location.href = '/login';
+  }
+}
+
+// Example: Full page with login button
+<button onclick="loginWithAuthHub()">
+  Login with AuthHub
+</button>`, 'redirect')}
+                data-testid="button-copy-redirect"
+              >
+                {copiedId === 'redirect' ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Flow Comparison */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Popup vs Redirect: Which to Choose?</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Use Popup Widget When:</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
+                  <li>Building a Single-Page Application (SPA)</li>
+                  <li>You want to preserve application state during authentication</li>
+                  <li>Targeting desktop users primarily</li>
+                  <li>You need a seamless, non-disruptive user experience</li>
+                </ul>
+              </div>
+              <Separator />
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Use Redirect Flow When:</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
+                  <li>Building a traditional multi-page web application</li>
+                  <li>Mobile users are a significant portion of your audience</li>
+                  <li>You need maximum browser compatibility</li>
+                  <li>You prefer the standard OAuth pattern</li>
+                  <li>Popup blockers are causing issues for your users</li>
+                </ul>
+              </div>
             </div>
           </CardContent>
         </Card>
