@@ -149,10 +149,16 @@ export default function Config() {
   });
 
   const onSubmit = (data: InsertService) => {
+    // Clean up empty redirectUrl to prevent validation errors
+    const cleanedData = {
+      ...data,
+      redirectUrl: data.redirectUrl?.trim() || undefined,
+    };
+    
     if (editingService) {
-      updateMutation.mutate({ id: editingService.id, data });
+      updateMutation.mutate({ id: editingService.id, data: cleanedData });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(cleanedData);
     }
   };
 
@@ -162,6 +168,7 @@ export default function Config() {
       name: service.name,
       description: service.description,
       url: service.url,
+      redirectUrl: service.redirectUrl || "",
       icon: service.icon,
       color: service.color || "",
     });
