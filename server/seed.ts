@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { services } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 
@@ -75,8 +75,10 @@ export async function seedServices(userId: string) {
       const existing = await db
         .select()
         .from(services)
-        .where(eq(services.name, defaultService.name))
-        .where(eq(services.userId, userId))
+        .where(and(
+          eq(services.name, defaultService.name),
+          eq(services.userId, userId)
+        ))
         .limit(1);
 
       if (existing.length > 0) {
