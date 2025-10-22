@@ -275,7 +275,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertServiceSchema.parse(req.body);
       
       // Generate a unique secret for the service (for widget authentication)
-      const secret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      // Hash the secret for secure storage
+      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
+      
+      // Create truncated preview for display (e.g., "sk_abc123...def789")
+      const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
       // Set redirect URL to service URL if not provided
       const redirectUrl = validatedData.redirectUrl || validatedData.url;
@@ -283,10 +289,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const service = await storage.createService({
         ...validatedData,
         redirectUrl,
-        secret,
+        hashedSecret,
+        secretPreview,
       });
       
-      res.status(201).json(service);
+      // Return service with plaintext secret (only time it's shown in full)
+      res.status(201).json({
+        ...service,
+        plaintextSecret,
+      });
     } catch (error: any) {
       console.error("Create service error:", error);
       res.status(400).json({ error: error.message || "Failed to create service" });
@@ -348,12 +359,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedData.color = 'hsl(var(--primary))';
       }
       
-      // Preserve the existing secret - it should never be updated via PATCH
-      // The secret is auto-generated on creation and should remain stable
+      // Preserve the existing secrets - they should never be updated via PATCH
+      // Secrets are auto-generated on creation and should remain stable
       // Use the rotation endpoint to change secrets
       const updateData = {
         ...validatedData,
-        secret: service.secret, // Preserve existing secret
+        hashedSecret: service.hashedSecret, // Preserve existing hashed secret
+        secretPreview: service.secretPreview, // Preserve existing secret preview
       };
       
       const updatedService = await storage.updateService(req.params.id, updateData);
@@ -392,16 +404,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
-      // Generate a new secret
-      const secret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      // Generate a new plaintext secret
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
       
-      // Update the service with the new secret
-      await storage.updateService(req.params.id, { secret });
+      // Hash the new secret
+      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
+      
+      // Create truncated preview for display
+      const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
+      
+      // Update the service with the new hashed secret and preview
+      await storage.updateService(req.params.id, { hashedSecret, secretPreview });
       
       res.json({
         success: true,
         message: "Secret rotated successfully",
-        secret,
+        plaintextSecret, // Show the new secret once
       });
     } catch (error: any) {
       console.error("Rotate secret error:", error);
@@ -424,21 +442,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
-      if (!service.secret) {
+      if (!service.hashedSecret) {
         return res.status(401).json({ error: "Service has no secret configured" });
       }
 
-      // Verify the secret by direct comparison
-      const isValid = secret === service.secret;
+      // Verify the secret using bcrypt (like password verification)
+      const isValid = await bcrypt.compare(secret, service.hashedSecret);
       
       if (!isValid) {
         return res.status(401).json({ error: "Invalid secret" });
       }
 
+      // Return success with service details (exclude hashed secret)
+      const { hashedSecret, ...serviceData } = service;
       res.json({
         success: true,
         message: "Secret verified successfully",
-        service,
+        service: serviceData,
       });
     } catch (error: any) {
       console.error("Verify secret error:", error);

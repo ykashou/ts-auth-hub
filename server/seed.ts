@@ -1,7 +1,10 @@
 import { db } from "./db";
 import { services } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcrypt";
 import crypto from "crypto";
+
+const SALT_ROUNDS = 10;
 
 interface DefaultService {
   name: string;
@@ -81,17 +84,24 @@ async function seedServices() {
       }
 
       // Generate secret
-      const secret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      // Hash the secret for secure storage
+      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
+      
+      // Create truncated preview for display
+      const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
 
       // Create service with redirect URL defaulting to service URL
       await db.insert(services).values({
         ...defaultService,
-        secret,
+        hashedSecret,
+        secretPreview,
         redirectUrl: defaultService.url,
       });
 
       console.log(`✅ Created service: "${defaultService.name}"`);
-      console.log(`   Secret: ${secret}`);
+      console.log(`   Secret: ${plaintextSecret}`);
     } catch (error) {
       console.error(`❌ Failed to create service "${defaultService.name}":`, error);
     }

@@ -26,10 +26,11 @@ export const services = pgTable("services", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   url: text("url").notNull(),
-  redirectUrl: text("redirect_url"), // Redirect URL for widget authentication (defaults to service URL)
+  redirectUrl: text("redirect_url"), // Redirect URL after authentication (defaults to service URL)
   icon: text("icon").notNull().default("Globe"),
   color: text("color"),
-  secret: text("secret"), // Plaintext secret for widget authentication
+  hashedSecret: text("hashed_secret"), // Bcrypt hash of secret for widget authentication
+  secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -49,7 +50,8 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
 export const insertServiceSchema = createInsertSchema(services).omit({
   id: true,
   createdAt: true,
-  secret: true, // Secret is auto-generated, not provided by user
+  hashedSecret: true, // Secret is auto-generated and hashed, not provided by user
+  secretPreview: true, // Preview is auto-generated from secret
 }).extend({
   name: z.string().min(1, "Service name is required"),
   description: z.string().min(1, "Description is required"),
