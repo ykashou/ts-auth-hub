@@ -1,20 +1,39 @@
 # Database Seeding Guide
 
 ## Overview
-AuthHub includes a database seeding script to populate the production database with default services. This ensures that when deployed, users have example services to work with.
+AuthHub includes automatic database seeding that runs when the app starts with an empty database. This ensures that when deployed, users automatically have all default services configured and ready to use.
 
-## Running the Seed Script
+## Automatic Seeding (Recommended)
 
-### Development Environment
-```bash
-npx tsx server/seed.ts
+**The app automatically seeds the database on first startup!** 
+
+When you deploy or start your app for the first time:
+1. The app checks if services exist in the database
+2. If the database is empty, it automatically runs the seed script
+3. All 7 production services are created with unique secrets
+4. Secrets are logged to the console (save them immediately!)
+5. The app starts normally
+
+**No manual commands needed!** Just deploy and the services will be there.
+
+### Viewing Secrets After Deployment
+
+When you deploy, check your deployment logs immediately after startup. You'll see:
+```
+📦 Database is empty, running auto-seed...
+🌱 Starting database seeding...
+✅ Created service: "Git Garden"
+   Secret: sk_abc123...
+...
+✨ Database seeding completed!
 ```
 
-### Production Environment
-After deploying your application:
+**Save these secrets immediately!** They're only shown once in the logs.
 
-1. Open the Shell in your Replit deployment
-2. Run the seeding command:
+## Manual Seeding (Alternative)
+
+If you prefer to run the seed script manually:
+
 ```bash
 npx tsx server/seed.ts
 ```
@@ -98,11 +117,13 @@ const DEFAULT_SERVICES: DefaultService[] = [
 
 When deploying to production:
 
-1. ✅ Push your schema to the database: `npm run db:push`
-2. ✅ Deploy/publish your application
-3. ✅ Run the seed script: `npx tsx server/seed.ts`
-4. ✅ Save the generated secrets in a secure location
-5. ✅ Verify services appear in the config page
+1. ✅ Deploy/publish your application
+2. ✅ Check deployment logs immediately after startup for secrets
+3. ✅ Save the generated secrets in a secure location (password manager)
+4. ✅ Verify services appear in the config page
+5. ✅ Done! Auto-seeding handles everything else
+
+**Note**: The database schema is automatically synced on deployment. No manual `db:push` required.
 
 ## Troubleshooting
 

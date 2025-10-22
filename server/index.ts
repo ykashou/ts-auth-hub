@@ -60,7 +60,7 @@ app.use((req, res, next) => {
       log("✓ Services already exist, skipping auto-seed");
     }
   } catch (error) {
-    log("⚠️  Auto-seed check failed (this is normal on first run):", error);
+    console.log("⚠️  Auto-seed check failed (this is normal on first run):", error);
   }
 
   const server = await registerRoutes(app);
