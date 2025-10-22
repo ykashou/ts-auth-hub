@@ -362,7 +362,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
+      console.log("Getting services for user:", req.user.id);
       const services = await storage.getAllServicesByUser(req.user.id);
+      console.log("Found services:", services.length);
       res.json(services);
     } catch (error: any) {
       console.error("Get services error:", error);
