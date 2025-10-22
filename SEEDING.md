@@ -38,16 +38,6 @@ When a new user registers, check your server logs to see their secrets:
 
 **Note:** Secrets are only shown once in the logs during creation!
 
-## Manual Seeding (Alternative)
-
-If you prefer to run the seed script manually:
-
-```bash
-npx tsx server/seed.ts
-```
-
-The script is **idempotent**, meaning you can run it multiple times safely. It will skip services that already exist.
-
 ## Default Services
 
 The seed script creates seven production services:
@@ -89,20 +79,9 @@ The seed script creates seven production services:
 
 ## Important Notes
 
-⚠️ **Service Secrets**: Each seeded service gets a unique secret that is displayed ONCE during seeding. Make sure to copy and save these secrets if you plan to use the services for widget authentication.
+⚠️ **Service Secrets**: Each seeded service gets a unique secret that is displayed ONCE in the server logs when a user registers. These secrets are bcrypt-hashed and cannot be retrieved after creation.
 
-The seed script will output something like:
-```
-🌱 Starting database seeding...
-✅ Created service: "Git Garden"
-   Secret: sk_a1b2c3d4e5f6g7h8i9j0...
-✅ Created service: "Iron Path"
-   Secret: sk_k1l2m3n4o5p6q7r8s9t0...
-...
-✨ Database seeding completed!
-```
-
-**Important**: Save these secrets immediately! They are only displayed once during seeding and cannot be retrieved later.
+**Important**: Secrets are logged once during user registration. They cannot be retrieved later, but they can be rotated from the Config page if needed.
 
 ## Customizing Default Services
 
@@ -121,17 +100,11 @@ const DEFAULT_SERVICES: DefaultService[] = [
 ];
 ```
 
-## Production Deployment Checklist
+## Production Deployment
 
-When deploying to production:
+When deploying to production, services are automatically seeded for each user as they register or log in for the first time. No manual intervention is required.
 
-1. ✅ Deploy/publish your application
-2. ✅ Check deployment logs immediately after startup for secrets
-3. ✅ Save the generated secrets in a secure location (password manager)
-4. ✅ Verify services appear in the config page
-5. ✅ Done! Auto-seeding handles everything else
-
-**Note**: The database schema is automatically synced on deployment. No manual `db:push` required.
+**Important**: Check server logs after users register to capture their initial service secrets if needed for debugging.
 
 ## Troubleshooting
 

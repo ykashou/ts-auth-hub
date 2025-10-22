@@ -113,16 +113,3 @@ export async function seedServices(userId: string) {
 
   console.log("\n✨ Database seeding completed for user!");
 }
-
-// Only run seeding if this file is executed directly (not imported)
-if (import.meta.url === `file://${process.argv[1]}`) {
-  seedServices()
-    .then(() => {
-      console.log("\n👋 Seeding finished successfully");
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error("\n💥 Seeding failed:", error);
-      process.exit(1);
-    });
-}
