@@ -1,34 +1,42 @@
 # Database Seeding Guide
 
 ## Overview
-AuthHub includes automatic database seeding that runs when the app starts with an empty database. This ensures that when deployed, users automatically have all default services configured and ready to use.
+AuthHub includes **automatic per-user database seeding** that runs when each user registers or logs in for the first time. This ensures that every user automatically has their own isolated set of 7 default services configured and ready to use.
 
-## Automatic Seeding (Recommended)
+## Automatic Per-User Seeding
 
-**The app automatically seeds the database on first startup!** 
+**Services are automatically created for each user on first registration/login!** 
 
-When you deploy or start your app for the first time:
-1. The app checks if services exist in the database
-2. If the database is empty, it automatically runs the seed script
-3. All 7 production services are created with unique secrets
-4. Secrets are logged to the console (save them immediately!)
-5. The app starts normally
+When a new user registers or logs in for the first time:
+1. The auth system detects this is a new user
+2. Automatically runs the seed script for this specific user
+3. Creates 7 default services (Git Garden, Iron Path, etc.) belonging to that user
+4. Each service gets a unique secret (sk_* format)
+5. Secrets are logged to the console for that user's seeding
+6. User can immediately see and manage their services
 
-**No manual commands needed!** Just deploy and the services will be there.
+**No manual commands needed!** Each user gets their own isolated services automatically.
 
-### Viewing Secrets After Deployment
+### User Isolation
 
-When you deploy, check your deployment logs immediately after startup. You'll see:
+**Important:** Services are user-specific:
+- Each user has their own isolated set of services
+- User A's services are completely separate from User B's services  
+- Users can only view, edit, and delete their own services
+- Service secrets are unique per user per service
+
+### Viewing Secrets After Seeding
+
+When a new user registers, check your server logs to see their secrets:
 ```
-📦 Database is empty, running auto-seed...
-🌱 Starting database seeding...
+🌱 Starting database seeding for user abc-123-def...
 ✅ Created service: "Git Garden"
    Secret: sk_abc123...
 ...
-✨ Database seeding completed!
+✨ Database seeding completed for user!
 ```
 
-**Save these secrets immediately!** They're only shown once in the logs.
+**Note:** Secrets are only shown once in the logs during creation!
 
 ## Manual Seeding (Alternative)
 

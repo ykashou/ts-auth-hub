@@ -66,20 +66,21 @@ const DEFAULT_SERVICES: DefaultService[] = [
   },
 ];
 
-export async function seedServices() {
-  console.log("🌱 Starting database seeding...");
+export async function seedServices(userId: string) {
+  console.log(`🌱 Starting database seeding for user ${userId}...`);
 
   for (const defaultService of DEFAULT_SERVICES) {
     try {
-      // Check if service already exists
+      // Check if this user already has a service with this name
       const existing = await db
         .select()
         .from(services)
         .where(eq(services.name, defaultService.name))
+        .where(eq(services.userId, userId))
         .limit(1);
 
       if (existing.length > 0) {
-        console.log(`⏭️  Service "${defaultService.name}" already exists, skipping...`);
+        console.log(`⏭️  Service "${defaultService.name}" already exists for this user, skipping...`);
         continue;
       }
 
@@ -95,6 +96,7 @@ export async function seedServices() {
       // Create service with redirect URL defaulting to service URL
       await db.insert(services).values({
         ...defaultService,
+        userId,
         hashedSecret,
         secretPreview,
         redirectUrl: defaultService.url,
@@ -107,7 +109,7 @@ export async function seedServices() {
     }
   }
 
-  console.log("\n✨ Database seeding completed!");
+  console.log("\n✨ Database seeding completed for user!");
 }
 
 // Only run seeding if this file is executed directly (not imported)

@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { seedServices } from "./seed";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -82,6 +83,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
 
+      // Auto-seed default services for new user
+      try {
+        await seedServices(user.id);
+      } catch (seedError) {
+        console.error("Failed to seed services for new user:", seedError);
+        // Continue even if seeding fails - user can create services manually
+      }
+
       // Generate JWT token
       const token = jwt.sign(
         { id: user.id, email: user.email },
@@ -150,6 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = uuidLoginSchema.parse(req.body);
       let user;
+      let isNewUser = false;
 
       if (validatedData.uuid) {
         // UUID provided - try to find it
@@ -158,10 +168,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // If UUID doesn't exist, auto-register it
         if (!user) {
           user = await storage.createUserWithUuid(validatedData.uuid);
+          isNewUser = true;
         }
       } else {
         // No UUID provided - generate new anonymous user
         user = await storage.createAnonymousUser();
+        isNewUser = true;
+      }
+
+      // Auto-seed default services for new anonymous users
+      if (isNewUser) {
+        try {
+          await seedServices(user.id);
+        } catch (seedError) {
+          console.error("Failed to seed services for new user:", seedError);
+          // Continue even if seeding fails - user can create services manually
+        }
       }
 
       // Generate JWT token
