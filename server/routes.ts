@@ -274,15 +274,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertServiceSchema.parse(req.body);
       
-      // Generate a unique secret for the service (for widget authentication)
-      const secret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      // Generate a unique plaintext secret for the service (for widget authentication)
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      // Hash the secret before storing (like passwords)
+      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
       
       const service = await storage.createService({
         ...validatedData,
-        secret,
+        hashedSecret,
       });
       
-      res.status(201).json(service);
+      // Return the service with the plaintext secret (ONLY TIME IT'S SHOWN)
+      res.status(201).json({
+        ...service,
+        plaintextSecret, // Include plaintext secret in response for one-time display
+      });
     } catch (error: any) {
       console.error("Create service error:", error);
       res.status(400).json({ error: error.message || "Failed to create service" });
@@ -294,8 +301,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const services = await storage.getAllServices();
       
-      // Exclude secrets from response for security
-      const servicesWithoutSecrets = services.map(({ secret, ...service }) => service);
+      // Exclude hashed secrets from response for security
+      const servicesWithoutSecrets = services.map(({ hashedSecret, ...service }) => service);
       
       res.json(servicesWithoutSecrets);
     } catch (error: any) {
@@ -304,13 +311,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all services with secrets (for admin config page)
+  // Get all services for admin (excludes hashed secrets - they can't be shown)
   app.get("/api/services/admin", verifyToken, async (req, res) => {
     try {
       const services = await storage.getAllServices();
       
-      // Include secrets for admin configuration
-      res.json(services);
+      // Exclude hashed secrets (they can't be displayed, only used for verification)
+      // Secrets are only shown once when created
+      const servicesWithoutSecrets = services.map(({ hashedSecret, ...service }) => ({
+        ...service,
+        hasSecret: !!hashedSecret, // Indicate whether service has a secret configured
+      }));
+      
+      res.json(servicesWithoutSecrets);
     } catch (error: any) {
       console.error("Get admin services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
@@ -326,8 +339,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
       
-      // Exclude secret from response for security
-      const { secret, ...serviceWithoutSecret } = service;
+      // Exclude hashed secret from response for security
+      const { hashedSecret, ...serviceWithoutSecret } = service;
       
       res.json(serviceWithoutSecret);
     } catch (error: any) {
@@ -353,11 +366,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedData.color = 'hsl(var(--primary))';
       }
       
-      // Preserve the existing secret - it should never be updated via PATCH
+      // Preserve the existing hashed secret - it should never be updated via PATCH
       // The secret is auto-generated on creation and should remain stable
+      // Use the rotation endpoint to change secrets
       const updateData = {
         ...validatedData,
-        secret: service.secret, // Preserve existing secret
+        hashedSecret: service.hashedSecret, // Preserve existing hashed secret
       };
       
       const updatedService = await storage.updateService(req.params.id, updateData);
@@ -384,6 +398,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Delete service error:", error);
       res.status(500).json({ error: "Failed to delete service" });
+    }
+  });
+
+  // Rotate service secret (generates new secret)
+  app.post("/api/services/:id/rotate-secret", verifyToken, async (req, res) => {
+    try {
+      const service = await storage.getService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Generate a new plaintext secret
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      // Hash the new secret
+      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
+      
+      // Update the service with the new hashed secret
+      await storage.updateService(req.params.id, { hashedSecret });
+      
+      // Return the new plaintext secret (ONLY TIME IT'S SHOWN)
+      res.json({
+        success: true,
+        message: "Secret rotated successfully",
+        plaintextSecret, // Show the new secret once
+      });
+    } catch (error: any) {
+      console.error("Rotate secret error:", error);
+      res.status(500).json({ error: "Failed to rotate secret" });
+    }
+  });
+
+  // Verify service secret (for widget authentication)
+  app.post("/api/services/verify-secret", async (req, res) => {
+    try {
+      const { serviceId, secret } = req.body;
+      
+      if (!serviceId || !secret) {
+        return res.status(400).json({ error: "serviceId and secret are required" });
+      }
+
+      const service = await storage.getService(serviceId);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      if (!service.hashedSecret) {
+        return res.status(401).json({ error: "Service has no secret configured" });
+      }
+
+      // Verify the secret using bcrypt (like password verification)
+      const isValid = await bcrypt.compare(secret, service.hashedSecret);
+      
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid secret" });
+      }
+
+      // Return success with service details (exclude hashed secret)
+      const { hashedSecret, ...serviceData } = service;
+      res.json({
+        success: true,
+        message: "Secret verified successfully",
+        service: serviceData,
+      });
+    } catch (error: any) {
+      console.error("Verify secret error:", error);
+      res.status(500).json({ error: "Failed to verify secret" });
     }
   });
 

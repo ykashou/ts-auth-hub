@@ -32,7 +32,8 @@ export default function Config() {
   const [, setLocation] = useLocation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
+  const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [secretServiceName, setSecretServiceName] = useState<string>("");
 
   // Check authentication
   useEffect(() => {
@@ -73,12 +74,19 @@ export default function Config() {
     mutationFn: async (data: InsertService) => {
       return await apiRequest("POST", "/api/services", data);
     },
-    onSuccess: () => {
+    onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      
+      // Show the plaintext secret (only time it's available)
+      if (response.plaintextSecret) {
+        setNewSecret(response.plaintextSecret);
+        setSecretServiceName(response.name);
+      }
+      
       toast({
         title: "Service created",
-        description: "The service has been added successfully",
+        description: "The service has been added successfully. Copy the secret now!",
       });
       setIsAddDialogOpen(false);
       form.reset();
@@ -176,21 +184,56 @@ export default function Config() {
     return IconComponent;
   };
 
-  const copySecret = async (secret: string, serviceId: string) => {
+  const copySecret = async (secret: string) => {
     try {
       await navigator.clipboard.writeText(secret);
-      setCopiedSecret(serviceId);
       toast({
         title: "Secret copied",
         description: "Service secret copied to clipboard",
       });
-      setTimeout(() => setCopiedSecret(null), 2000);
     } catch (error) {
       toast({
         title: "Failed to copy",
         description: "Could not copy secret to clipboard",
         variant: "destructive",
       });
+    }
+  };
+
+  const rotateSecretMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("POST", `/api/services/${id}/rotate-secret`);
+    },
+    onSuccess: (response: any, serviceId: string) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      
+      // Find the service name
+      const service = sortedServices.find(s => s.id === serviceId);
+      
+      // Show the new plaintext secret (only time it's available)
+      if (response.plaintextSecret) {
+        setNewSecret(response.plaintextSecret);
+        setSecretServiceName(service?.name || "Service");
+      }
+      
+      toast({
+        title: "Secret rotated",
+        description: "New secret generated. Copy it now!",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to rotate secret",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRotateSecret = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to rotate the secret for "${name}"? The old secret will stop working immediately.`)) {
+      rotateSecretMutation.mutate(id);
     }
   };
 
@@ -411,25 +454,29 @@ export default function Config() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <code className="text-xs bg-muted px-2 py-1 rounded font-mono max-w-[200px] truncate" data-testid={`text-secret-${service.id}`}>
-                                {service.secret}
-                              </code>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => copySecret(service.secret!, service.id)}
-                                data-testid={`button-copy-secret-${service.id}`}
-                              >
-                                {copiedSecret === service.id ? (
-                                  <Check className="w-3 h-3 text-green-600" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </Button>
+                              {(service as any).hasSecret ? (
+                                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded" data-testid={`text-secret-status-${service.id}`}>
+                                  Configured
+                                </span>
+                              ) : (
+                                <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded" data-testid={`text-secret-status-${service.id}`}>
+                                  Not Configured
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRotateSecret(service.id, service.name)}
+                                disabled={rotateSecretMutation.isPending}
+                                data-testid={`button-rotate-${service.id}`}
+                                title="Generate new secret"
+                              >
+                                <Icons.RotateCw className="w-4 h-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -458,6 +505,44 @@ export default function Config() {
             )}
           </CardContent>
         </Card>
+
+        {/* Secret Display Dialog - Only shows once when secret is created/rotated */}
+        <Dialog open={!!newSecret} onOpenChange={(open) => !open && setNewSecret(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-destructive">⚠️ Copy This Secret Now</DialogTitle>
+              <DialogDescription>
+                This is the only time you'll see this secret for <strong>{secretServiceName}</strong>. 
+                Store it securely - it cannot be recovered.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-2">Service Secret</p>
+                <code className="text-sm font-mono break-all select-all" data-testid="text-new-secret">
+                  {newSecret}
+                </code>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => copySecret(newSecret!)}
+                  className="flex-1"
+                  data-testid="button-copy-new-secret"
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy to Clipboard
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setNewSecret(null)}
+                  data-testid="button-close-secret-dialog"
+                >
+                  I've Saved It
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
