@@ -9,6 +9,8 @@ import DashboardPage from "@/pages/dashboard";
 import ApiDocsPage from "@/pages/api-docs";
 import ServicesPage from "@/pages/services";
 import ConfigPage from "@/pages/config";
+import WidgetLoginPage from "@/pages/widget-login";
+import WidgetDocsPage from "@/pages/widget-docs";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +23,8 @@ function Router() {
       <Route path="/services" component={ServicesPage} />
       <Route path="/config" component={ConfigPage} />
       <Route path="/api-docs" component={ApiDocsPage} />
+      <Route path="/widget-login" component={WidgetLoginPage} />
+      <Route path="/widget-docs" component={WidgetDocsPage} />
       <Route component={NotFound} />
     </Switch>
   );

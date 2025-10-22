@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Shield, LogOut, Copy, CheckCircle2, Loader2, FileText, Settings2, Boxes } from "lucide-react";
+import { Search, Shield, LogOut, Copy, CheckCircle2, Loader2, FileText, Settings2, Boxes, Code2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { clearToken, isAuthenticated } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
@@ -99,6 +99,15 @@ export default function DashboardPage() {
               >
                 <FileText className="w-4 h-4 mr-2" />
                 API Docs
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-widget-docs"
+                onClick={() => setLocation("/widget-docs")}
+              >
+                <Code2 className="w-4 h-4 mr-2" />
+                Widget
               </Button>
               <Button
                 variant="outline"
