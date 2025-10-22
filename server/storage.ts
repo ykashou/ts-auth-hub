@@ -19,11 +19,11 @@ export interface IStorage {
   getAllApiKeys(): Promise<ApiKey[]>;
 
   // Service operations
-  createService(service: InsertService & { hashedSecret?: string; secretPreview?: string }): Promise<Service>;
-  getService(id: string): Promise<Service | undefined>;
-  getAllServices(): Promise<Service[]>;
-  updateService(id: string, service: Partial<Service>): Promise<Service>;
-  deleteService(id: string): Promise<void>;
+  createService(service: InsertService & { hashedSecret?: string; secretPreview?: string; userId: string }): Promise<Service>;
+  getService(id: string, userId: string): Promise<Service | undefined>;
+  getAllServicesByUser(userId: string): Promise<Service[]>;
+  updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
+  deleteService(id: string, userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -90,7 +90,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Service operations
-  async createService(insertService: InsertService & { hashedSecret?: string; secretPreview?: string }): Promise<Service> {
+  async createService(insertService: InsertService & { hashedSecret?: string; secretPreview?: string; userId: string }): Promise<Service> {
     const [service] = await db
       .insert(services)
       .values(insertService)
@@ -98,26 +98,31 @@ export class DatabaseStorage implements IStorage {
     return service;
   }
 
-  async getService(id: string): Promise<Service | undefined> {
-    const [service] = await db.select().from(services).where(eq(services.id, id));
+  async getService(id: string, userId: string): Promise<Service | undefined> {
+    const [service] = await db
+      .select()
+      .from(services)
+      .where(eq(services.id, id))
+      .where(eq(services.userId, userId));
     return service || undefined;
   }
 
-  async getAllServices(): Promise<Service[]> {
-    return await db.select().from(services);
+  async getAllServicesByUser(userId: string): Promise<Service[]> {
+    return await db.select().from(services).where(eq(services.userId, userId));
   }
 
-  async updateService(id: string, updateData: Partial<Service>): Promise<Service> {
+  async updateService(id: string, userId: string, updateData: Partial<Service>): Promise<Service> {
     const [service] = await db
       .update(services)
       .set(updateData)
       .where(eq(services.id, id))
+      .where(eq(services.userId, userId))
       .returning();
     return service;
   }
 
-  async deleteService(id: string): Promise<void> {
-    await db.delete(services).where(eq(services.id, id));
+  async deleteService(id: string, userId: string): Promise<void> {
+    await db.delete(services).where(eq(services.id, id)).where(eq(services.userId, userId));
   }
 }
 

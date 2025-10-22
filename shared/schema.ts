@@ -21,8 +21,10 @@ export const apiKeys = pgTable("api_keys", {
 });
 
 // Services table - configured service cards that appear after login
+// Each service belongs to a specific user
 export const services = pgTable("services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description").notNull(),
   url: text("url").notNull(),
@@ -49,6 +51,7 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
 
 export const insertServiceSchema = createInsertSchema(services).omit({
   id: true,
+  userId: true, // User ID is set from authenticated user, not from form
   createdAt: true,
   hashedSecret: true, // Secret is auto-generated and hashed, not provided by user
   secretPreview: true, // Preview is auto-generated from secret
