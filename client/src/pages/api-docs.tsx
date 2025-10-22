@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, CheckCircle2 } from "lucide-react";
+import { Copy, CheckCircle2, Shield, Code2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { isAuthenticated } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 
 export default function ApiDocsPage() {
   const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
   const { toast } = useToast();
+  const isLoggedIn = isAuthenticated();
 
   const copyToClipboard = async (text: string, endpoint: string) => {
     await navigator.clipboard.writeText(text);
@@ -88,7 +90,44 @@ export default function ApiDocsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      {isLoggedIn ? (
+        <Navbar />
+      ) : (
+        <header className="bg-card border-b border-border sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">AuthHub</h1>
+                  <p className="text-xs text-muted-foreground">API Documentation</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.href = '/widget-docs'}
+                  data-testid="button-widget-docs"
+                >
+                  <Code2 className="w-4 h-4 mr-2" />
+                  Widget Docs
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => window.location.href = '/login'}
+                  data-testid="button-login"
+                >
+                  Login
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+      )}
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">

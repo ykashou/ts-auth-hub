@@ -1,28 +1,17 @@
-import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Code, Copy, CheckCircle2, ExternalLink, Shield, Zap, Lock } from "lucide-react";
+import { Code, Copy, CheckCircle2, ExternalLink, Shield, Zap, Lock, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { isAuthenticated } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 
 export default function WidgetDocsPage() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      setLocation("/login");
-    }
-  }, [setLocation]);
-
-  if (!isAuthenticated()) {
-    return null;
-  }
+  const isLoggedIn = isAuthenticated();
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -189,7 +178,44 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      {isLoggedIn ? (
+        <Navbar />
+      ) : (
+        <header className="bg-card border-b border-border sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">AuthHub</h1>
+                  <p className="text-xs text-muted-foreground">Widget Documentation</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.href = '/api-docs'}
+                  data-testid="button-api-docs"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  API Docs
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => window.location.href = '/login'}
+                  data-testid="button-login"
+                >
+                  Login
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+      )}
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Introduction */}
