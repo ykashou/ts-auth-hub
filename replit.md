@@ -8,6 +8,16 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** Enhanced Admin Dashboard
+  - Redesigned dashboard to reflect AuthHub's expanded scope with comprehensive system overview
+  - **Key Metrics**: 4 metric cards showing Total Users, Authenticated Users, Anonymous Users, and Last 7 Days registrations
+  - **Service Overview**: Card displaying configured services count with quick "Manage Services" button
+  - **Quick Actions**: 4-button card for common tasks (Add Service, Widget Integration, API Docs, View Services)
+  - **Recent Registrations**: Shows 5 most recent users with email/anonymous status and timestamps
+  - **Enhanced User Table**: Added "Type" column with badges (Authenticated/Anonymous), improved Created column with date+time
+  - Improved search UX and better visual hierarchy with icons and descriptions
+  - All components follow Arcane Blue theme and Quest Log aesthetic
+
 - **2025-10-22:** Unified Navigation System
   - Created centralized Navbar component (`client/src/components/Navbar.tsx`) used consistently across all authenticated pages
   - All pages (Dashboard, Config, Services, API Docs, Widget Docs) now share identical navigation experience
@@ -80,10 +90,12 @@ AuthHub is a centralized authentication service that serves as a single source o
    - Custom colors or automatic primary theme color
 
 3. **Admin Dashboard**
-   - View all registered users with UUIDs
-   - Search functionality (email or UUID)
-   - User statistics and activity metrics
-   - Clean, professional table interface
+   - **System Metrics**: Real-time statistics for total users, authenticated users, anonymous users, and recent registrations
+   - **Service Overview**: Quick view of configured services with direct management access
+   - **Quick Actions**: One-click access to common tasks (add service, widget docs, API docs, view services)
+   - **Recent Activity**: Timeline of 5 most recent user registrations with type indicators
+   - **User Directory**: Complete searchable table with UUID management, type badges, and timestamps
+   - Clean, professional interface with the Quest Log aesthetic
 
 4. **Embeddable Widget System**
    - JavaScript SDK for seamless integration into external websites
