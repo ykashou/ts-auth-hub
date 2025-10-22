@@ -34,6 +34,7 @@ export default function Config() {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [secretServiceName, setSecretServiceName] = useState<string>("");
+  const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function Config() {
       name: "",
       description: "",
       url: "",
+      redirectUrl: "",
       icon: "Globe",
       color: "",
     },
@@ -393,8 +395,7 @@ export default function Config() {
           <CardHeader>
             <CardTitle>Configured Services</CardTitle>
             <CardDescription>
-              Manage service cards that appear to authenticated users.
-              {" "}Secrets are shown <strong>only once</strong> when created/rotated for security.
+              Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
             </CardDescription>
           </CardHeader>
           <CardContent>
