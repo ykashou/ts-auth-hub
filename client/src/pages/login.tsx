@@ -74,9 +74,12 @@ export default function LoginPage() {
       return response;
     },
     onSuccess: (data) => {
-      setToken(data.token);
-      // Invalidate users cache to refresh dashboard
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      // Only set token in localStorage if staying on AuthHub (not redirecting away)
+      if (!redirectUri) {
+        setToken(data.token);
+        // Invalidate users cache to refresh dashboard
+        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      }
       toast({
         title: "Login successful",
         description: `Welcome back! Your UUID is ${data.user.id}`,
@@ -100,9 +103,12 @@ export default function LoginPage() {
       return response;
     },
     onSuccess: (data) => {
-      setToken(data.token);
-      // Invalidate users cache to refresh dashboard
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      // Only set token in localStorage if staying on AuthHub (not redirecting away)
+      if (!redirectUri) {
+        setToken(data.token);
+        // Invalidate users cache to refresh dashboard
+        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      }
       toast({
         title: "Login successful",
         description: data.user.email 
@@ -127,9 +133,12 @@ export default function LoginPage() {
       return response;
     },
     onSuccess: (data) => {
-      setToken(data.token);
-      // Invalidate users cache to refresh dashboard
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      // Only set token in localStorage if staying on AuthHub (not redirecting away)
+      if (!redirectUri) {
+        setToken(data.token);
+        // Invalidate users cache to refresh dashboard
+        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      }
       toast({
         title: "UUID Generated!",
         description: `Your new Account ID: ${data.user.id}`,

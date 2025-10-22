@@ -71,7 +71,10 @@ export default function RegisterPage() {
       return response;
     },
     onSuccess: (data) => {
-      setToken(data.token);
+      // Only set token in localStorage if staying on AuthHub (not redirecting away)
+      if (!redirectUri) {
+        setToken(data.token);
+      }
       setAuthToken(data.token);
       setGeneratedUuid(data.user.id);
       toast({

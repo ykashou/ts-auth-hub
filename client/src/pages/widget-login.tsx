@@ -89,10 +89,12 @@ export default function WidgetLoginPage() {
 
       if (redirectUri) {
         // OAuth redirect flow: redirect back to external service with token
+        // Don't set token in localStorage - user is leaving AuthHub immediately
         const separator = redirectUri.includes('?') ? '&' : '?';
         window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(data.token)}&user_id=${encodeURIComponent(data.user.id)}`;
       } else {
         // Popup flow: send token to parent window via postMessage
+        // Don't set token here either - popup will close and parent handles storage
         sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
           token: data.token,
           user: data.user
@@ -132,10 +134,12 @@ export default function WidgetLoginPage() {
 
       if (redirectUri) {
         // OAuth redirect flow: redirect back to external service with token
+        // Don't set token in localStorage - user is leaving AuthHub immediately
         const separator = redirectUri.includes('?') ? '&' : '?';
         window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(data.token)}&user_id=${encodeURIComponent(data.user.id)}`;
       } else {
         // Popup flow: send token to parent window via postMessage
+        // Don't set token here either - popup will close and parent handles storage
         sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
           token: data.token,
           user: data.user
@@ -173,12 +177,14 @@ export default function WidgetLoginPage() {
 
       if (redirectUri) {
         // OAuth redirect flow: redirect back to external service with token
+        // Don't set token in localStorage - user is leaving AuthHub immediately
         const separator = redirectUri.includes('?') ? '&' : '?';
         setTimeout(() => {
           window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(data.token)}&user_id=${encodeURIComponent(data.user.id)}`;
         }, 1000);
       } else {
         // Popup flow: send token to parent window via postMessage
+        // Don't set token here either - popup will close and parent handles storage
         sendMessageToParent('AUTHHUB_AUTH_SUCCESS', {
           token: data.token,
           user: data.user
