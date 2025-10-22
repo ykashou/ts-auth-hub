@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
@@ -273,7 +274,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertServiceSchema.parse(req.body);
       
-      const service = await storage.createService(validatedData);
+      // Generate a unique secret for the service (for widget authentication)
+      const secret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      const service = await storage.createService({
+        ...validatedData,
+        secret,
+      });
       
       res.status(201).json(service);
     } catch (error: any) {

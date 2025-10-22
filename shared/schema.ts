@@ -28,6 +28,7 @@ export const services = pgTable("services", {
   url: text("url").notNull(),
   icon: text("icon").notNull().default("Globe"),
   color: text("color"),
+  secret: text("secret"), // Unique secret for widget authentication
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -47,6 +48,7 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
 export const insertServiceSchema = createInsertSchema(services).omit({
   id: true,
   createdAt: true,
+  secret: true, // Secret is auto-generated, not provided by user
 }).extend({
   name: z.string().min(1, "Service name is required"),
   description: z.string().min(1, "Description is required"),
