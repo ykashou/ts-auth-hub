@@ -5,17 +5,17 @@ AuthHub includes **automatic per-user database seeding** that runs when each use
 
 ## Automatic Per-User Seeding
 
-**Services are automatically created for each user on first registration/login!** 
+**Services are automatically created for each user on registration or login!** 
 
-When a new user registers or logs in for the first time:
-1. The auth system detects this is a new user
-2. Automatically runs the seed script for this specific user
+When a user registers or logs in:
+1. The auth system checks if the user has any services
+2. If the user has 0 services, automatically runs the seed script
 3. Creates 7 default services (Git Garden, Iron Path, etc.) belonging to that user
 4. Each service gets a unique secret (sk_* format)
 5. Secrets are logged to the console for that user's seeding
 6. User can immediately see and manage their services
 
-**No manual commands needed!** Each user gets their own isolated services automatically.
+**No manual commands needed!** Each user gets their own isolated services automatically. This works for both new users and existing users who were created before auto-seeding was implemented.
 
 ### User Isolation
 

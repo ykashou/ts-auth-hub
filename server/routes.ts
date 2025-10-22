@@ -130,6 +130,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
+      // Auto-seed services if user has none (for existing users from before auto-seeding was implemented)
+      try {
+        const userServices = await storage.getAllServicesByUser(user.id);
+        if (userServices.length === 0) {
+          await seedServices(user.id);
+        }
+      } catch (seedError) {
+        console.error("Failed to seed services for user on login:", seedError);
+        // Continue even if seeding fails
+      }
+
       // Generate JWT token
       const token = jwt.sign(
         { id: user.id, email: user.email },
@@ -176,14 +187,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isNewUser = true;
       }
 
-      // Auto-seed default services for new anonymous users
-      if (isNewUser) {
-        try {
+      // Auto-seed services if user has none (for new users or existing users from before auto-seeding)
+      try {
+        const userServices = await storage.getAllServicesByUser(user.id);
+        if (userServices.length === 0) {
           await seedServices(user.id);
-        } catch (seedError) {
-          console.error("Failed to seed services for new user:", seedError);
-          // Continue even if seeding fails - user can create services manually
         }
+      } catch (seedError) {
+        console.error("Failed to seed services for user:", seedError);
+        // Continue even if seeding fails - user can create services manually
       }
 
       // Generate JWT token
