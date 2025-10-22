@@ -1,10 +1,22 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
 import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+
+// Extend Express Request type to include user from JWT
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string | null;
+      };
+    }
+  }
+}
 
 if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET environment variable must be set for JWT token generation");
@@ -272,6 +284,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new service
   app.post("/api/services", verifyToken, async (req, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
       const validatedData = insertServiceSchema.parse(req.body);
       
       // Generate a unique secret for the service (for widget authentication)
@@ -291,6 +307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         redirectUrl,
         hashedSecret,
         secretPreview,
+        userId: req.user.id, // Associate service with authenticated user
       });
       
       // Return service with plaintext secret (only time it's shown in full)
@@ -304,10 +321,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all services (includes secrets for display in config table)
+  // Get all services for the authenticated user
   app.get("/api/services", verifyToken, async (req, res) => {
     try {
-      const services = await storage.getAllServices();
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const services = await storage.getAllServicesByUser(req.user.id);
       res.json(services);
     } catch (error: any) {
       console.error("Get services error:", error);
@@ -318,7 +339,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all services for admin (includes secrets for display)
   app.get("/api/services/admin", verifyToken, async (req, res) => {
     try {
-      const services = await storage.getAllServices();
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const services = await storage.getAllServicesByUser(req.user.id);
       res.json(services);
     } catch (error: any) {
       console.error("Get admin services error:", error);
@@ -329,7 +354,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get service by ID (includes secret for display)
   app.get("/api/services/:id", verifyToken, async (req, res) => {
     try {
-      const service = await storage.getService(req.params.id);
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const service = await storage.getService(req.params.id, req.user.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -345,7 +374,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update service
   app.patch("/api/services/:id", verifyToken, async (req, res) => {
     try {
-      const service = await storage.getService(req.params.id);
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const service = await storage.getService(req.params.id, req.user.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -368,7 +401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secretPreview: service.secretPreview, // Preserve existing secret preview
       };
       
-      const updatedService = await storage.updateService(req.params.id, updateData);
+      const updatedService = await storage.updateService(req.params.id, req.user.id, updateData);
       
       res.json(updatedService);
     } catch (error: any) {
@@ -380,13 +413,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete service
   app.delete("/api/services/:id", verifyToken, async (req, res) => {
     try {
-      const service = await storage.getService(req.params.id);
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const service = await storage.getService(req.params.id, req.user.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
 
-      await storage.deleteService(req.params.id);
+      await storage.deleteService(req.params.id, req.user.id);
       
       res.json({ success: true, message: "Service deleted successfully" });
     } catch (error: any) {
@@ -398,7 +435,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rotate service secret (generates new secret)
   app.post("/api/services/:id/rotate-secret", verifyToken, async (req, res) => {
     try {
-      const service = await storage.getService(req.params.id);
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const service = await storage.getService(req.params.id, req.user.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -414,7 +455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
       // Update the service with the new hashed secret and preview
-      await storage.updateService(req.params.id, { hashedSecret, secretPreview });
+      await storage.updateService(req.params.id, req.user.id, { hashedSecret, secretPreview });
       
       res.json({
         success: true,
@@ -428,6 +469,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify service secret (for widget authentication)
+  // Note: This endpoint does NOT require authentication - it's used by external services
+  // The service secret itself acts as the authentication
   app.post("/api/services/verify-secret", async (req, res) => {
     try {
       const { serviceId, secret } = req.body;
@@ -436,7 +479,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "serviceId and secret are required" });
       }
 
-      const service = await storage.getService(serviceId);
+      // Look up service by ID only (secret verification doesn't require user context)
+      // The secret itself proves authorization to use this service
+      const service = await storage.getServiceById(serviceId);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });

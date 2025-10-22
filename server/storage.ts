@@ -21,6 +21,7 @@ export interface IStorage {
   // Service operations
   createService(service: InsertService & { hashedSecret?: string; secretPreview?: string; userId: string }): Promise<Service>;
   getService(id: string, userId: string): Promise<Service | undefined>;
+  getServiceById(id: string): Promise<Service | undefined>; // Get service by ID only (for widget verification)
   getAllServicesByUser(userId: string): Promise<Service[]>;
   updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
   deleteService(id: string, userId: string): Promise<void>;
@@ -104,6 +105,13 @@ export class DatabaseStorage implements IStorage {
       .from(services)
       .where(eq(services.id, id))
       .where(eq(services.userId, userId));
+    return service || undefined;
+  }
+
+  async getServiceById(id: string): Promise<Service | undefined> {
+    // Get service by ID only, without userId filtering
+    // Used for widget authentication where the secret itself proves authorization
+    const [service] = await db.select().from(services).where(eq(services.id, id));
     return service || undefined;
   }
 
