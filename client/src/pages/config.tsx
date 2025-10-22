@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,8 +33,13 @@ export default function Config() {
   const [editingService, setEditingService] = useState<Service | null>(null);
 
   // Check authentication
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
   if (!isAuthenticated()) {
-    setLocation("/login");
     return null;
   }
 

@@ -319,7 +319,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
+      // Use partial schema to allow partial updates
       const validatedData = insertServiceSchema.partial().parse(req.body);
+      
+      // Set default color only if color field is explicitly provided but empty
+      if ("color" in validatedData && (!validatedData.color || validatedData.color.trim() === '')) {
+        validatedData.color = 'hsl(var(--primary))';
+      }
       
       const updatedService = await storage.updateService(req.params.id, validatedData);
       
@@ -341,7 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.deleteService(req.params.id);
       
-      res.status(204).send();
+      res.json({ success: true, message: "Service deleted successfully" });
     } catch (error: any) {
       console.error("Delete service error:", error);
       res.status(500).json({ error: "Failed to delete service" });

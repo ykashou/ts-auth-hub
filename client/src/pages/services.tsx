@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type Service } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,8 +14,13 @@ export default function Services() {
   const { toast } = useToast();
 
   // Check authentication
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
   if (!isAuthenticated()) {
-    setLocation("/login");
     return null;
   }
 
