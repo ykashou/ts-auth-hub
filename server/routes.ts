@@ -166,6 +166,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Login user with UUID (anonymous authentication)
   // If UUID is provided: login if exists, auto-register if not
   // If no UUID provided: generate new UUID and auto-register
+  // Get current authenticated user (for external services using redirect flow)
+  app.get("/api/auth/user", verifyToken, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Return user info without password
+      const { password, ...userWithoutPassword } = user;
+      return res.json(userWithoutPassword);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get widget/services configuration for authenticated user
+  app.get("/api/auth/widget", verifyToken, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const services = await storage.getServicesByUserId(userId);
+
+      // Return user info (without password) and their services
+      const { password, ...userWithoutPassword } = user;
+      return res.json({
+        user: userWithoutPassword,
+        services: services
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/auth/uuid-login", async (req, res) => {
     try {
       const validatedData = uuidLoginSchema.parse(req.body);
