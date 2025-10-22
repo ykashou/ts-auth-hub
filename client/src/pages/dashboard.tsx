@@ -29,7 +29,7 @@ export default function DashboardPage() {
 
   const filteredUsers = users.filter(
     (user) =>
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.email?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
       user.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -199,7 +199,7 @@ export default function DashboardPage() {
                             </div>
                           </TableCell>
                           <TableCell className="font-medium" data-testid={`text-email-${user.id}`}>
-                            {user.email}
+                            {user.email || <span className="text-muted-foreground italic">Anonymous</span>}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(user.createdAt).toLocaleDateString()}

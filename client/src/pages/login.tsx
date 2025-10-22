@@ -12,7 +12,7 @@ import { Shield, Mail, KeyRound, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { setToken } from "@/lib/auth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const emailLoginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -53,6 +53,8 @@ export default function LoginPage() {
     },
     onSuccess: (data) => {
       setToken(data.token);
+      // Invalidate users cache to refresh dashboard
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({
         title: "Login successful",
         description: `Welcome back! Your UUID is ${data.user.id}`,
@@ -77,6 +79,8 @@ export default function LoginPage() {
     },
     onSuccess: (data) => {
       setToken(data.token);
+      // Invalidate users cache to refresh dashboard
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({
         title: "Login successful",
         description: data.user.email 
@@ -102,6 +106,8 @@ export default function LoginPage() {
     },
     onSuccess: (data) => {
       setToken(data.token);
+      // Invalidate users cache to refresh dashboard
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({
         title: "UUID Generated!",
         description: `Your new Account ID: ${data.user.id}`,
