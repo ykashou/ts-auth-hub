@@ -8,6 +8,13 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** Service Icon Updates and Cleanup
+  - Updated Git Garden icon from Code to Sprout (plant icon) to match garden metaphor
+  - Updated PurpleGreen icon from Palette to DollarSign ($) for wealth management focus
+  - Updated BTCPay Dashboard icon from CreditCard to Bitcoin (₿) for cryptocurrency clarity
+  - Removed Analytics Dashboard from default services
+  - Final default services: Git Garden, Iron Path, PurpleGreen, BTCPay Dashboard (4 total)
+
 - **2025-10-22:** Enhanced Admin Dashboard
   - Redesigned dashboard to reflect AuthHub's expanded scope with comprehensive system overview
   - **Key Metrics**: 4 metric cards showing Total Users, Authenticated Users, Anonymous Users, and Last 7 Days registrations
@@ -81,10 +88,10 @@ AuthHub is a centralized authentication service that serves as a single source o
    - Admin config page (/config) for managing service cards
    - Add, edit, delete service cards with custom icons and colors
    - Default service cards: 
-     - Git Garden (git-based portfolio-as-a-service)
-     - Iron Path (fitness tracking)
-     - BTCPay Dashboard (Bitcoin payment processing)
-     - PurpleGreen (wealth management and accounting)
+     - Git Garden (git-based portfolio-as-a-service) - Sprout icon
+     - Iron Path (fitness tracking and workout planning)
+     - PurpleGreen (wealth management and accounting) - DollarSign icon
+     - BTCPay Dashboard (Bitcoin payment processing) - Bitcoin icon
    - Services page (/services) displays cards to authenticated users
    - Lucide icons library integration for consistent iconography
    - Custom colors or automatic primary theme color
