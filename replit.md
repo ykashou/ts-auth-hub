@@ -8,6 +8,14 @@ AuthHub is a centralized authentication service that serves as a single source o
 **Last Updated:** October 22, 2025
 
 ## Recent Changes
+- **2025-10-22:** UUID Auto-Registration Feature Completed
+  - Implemented true anonymous authentication: users can generate UUIDs instantly without email/password
+  - Added auto-registration: any UUID can be used to login, auto-creates user if doesn't exist
+  - Updated database schema to make email and password nullable for anonymous users
+  - Fixed React Query cache invalidation to refresh dashboard after auto-registration
+  - Dashboard now properly displays "Anonymous" for users without email
+  - All end-to-end tests passing for UUID generation, auto-registration, and search functionality
+
 - **2025-10-22:** Initial implementation
   - Created complete data models (users, API keys)
   - Configured design system with custom color palette (#12008f primary, #c4c4c4 secondary, coral accents)
@@ -16,7 +24,9 @@ AuthHub is a centralized authentication service that serves as a single source o
 
 ## Core Features
 1. **User Authentication**
-   - Email/password registration with automatic UUID generation
+   - **Anonymous UUID Authentication**: Instant account creation with "Generate New Account ID" button - no email or password required
+   - **UUID Auto-Registration**: Login with any UUID - automatically creates user if UUID doesn't exist
+   - **Traditional Email/Password**: Standard registration and login with email and password
    - Dual login methods: UUID-based or email/password
    - Secure password hashing with bcrypt
    - JWT token-based session management
@@ -71,10 +81,12 @@ shared/
 ## Data Models
 
 ### Users Table
-- `id` (UUID, primary key, auto-generated)
-- `email` (text, unique, required)
-- `password` (text, hashed, required)
+- `id` (UUID, primary key, auto-generated or provided)
+- `email` (text, unique, nullable - optional for anonymous users)
+- `password` (text, hashed, nullable - optional for anonymous users)
 - `createdAt` (timestamp, auto-generated)
+
+**Note:** Email and password are nullable to support anonymous UUID-only users.
 
 ### API Keys Table
 - `id` (UUID, primary key, auto-generated)
@@ -82,18 +94,20 @@ shared/
 - `key` (text, unique, required)
 - `createdAt` (timestamp, auto-generated)
 
-## API Endpoints (Planned)
+## API Endpoints
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - User login with JWT
-- `POST /api/auth/verify` - Verify credentials (for SaaS products)
+### Authentication (Implemented)
+- `POST /api/auth/register` - Register new user with email/password (returns JWT token)
+- `POST /api/auth/login` - Login with email/password (returns JWT token)
+- `POST /api/auth/uuid-login` - UUID authentication endpoint:
+  - **No body or empty body**: Generates new anonymous user with random UUID
+  - **Body with UUID**: Login if exists, auto-register if doesn't exist
+  - Returns JWT token and user object
 
-### User Management
-- `GET /api/users` - List all users (admin)
-- `GET /api/users/:id` - Get user by UUID
+### User Management (Implemented)
+- `GET /api/users` - List all users (requires authentication)
 
-### API Key Management
+### API Key Management (Planned)
 - `POST /api/keys` - Generate new API key
 - `GET /api/keys` - List API keys
 
