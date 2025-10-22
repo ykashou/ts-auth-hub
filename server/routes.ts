@@ -334,7 +334,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedData.color = 'hsl(var(--primary))';
       }
       
-      const updatedService = await storage.updateService(req.params.id, validatedData);
+      // Preserve the existing secret - it should never be updated via PATCH
+      // The secret is auto-generated on creation and should remain stable
+      const updateData = {
+        ...validatedData,
+        secret: service.secret, // Preserve existing secret
+      };
+      
+      const updatedService = await storage.updateService(req.params.id, updateData);
       
       res.json(updatedService);
     } catch (error: any) {
