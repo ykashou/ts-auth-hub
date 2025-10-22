@@ -1,6 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { seedServices } from "./seed";
+import { db } from "./db";
+import { services } from "@shared/schema";
 
 const app = express();
 
@@ -47,6 +50,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Auto-seed database on first startup
+  try {
+    const existingServices = await db.select().from(services).limit(1);
+    if (existingServices.length === 0) {
+      log("📦 Database is empty, running auto-seed...");
+      await seedServices();
+    } else {
+      log("✓ Services already exist, skipping auto-seed");
+    }
+  } catch (error) {
+    log("⚠️  Auto-seed check failed (this is normal on first run):", error);
+  }
+
   const server = await registerRoutes(app);
 
   // Serve the widget SDK file

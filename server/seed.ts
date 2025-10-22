@@ -66,7 +66,7 @@ const DEFAULT_SERVICES: DefaultService[] = [
   },
 ];
 
-async function seedServices() {
+export async function seedServices() {
   console.log("🌱 Starting database seeding...");
 
   for (const defaultService of DEFAULT_SERVICES) {
@@ -110,13 +110,15 @@ async function seedServices() {
   console.log("\n✨ Database seeding completed!");
 }
 
-// Run seeding
-seedServices()
-  .then(() => {
-    console.log("\n👋 Seeding finished successfully");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("\n💥 Seeding failed:", error);
-    process.exit(1);
-  });
+// Only run seeding if this file is executed directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  seedServices()
+    .then(() => {
+      console.log("\n👋 Seeding finished successfully");
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("\n💥 Seeding failed:", error);
+      process.exit(1);
+    });
+}
