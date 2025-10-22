@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Shield, LogOut, Copy, CheckCircle2, Loader2, FileText } from "lucide-react";
+import { Search, Shield, LogOut, Copy, CheckCircle2, Loader2, FileText, Settings2, Boxes } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { clearToken, isAuthenticated } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
@@ -68,6 +68,24 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-services"
+                onClick={() => setLocation("/services")}
+              >
+                <Boxes className="w-4 h-4 mr-2" />
+                Services
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-config"
+                onClick={() => setLocation("/config")}
+              >
+                <Settings2 className="w-4 h-4 mr-2" />
+                Config
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
