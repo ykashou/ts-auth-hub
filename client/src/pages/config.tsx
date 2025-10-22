@@ -188,7 +188,7 @@ export default function Config() {
     try {
       await navigator.clipboard.writeText(secret);
       toast({
-        title: "Secret copied",
+        title: "✅ Secret copied!",
         description: "Service secret copied to clipboard",
       });
     } catch (error) {
@@ -199,6 +199,13 @@ export default function Config() {
       });
     }
   };
+
+  // Auto-copy secret when dialog opens
+  useEffect(() => {
+    if (newSecret) {
+      copySecret(newSecret);
+    }
+  }, [newSecret]);
 
   const rotateSecretMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -386,7 +393,8 @@ export default function Config() {
           <CardHeader>
             <CardTitle>Configured Services</CardTitle>
             <CardDescription>
-              Manage service cards that appear to authenticated users
+              Manage service cards that appear to authenticated users.
+              {" "}Secrets are shown <strong>only once</strong> when created/rotated for security.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -508,33 +516,52 @@ export default function Config() {
 
         {/* Secret Display Dialog - Only shows once when secret is created/rotated */}
         <Dialog open={!!newSecret} onOpenChange={(open) => !open && setNewSecret(null)}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-destructive">⚠️ Copy This Secret Now</DialogTitle>
-              <DialogDescription>
-                This is the only time you'll see this secret for <strong>{secretServiceName}</strong>. 
-                Store it securely - it cannot be recovered.
+              <DialogTitle className="text-destructive text-xl">⚠️ Copy This Secret Now</DialogTitle>
+              <DialogDescription className="text-base">
+                This is the <strong>ONLY TIME</strong> you'll see this secret for <strong>{secretServiceName}</strong>.
+                <br />
+                <span className="text-green-600 dark:text-green-400 font-medium">✓ Already copied to clipboard!</span>
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="bg-muted p-4 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">Service Secret</p>
-                <code className="text-sm font-mono break-all select-all" data-testid="text-new-secret">
+              <div className="bg-primary/10 border-2 border-primary p-4 rounded-lg">
+                <p className="text-xs font-semibold text-primary mb-2">Service Secret (Click to Select All)</p>
+                <code 
+                  className="text-base font-mono break-all select-all block p-2 bg-background rounded cursor-pointer hover-elevate" 
+                  data-testid="text-new-secret"
+                  onClick={() => {
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    range.selectNodeContents(document.querySelector('[data-testid="text-new-secret"]')!);
+                    selection?.removeAllRanges();
+                    selection?.addRange(range);
+                  }}
+                >
                   {newSecret}
                 </code>
+              </div>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <strong>Security Note:</strong> This secret is stored as a bcrypt hash (like passwords). 
+                  Once you close this dialog, it cannot be retrieved. Store it securely in your password manager or environment variables.
+                </p>
               </div>
               <div className="flex gap-2">
                 <Button
                   onClick={() => copySecret(newSecret!)}
                   className="flex-1"
+                  size="lg"
                   data-testid="button-copy-new-secret"
                 >
                   <Copy className="w-4 h-4 mr-2" />
-                  Copy to Clipboard
+                  Copy Again
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setNewSecret(null)}
+                  size="lg"
                   data-testid="button-close-secret-dialog"
                 >
                   I've Saved It
