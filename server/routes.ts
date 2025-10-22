@@ -289,14 +289,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all services
+  // Get all services (public-safe - excludes secrets)
   app.get("/api/services", verifyToken, async (req, res) => {
     try {
       const services = await storage.getAllServices();
       
-      res.json(services);
+      // Exclude secrets from response for security
+      const servicesWithoutSecrets = services.map(({ secret, ...service }) => service);
+      
+      res.json(servicesWithoutSecrets);
     } catch (error: any) {
       console.error("Get services error:", error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Get all services with secrets (for admin config page)
+  app.get("/api/services/admin", verifyToken, async (req, res) => {
+    try {
+      const services = await storage.getAllServices();
+      
+      // Include secrets for admin configuration
+      res.json(services);
+    } catch (error: any) {
+      console.error("Get admin services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
     }
   });

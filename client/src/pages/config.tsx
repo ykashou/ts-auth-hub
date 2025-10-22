@@ -46,9 +46,9 @@ export default function Config() {
   }
 
 
-  // Fetch all services
+  // Fetch all services with secrets (admin endpoint)
   const { data: services = [], isLoading } = useQuery<Service[]>({
-    queryKey: ["/api/services"],
+    queryKey: ["/api/services/admin"],
   });
 
   // Sort services alphabetically by name
@@ -74,6 +74,7 @@ export default function Config() {
       return await apiRequest("POST", "/api/services", data);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       toast({
         title: "Service created",
@@ -97,6 +98,7 @@ export default function Config() {
       return await apiRequest("PATCH", `/api/services/${id}`, data);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       toast({
         title: "Service updated",
@@ -120,6 +122,7 @@ export default function Config() {
       return await apiRequest("DELETE", `/api/services/${id}`);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       toast({
         title: "Service deleted",
