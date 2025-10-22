@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,8 +28,30 @@ type UuidLoginForm = z.infer<typeof uuidLoginSchema>;
 
 export default function LoginPage() {
   const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("uuid");
+  const [redirectUri, setRedirectUri] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Read redirect_uri from URL parameters on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirect_uri');
+    if (redirect) {
+      setRedirectUri(decodeURIComponent(redirect));
+    }
+  }, []);
+
+  // Helper to handle post-authentication redirect
+  const handlePostAuthRedirect = (token: string, user: any) => {
+    if (redirectUri) {
+      // OAuth redirect flow: redirect back to external service with token
+      const separator = redirectUri.includes('?') ? '&' : '?';
+      window.location.href = `${redirectUri}${separator}token=${encodeURIComponent(token)}&user_id=${encodeURIComponent(user.id)}`;
+    } else {
+      // Internal flow: go to dashboard
+      setLocation("/dashboard");
+    }
+  };
 
   const emailForm = useForm<EmailLoginForm>({
     resolver: zodResolver(emailLoginSchema),
@@ -59,7 +81,7 @@ export default function LoginPage() {
         title: "Login successful",
         description: `Welcome back! Your UUID is ${data.user.id}`,
       });
-      setLocation("/dashboard");
+      handlePostAuthRedirect(data.token, data.user);
     },
     onError: (error: any) => {
       toast({
@@ -87,7 +109,7 @@ export default function LoginPage() {
           ? `Welcome back! Your UUID is ${data.user.id}`
           : `New UUID created: ${data.user.id}`,
       });
-      setLocation("/dashboard");
+      handlePostAuthRedirect(data.token, data.user);
     },
     onError: (error: any) => {
       toast({
@@ -112,7 +134,7 @@ export default function LoginPage() {
         title: "UUID Generated!",
         description: `Your new Account ID: ${data.user.id}`,
       });
-      setLocation("/dashboard");
+      handlePostAuthRedirect(data.token, data.user);
     },
     onError: (error: any) => {
       toast({
