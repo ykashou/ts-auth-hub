@@ -566,18 +566,16 @@ export default function Config() {
         <Dialog open={!!newSecret} onOpenChange={(open) => !open && setNewSecret(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-destructive text-xl">⚠️ Copy This Secret Now</DialogTitle>
+              <DialogTitle className="text-xl">Copy This Secret Now</DialogTitle>
               <DialogDescription className="text-base">
                 This is the <strong>ONLY TIME</strong> you'll see this secret for <strong>{secretServiceName}</strong>.
-                <br />
-                <span className="text-green-600 dark:text-green-400 font-medium">✓ Already copied to clipboard!</span>
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="bg-primary/10 border-2 border-primary p-4 rounded-lg">
-                <p className="text-xs font-semibold text-primary mb-2">Service Secret (Click to Select All)</p>
+              <div className="p-4 rounded-lg border">
+                <p className="text-xs font-semibold mb-2">Service Secret (Click to Select All)</p>
                 <code 
-                  className="text-base font-mono break-all select-all block p-2 bg-background rounded cursor-pointer hover-elevate" 
+                  className="text-base font-mono break-all select-all block p-2 bg-muted rounded cursor-pointer hover-elevate" 
                   data-testid="text-new-secret"
                   onClick={() => {
                     const selection = window.getSelection();
@@ -590,8 +588,8 @@ export default function Config() {
                   {newSecret}
                 </code>
               </div>
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              <div className="bg-destructive/10 border border-destructive/30 p-3 rounded-lg">
+                <p className="text-sm text-destructive">
                   <strong>Security Note:</strong> This secret is stored as a bcrypt hash (like passwords). 
                   Once you close this dialog, it cannot be retrieved. Store it securely in your password manager or environment variables.
                 </p>
