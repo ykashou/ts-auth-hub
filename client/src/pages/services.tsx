@@ -28,6 +28,11 @@ export default function Services() {
     queryKey: ["/api/services"],
   });
 
+  // Sort services alphabetically by name
+  const sortedServices = [...services].sort((a, b) => 
+    a.name.localeCompare(b.name)
+  );
+
   const getIcon = (iconName: string) => {
     const IconComponent = (Icons as any)[iconName] || Icons.Globe;
     return IconComponent;
@@ -54,7 +59,7 @@ export default function Services() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service) => {
+            {sortedServices.map((service) => {
               const Icon = getIcon(service.icon);
               return (
                 <Card

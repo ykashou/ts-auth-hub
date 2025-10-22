@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2 } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated } from "@/lib/auth";
@@ -49,6 +49,11 @@ export default function Config() {
   const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
   });
+
+  // Sort services alphabetically by name
+  const sortedServices = [...services].sort((a, b) => 
+    a.name.localeCompare(b.name)
+  );
 
   // Form for adding/editing services
   const form = useForm<InsertService>({
@@ -350,7 +355,7 @@ export default function Config() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {services.map((service) => {
+                    {sortedServices.map((service) => {
                       const Icon = getIcon(service.icon);
                       return (
                         <TableRow key={service.id} data-testid={`row-service-${service.id}`}>
