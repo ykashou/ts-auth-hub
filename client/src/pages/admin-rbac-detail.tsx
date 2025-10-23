@@ -32,6 +32,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Navbar from "@/components/Navbar";
+import { useTheme } from "next-themes";
 import {
   Table,
   TableBody,
@@ -72,6 +73,7 @@ export default function AdminRbacDetail() {
   const { toast } = useToast();
   const userRole = getUserRole();
   const isAdmin = userRole === 'admin';
+  const { theme } = useTheme();
 
   // State
   const [activeTab, setActiveTab] = useState("roles");
@@ -812,7 +814,7 @@ export default function AdminRbacDetail() {
                     ) : (
                       <div className="relative">
                         <pre
-                          className="bg-muted p-4 rounded-md overflow-x-auto text-sm font-mono"
+                          className="bg-muted p-4 rounded-md overflow-x-auto text-sm font-mono max-h-[600px] overflow-y-auto"
                           data-testid="json-view"
                         >
                           <code>{JSON.stringify(exportData, null, 2)}</code>
@@ -830,7 +832,7 @@ export default function AdminRbacDetail() {
                     ) : (
                       <div className="relative">
                         <pre
-                          className="bg-muted p-4 rounded-md overflow-x-auto text-sm font-mono"
+                          className="bg-muted p-4 rounded-md overflow-x-auto text-sm font-mono max-h-[600px] overflow-y-auto"
                           data-testid="yaml-view"
                         >
                           <code>{jsonToYaml(exportData)}</code>
