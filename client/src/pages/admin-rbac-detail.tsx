@@ -27,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, Edit, Trash2, Shield, Key } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -79,6 +79,10 @@ export default function AdminRbacDetail() {
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
+  
+  // Visualization state
+  const [viewType, setViewType] = useState<"matrix" | "tree" | "json" | "yaml">("matrix");
+  const [searchFilter, setSearchFilter] = useState("");
 
   // Redirect non-admins
   if (!isAdmin || !modelId) {
@@ -318,7 +322,7 @@ export default function AdminRbacDetail() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
             <TabsTrigger value="roles" data-testid="tab-roles">
               <Shield className="mr-2 h-4 w-4" />
               Roles ({roles.length})
@@ -326,6 +330,10 @@ export default function AdminRbacDetail() {
             <TabsTrigger value="permissions" data-testid="tab-permissions">
               <Key className="mr-2 h-4 w-4" />
               Permissions ({permissions.length})
+            </TabsTrigger>
+            <TabsTrigger value="visualization" data-testid="tab-visualization">
+              <Eye className="mr-2 h-4 w-4" />
+              Visualization
             </TabsTrigger>
           </TabsList>
 
@@ -464,6 +472,98 @@ export default function AdminRbacDetail() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Visualization Tab */}
+          <TabsContent value="visualization" className="mt-6">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+              <h2 className="text-xl font-semibold">RBAC Visualization</h2>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  placeholder="Search roles or permissions..."
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  className="w-64"
+                  data-testid="input-search-visualization"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(`/api/admin/rbac/models/${modelId}/export?format=json`, '_blank')}
+                  data-testid="button-export-json"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export JSON
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(`/api/admin/rbac/models/${modelId}/export?format=yaml`, '_blank')}
+                  data-testid="button-export-yaml"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export YAML
+                </Button>
+              </div>
+            </div>
+
+            {/* View Type Selector */}
+            <div className="flex gap-2 mb-6 flex-wrap">
+              <Button
+                variant={viewType === "matrix" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewType("matrix")}
+                data-testid="button-view-matrix"
+              >
+                Permission Matrix
+              </Button>
+              <Button
+                variant={viewType === "tree" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewType("tree")}
+                data-testid="button-view-tree"
+              >
+                Tree View
+              </Button>
+              <Button
+                variant={viewType === "json" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewType("json")}
+                data-testid="button-view-json"
+              >
+                JSON View
+              </Button>
+              <Button
+                variant={viewType === "yaml" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewType("yaml")}
+                data-testid="button-view-yaml"
+              >
+                YAML View
+              </Button>
+            </div>
+
+            {/* View Content - Placeholder for now */}
+            <div data-testid="visualization-content">
+              {viewType === "matrix" && (
+                <div className="text-muted-foreground text-center py-12">
+                  Permission Matrix View (Coming next)
+                </div>
+              )}
+              {viewType === "tree" && (
+                <div className="text-muted-foreground text-center py-12">
+                  Tree View (Coming next)
+                </div>
+              )}
+              {viewType === "json" && (
+                <div className="text-muted-foreground text-center py-12">
+                  JSON View (Coming next)
+                </div>
+              )}
+              {viewType === "yaml" && (
+                <div className="text-muted-foreground text-center py-12">
+                  YAML View (Coming next)
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
 
