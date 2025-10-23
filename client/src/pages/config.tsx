@@ -13,11 +13,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2, Copy, Check } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2, Copy, Check, Shield } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+import { Badge } from "@/components/ui/badge";
 
 // Popular icon options for services
 const ICON_OPTIONS = [
@@ -26,6 +27,29 @@ const ICON_OPTIONS = [
   "Image", "Video", "Music", "ShoppingCart", "CreditCard", "BarChart",
   "Users", "User", "Home", "Settings", "Bell", "Search"
 ];
+
+// Component to display RBAC model badge for a service
+function ServiceRbacBadge({ serviceId }: { serviceId: string }) {
+  const { data: rbacModel, isLoading, isError } = useQuery<RbacModel | null>({
+    queryKey: ["/api/services", serviceId, "rbac-model"],
+    retry: false,
+  });
+
+  if (isLoading) {
+    return <span className="text-xs text-muted-foreground">Loading...</span>;
+  }
+
+  if (isError || !rbacModel) {
+    return <span className="text-xs text-muted-foreground">None</span>;
+  }
+
+  return (
+    <Badge variant="secondary" className="gap-1" data-testid={`badge-rbac-${serviceId}`}>
+      <Shield className="w-3 h-3" />
+      {rbacModel.name}
+    </Badge>
+  );
+}
 
 export default function Config() {
   const { toast } = useToast();
@@ -118,8 +142,15 @@ export default function Config() {
     },
     onSuccess: async (_, { id }) => {
       // Update RBAC model assignment if changed
-      if (editingService) {
-        await updateRbacModelAssignment(id);
+      try {
+        if (editingService) {
+          await updateRbacModelAssignment(id);
+        }
+      } catch (rbacError) {
+        // RBAC assignment failed, but service update succeeded
+        console.error("[Config] RBAC assignment failed in onSuccess:", rbacError);
+        // Don't reset the form state so user can try again
+        return;
       }
       
       queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
@@ -127,6 +158,12 @@ export default function Config() {
       
       // Invalidate RBAC model queries - both general list and specific model services
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models"] });
+      
+      // Invalidate the specific service's RBAC model badge query
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/services", data.id, "rbac-model"],
+        refetchType: 'active'
+      });
       
       // Explicitly invalidate the services query for the previous model (if any)
       if (previousRbacModelId) {
@@ -164,22 +201,29 @@ export default function Config() {
 
   // Helper function to update RBAC model assignment
   const updateRbacModelAssignment = async (serviceId: string) => {
+    console.log("[Config] updateRbacModelAssignment called with serviceId:", serviceId, "selectedRbacModelId:", selectedRbacModelId);
     try {
       if (selectedRbacModelId) {
         // Assign the selected RBAC model
-        await apiRequest("POST", `/api/services/${serviceId}/rbac-model`, { rbacModelId: selectedRbacModelId });
-      } else {
-        // Remove the RBAC model assignment
+        console.log("[Config] Assigning RBAC model:", selectedRbacModelId, "to service:", serviceId);
+        const result = await apiRequest("POST", `/api/services/${serviceId}/rbac-model`, { rbacModelId: selectedRbacModelId });
+        console.log("[Config] RBAC model assignment result:", result);
+      } else if (previousRbacModelId) {
+        // Only remove if there was a previous assignment
+        console.log("[Config] Removing RBAC model from service:", serviceId);
         await apiRequest("DELETE", `/api/services/${serviceId}/rbac-model`);
+      } else {
+        console.log("[Config] No RBAC model to assign or remove");
       }
     } catch (error: any) {
-      console.error("Failed to update RBAC model assignment:", error);
+      console.error("[Config] Failed to update RBAC model assignment:", error);
       // Show a toast for RBAC model assignment failure
       toast({
         title: "RBAC model assignment failed",
         description: error.message || "Failed to update RBAC model assignment",
         variant: "destructive",
       });
+      throw error; // Re-throw to prevent success toast
     }
   };
 
@@ -549,6 +593,7 @@ export default function Config() {
                       <TableHead className="font-semibold">Name</TableHead>
                       <TableHead className="font-semibold">Description</TableHead>
                       <TableHead className="font-semibold">URL</TableHead>
+                      <TableHead className="font-semibold">RBAC Model</TableHead>
                       <TableHead className="font-semibold">Secret</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
@@ -584,6 +629,9 @@ export default function Config() {
                               Visit
                               <ExternalLink className="w-3 h-3" />
                             </a>
+                          </TableCell>
+                          <TableCell>
+                            <ServiceRbacBadge serviceId={service.id} />
                           </TableCell>
                           <TableCell>
                             {service.secretPreview ? (

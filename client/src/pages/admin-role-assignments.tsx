@@ -76,10 +76,11 @@ export default function AdminRoleAssignments() {
     queryFn: async () => {
       const allRoles: Role[] = [];
       for (const model of rbacModels) {
-        const response = await fetch(`/api/admin/rbac/models/${model.id}/roles`);
-        if (response.ok) {
-          const roles = await response.json();
+        try {
+          const roles = await apiRequest("GET", `/api/admin/rbac/models/${model.id}/roles`);
           allRoles.push(...roles);
+        } catch (error) {
+          console.error(`Failed to fetch roles for model ${model.id}:`, error);
         }
       }
       return allRoles;
@@ -160,6 +161,7 @@ export default function AdminRoleAssignments() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/user-service-roles"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/all-roles"] });
       if (filterUserId !== "all") {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users", filterUserId, "service-roles"] });
       }
@@ -192,6 +194,7 @@ export default function AdminRoleAssignments() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/user-service-roles"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/all-roles"] });
       if (filterUserId !== "all") {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users", filterUserId, "service-roles"] });
       }
