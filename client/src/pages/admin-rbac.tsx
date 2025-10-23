@@ -286,8 +286,18 @@ export default function AdminRbac() {
                   <CardDescription className="mb-4" data-testid={`text-model-description-${model.id}`}>
                     {model.description}
                   </CardDescription>
-                  <div className="text-xs text-muted-foreground">
-                    Created {format(new Date(model.createdAt), "MMM d, yyyy")}
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground">
+                      Created {format(new Date(model.createdAt), "MMM d, yyyy")}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation(`/admin/rbac/${model.id}`)}
+                      data-testid={`button-manage-${model.id}`}
+                    >
+                      Manage
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

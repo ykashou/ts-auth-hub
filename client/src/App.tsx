@@ -13,6 +13,7 @@ import WidgetLoginPage from "@/pages/widget-login";
 import WidgetDocsPage from "@/pages/widget-docs";
 import AdminUsersPage from "@/pages/admin-users";
 import AdminRbacPage from "@/pages/admin-rbac";
+import AdminRbacDetailPage from "@/pages/admin-rbac-detail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin/users" component={AdminUsersPage} />
+      <Route path="/admin/rbac/:id" component={AdminRbacDetailPage} />
       <Route path="/admin/rbac" component={AdminRbacPage} />
       <Route path="/services" component={ServicesPage} />
       <Route path="/config" component={ConfigPage} />
