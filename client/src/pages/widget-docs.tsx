@@ -691,6 +691,446 @@ app.post('/api/auth/callback', async (req, res) => {
           </CardContent>
         </Card>
 
+        {/* RBAC Integration Section */}
+        <Separator className="my-8" />
+        
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-3 flex items-center gap-2">
+            <Shield className="w-6 h-6" />
+            Role-Based Access Control (RBAC)
+          </h2>
+          <p className="text-muted-foreground mb-4">
+            AuthHub includes comprehensive RBAC support, allowing you to assign roles and permissions to users within your services.
+            JWT tokens automatically include role and permission data when users authenticate.
+          </p>
+        </div>
+
+        {/* JWT Token Structure with RBAC */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>JWT Token Structure with RBAC</CardTitle>
+            <CardDescription>
+              When a user authenticates with a service_id, the JWT token includes their role and permissions
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-primary/10 border border-primary/30 p-3 rounded-lg">
+              <p className="text-sm text-primary font-semibold mb-2">
+                ✓ Automatic RBAC Inclusion
+              </p>
+              <p className="text-sm text-muted-foreground">
+                When you pass <code className="bg-muted px-1 rounded">service_id</code> in the redirect URL, 
+                AuthHub automatically includes the user's role, permissions, and RBAC model information in the JWT token.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Example Token Payload</h4>
+              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs">
+                <code>{`{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "user@example.com",
+  "role": "user",
+  "rbacRole": {
+    "id": "role-uuid",
+    "name": "Editor",
+    "description": "Can create and edit content"
+  },
+  "permissions": [
+    {
+      "id": "perm-uuid-1",
+      "name": "create:content",
+      "description": "Create new content"
+    },
+    {
+      "id": "perm-uuid-2",
+      "name": "read:content",
+      "description": "View content"
+    },
+    {
+      "id": "perm-uuid-3",
+      "name": "update:content",
+      "description": "Edit existing content"
+    }
+  ],
+  "rbacModel": {
+    "id": "model-uuid",
+    "name": "Content Management System",
+    "description": "RBAC model for CMS applications"
+  },
+  "iat": 1735689600,
+  "exp": 1736294400
+}`}</code>
+              </pre>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Token Fields Explained</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
+                <li><code className="bg-muted px-1 rounded">id</code> - User's unique UUID</li>
+                <li><code className="bg-muted px-1 rounded">email</code> - User's email address</li>
+                <li><code className="bg-muted px-1 rounded">role</code> - System role (admin or user)</li>
+                <li><code className="bg-muted px-1 rounded">rbacRole</code> - Service-specific role (e.g., Editor, Viewer)</li>
+                <li><code className="bg-muted px-1 rounded">permissions</code> - Array of permissions granted to the role</li>
+                <li><code className="bg-muted px-1 rounded">rbacModel</code> - The RBAC model assigned to the service</li>
+              </ul>
+            </div>
+
+            <div className="bg-muted/50 border border-border p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Note:</strong> If a user has not been assigned a role in the service, <code className="bg-muted px-1 rounded">rbacRole</code> and <code className="bg-muted px-1 rounded">rbacModel</code> will be null, 
+                and <code className="bg-muted px-1 rounded">permissions</code> will be an empty array.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Permission Checking Examples */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Code className="w-5 h-5" />
+              Permission Checking Examples
+            </CardTitle>
+            <CardDescription>
+              Implement permission-based access control in your application
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Backend Middleware (Express.js)</h4>
+              <div className="relative">
+                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs">
+                  <code>{`// middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+// Check if user has a specific permission
+function requirePermission(permissionName) {
+  return (req, res, next) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Verify token with your service secret
+      const decoded = jwt.verify(token, process.env.SERVICE_SECRET);
+      
+      // Check if user has required permission
+      const hasPermission = decoded.permissions?.some(
+        p => p.name === permissionName
+      );
+
+      if (!hasPermission) {
+        return res.status(403).json({ 
+          error: 'Permission denied',
+          required: permissionName 
+        });
+      }
+
+      req.user = decoded;
+      next();
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+  };
+}
+
+// Usage in routes
+app.post('/api/content', requirePermission('create:content'), (req, res) => {
+  // Only users with 'create:content' permission can access this
+  res.json({ message: 'Content created!' });
+});
+
+app.delete('/api/content/:id', requirePermission('delete:content'), (req, res) => {
+  // Only users with 'delete:content' permission can access this
+  res.json({ message: 'Content deleted!' });
+});`}</code>
+                </pre>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2 right-2"
+                  onClick={() => copyToClipboard(`// middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+// Check if user has a specific permission
+function requirePermission(permissionName) {
+  return (req, res, next) => {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Verify token with your service secret
+      const decoded = jwt.verify(token, process.env.SERVICE_SECRET);
+      
+      // Check if user has required permission
+      const hasPermission = decoded.permissions?.some(
+        p => p.name === permissionName
+      );
+
+      if (!hasPermission) {
+        return res.status(403).json({ 
+          error: 'Permission denied',
+          required: permissionName 
+        });
+      }
+
+      req.user = decoded;
+      next();
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+  };
+}
+
+// Usage in routes
+app.post('/api/content', requirePermission('create:content'), (req, res) => {
+  // Only users with 'create:content' permission can access this
+  res.json({ message: 'Content created!' });
+});
+
+app.delete('/api/content/:id', requirePermission('delete:content'), (req, res) => {
+  // Only users with 'delete:content' permission can access this
+  res.json({ message: 'Content deleted!' });
+});`, 'backend-rbac')}
+                  data-testid="button-copy-backend-rbac"
+                >
+                  {copiedId === 'backend-rbac' ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Frontend Permission Checking (React)</h4>
+              <div className="relative">
+                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs">
+                  <code>{`// hooks/usePermissions.js
+import { jwtDecode } from 'jwt-decode';
+import { useMemo } from 'react';
+
+export function usePermissions() {
+  const token = localStorage.getItem('authToken');
+  
+  const permissions = useMemo(() => {
+    if (!token) return [];
+    try {
+      const decoded = jwtDecode(token);
+      return decoded.permissions || [];
+    } catch {
+      return [];
+    }
+  }, [token]);
+
+  const role = useMemo(() => {
+    if (!token) return null;
+    try {
+      const decoded = jwtDecode(token);
+      return decoded.rbacRole;
+    } catch {
+      return null;
+    }
+  }, [token]);
+
+  const hasPermission = (permissionName) => {
+    return permissions.some(p => p.name === permissionName);
+  };
+
+  const hasAnyPermission = (...permissionNames) => {
+    return permissionNames.some(name => hasPermission(name));
+  };
+
+  const hasAllPermissions = (...permissionNames) => {
+    return permissionNames.every(name => hasPermission(name));
+  };
+
+  return { permissions, role, hasPermission, hasAnyPermission, hasAllPermissions };
+}
+
+// Component usage example
+function ContentEditor() {
+  const { hasPermission, role } = usePermissions();
+
+  return (
+    <div>
+      <h2>Content Management</h2>
+      <p>Your role: {role?.name || 'No role assigned'}</p>
+      
+      {hasPermission('create:content') && (
+        <button>Create New Content</button>
+      )}
+      
+      {hasPermission('update:content') && (
+        <button>Edit Content</button>
+      )}
+      
+      {hasPermission('delete:content') && (
+        <button className="text-red-600">Delete Content</button>
+      )}
+      
+      {!hasPermission('create:content') && (
+        <p>You don't have permission to create content</p>
+      )}
+    </div>
+  );
+}`}</code>
+                </pre>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2 right-2"
+                  onClick={() => copyToClipboard(`// hooks/usePermissions.js
+import { jwtDecode } from 'jwt-decode';
+import { useMemo } from 'react';
+
+export function usePermissions() {
+  const token = localStorage.getItem('authToken');
+  
+  const permissions = useMemo(() => {
+    if (!token) return [];
+    try {
+      const decoded = jwtDecode(token);
+      return decoded.permissions || [];
+    } catch {
+      return [];
+    }
+  }, [token]);
+
+  const role = useMemo(() => {
+    if (!token) return null;
+    try {
+      const decoded = jwtDecode(token);
+      return decoded.rbacRole;
+    } catch {
+      return null;
+    }
+  }, [token]);
+
+  const hasPermission = (permissionName) => {
+    return permissions.some(p => p.name === permissionName);
+  };
+
+  const hasAnyPermission = (...permissionNames) => {
+    return permissionNames.some(name => hasPermission(name));
+  };
+
+  const hasAllPermissions = (...permissionNames) => {
+    return permissionNames.every(name => hasPermission(name));
+  };
+
+  return { permissions, role, hasPermission, hasAnyPermission, hasAllPermissions };
+}
+
+// Component usage example
+function ContentEditor() {
+  const { hasPermission, role } = usePermissions();
+
+  return (
+    <div>
+      <h2>Content Management</h2>
+      <p>Your role: {role?.name || 'No role assigned'}</p>
+      
+      {hasPermission('create:content') && (
+        <button>Create New Content</button>
+      )}
+      
+      {hasPermission('update:content') && (
+        <button>Edit Content</button>
+      )}
+      
+      {hasPermission('delete:content') && (
+        <button className="text-red-600">Delete Content</button>
+      )}
+      
+      {!hasPermission('create:content') && (
+        <p>You don't have permission to create content</p>
+      )}
+    </div>
+  );
+}`, 'frontend-rbac')}
+                  data-testid="button-copy-frontend-rbac"
+                >
+                  {copiedId === 'frontend-rbac' ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* RBAC Setup Instructions */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Setting Up RBAC for Your Service</CardTitle>
+            <CardDescription>
+              Configure role-based access control for your external application
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Step 1: Create an RBAC Model</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                In the AuthHub admin panel, navigate to <strong>RBAC Models</strong> and create a new model with your custom roles and permissions.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Step 2: Assign RBAC Model to Your Service</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Go to <strong>Services</strong>, find your service, and assign the RBAC model you created.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Step 3: Assign Roles to Users</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Navigate to <strong>Role Assignments</strong> to assign users to specific roles within your service.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Step 4: Pass service_id in Authentication URL</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                When redirecting users to AuthHub for authentication, include your service ID:
+              </p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto text-sm">
+                <code>{`https://authhub.example.com/login?service_id=YOUR_SERVICE_ID&redirect_uri=YOUR_CALLBACK_URL`}</code>
+              </pre>
+            </div>
+
+            <div className="bg-primary/10 border border-primary/30 p-3 rounded-lg mt-3">
+              <p className="text-sm text-primary font-semibold mb-2">
+                ✓ That's It!
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Users will now receive JWT tokens with their role and permissions automatically included. 
+                You can immediately start checking permissions on both frontend and backend.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator className="my-8" />
+
         {/* Configuration Options */}
         <Card className="mb-6">
           <CardHeader>
