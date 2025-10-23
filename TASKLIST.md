@@ -118,7 +118,53 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 5: Global Services & Admin Service Manager - Full Stack
+## Task 5: Enhanced User Management with Advanced Table Features - Full Stack
+**What you'll see:** Full-fledged user management with filtering, sorting, bulk actions, and inline editing
+
+**Changes:**
+1. **Frontend**: Add advanced filtering controls (role filter, date range filter, service count filter)
+2. **Frontend**: Add table sorting by clicking column headers (UUID, email, role, created date, services)
+3. **Frontend**: Add bulk selection with checkboxes for multi-user actions
+4. **Frontend**: Add action dropdown for each user (Edit, Delete, Change Role)
+5. **Frontend**: Implement inline editing modal/dialog for user details (email, role)
+6. **Frontend**: Add pagination controls (10/25/50 users per page)
+7. **Frontend**: Add bulk actions toolbar (Delete selected, Export to CSV)
+8. **Backend**: Create `PATCH /api/admin/users/:id` endpoint for updating user details
+9. **Backend**: Create `DELETE /api/admin/users/:id` endpoint for deleting users
+10. **Backend**: Add validation to prevent deleting last admin
+11. **Test in browser**:
+    - Filter users by role → see only admins or only regular users
+    - Click column headers → table sorts by that column
+    - Select multiple users → bulk actions appear
+    - Click "Edit" on a user → modal opens with user details
+    - Update user email → changes persist and table refreshes
+    - Try to delete last admin → see error message
+    - Delete regular user → user removed from table
+    - Export users to CSV → download file with user data
+
+**New UI Components:**
+- Filter controls bar (role dropdown, date picker, service count slider)
+- Sortable table headers with up/down arrows
+- Checkbox column for bulk selection
+- Action menu (three dots) in each row
+- Edit user dialog/modal
+- Confirmation dialogs for destructive actions
+- Pagination controls at table footer
+- Bulk actions toolbar
+
+**Table Enhancements:**
+- Sortable: UUID, Email, Role, Created Date, Services Count
+- Filterable: Role (Admin/User/All), Created Date Range, Services Count Range
+- Selectable: Checkboxes for bulk operations
+- Actionable: Edit, Delete, Change Role per user
+
+**UI Location:** Enhanced /admin/users page with advanced table features
+
+**Acceptance:** Admin has full control over users with filtering, sorting, editing, and bulk operations
+
+---
+
+## Task 6: Global Services & Admin Service Manager - Full Stack
 **What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
@@ -140,7 +186,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 6: Service Enablement for Users - Full Stack
+## Task 7: Service Enablement for Users - Full Stack
 **What you'll see:** Admin can toggle services on/off for each user in User Management table
 
 **Changes:**
@@ -164,7 +210,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 7: Users See Only Enabled Services - Full Stack
+## Task 8: Users See Only Enabled Services - Full Stack
 **What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
@@ -187,7 +233,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 8: Role Management UI - Full Stack
+## Task 9: Role Management UI - Full Stack
 **What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
@@ -211,7 +257,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 9: Migrate Existing Services to Global Catalog - Full Stack
+## Task 10: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -241,7 +287,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 10: Service Auto-Enablement for New Users - Full Stack
+## Task 11: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
