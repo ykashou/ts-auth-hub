@@ -50,6 +50,32 @@ export const rbacModels = pgTable("rbac_models", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Roles table - stores roles within an RBAC model
+// Each role belongs to a specific RBAC model
+export const roles = pgTable("roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rbacModelId: varchar("rbac_model_id").notNull().references(() => rbacModels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Permissions table - stores permissions within an RBAC model
+// Each permission belongs to a specific RBAC model
+export const permissions = pgTable("permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rbacModelId: varchar("rbac_model_id").notNull().references(() => rbacModels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Role-Permission junction table - defines which permissions each role has
+export const rolePermissions = pgTable("role_permissions", {
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  permissionId: varchar("permission_id").notNull().references(() => permissions.id, { onDelete: "cascade" }),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -92,6 +118,26 @@ export const insertRbacModelSchema = createInsertSchema(rbacModels).omit({
   description: z.string().min(1, "Description is required"),
 });
 
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  rbacModelId: true, // Set from URL parameter or context
+  createdAt: true,
+}).extend({
+  name: z.string().min(1, "Role name is required"),
+  description: z.string().min(1, "Description is required"),
+});
+
+export const insertPermissionSchema = createInsertSchema(permissions).omit({
+  id: true,
+  rbacModelId: true, // Set from URL parameter or context
+  createdAt: true,
+}).extend({
+  name: z.string().min(1, "Permission name is required"),
+  description: z.string().min(1, "Description is required"),
+});
+
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions);
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -112,5 +158,11 @@ export type InsertService = z.infer<typeof insertServiceSchema>;
 export type Service = typeof services.$inferSelect;
 export type InsertRbacModel = z.infer<typeof insertRbacModelSchema>;
 export type RbacModel = typeof rbacModels.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type Role = typeof roles.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+export type Permission = typeof permissions.$inferSelect;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+export type RolePermission = typeof rolePermissions.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;
