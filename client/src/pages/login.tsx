@@ -85,8 +85,8 @@ export default function LoginPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
-        // Invalidate users cache to refresh dashboard
-        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        // Clear all cached data when logging in to prevent showing previous user's data
+        queryClient.clear();
       }
       toast({
         title: "Login successful",
@@ -115,8 +115,8 @@ export default function LoginPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
-        // Invalidate users cache to refresh dashboard
-        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        // Clear all cached data when logging in to prevent showing previous user's data
+        queryClient.clear();
       }
       toast({
         title: "Login successful",
@@ -147,8 +147,8 @@ export default function LoginPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
-        // Invalidate users cache to refresh dashboard
-        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        // Clear all cached data when logging in to prevent showing previous user's data
+        queryClient.clear();
       }
       toast({
         title: "UUID Generated!",
