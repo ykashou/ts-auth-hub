@@ -69,7 +69,7 @@ const verifyApiKey = async (req: any, res: any, next: any) => {
   next();
 };
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token and attach user to request
 const verifyToken = (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.replace("Bearer ", "");
   
@@ -84,6 +84,19 @@ const verifyToken = (req: any, res: any, next: any) => {
   } catch (error) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
+};
+
+// Middleware to require admin role
+const requireAdmin = (req: any, res: any, next: any) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  
+  next();
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -375,6 +388,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(sanitizedUsers);
     } catch (error: any) {
       console.error("Get users error:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Get all users (admin only) - dedicated admin endpoint
+  app.get("/api/admin/users", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      
+      // Remove passwords from response
+      const sanitizedUsers = users.map(({ password, ...user }) => user);
+      
+      res.json(sanitizedUsers);
+    } catch (error: any) {
+      console.error("Get admin users error:", error);
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });

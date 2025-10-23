@@ -88,50 +88,37 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 4: Admin Menu in Navbar - Full Stack
-**What you'll see:** Admins see "User Management" link, regular users don't
+## Task 4: User Management Page with Admin Navbar - Full Stack
+**What you'll see:** Admins see "User Management" link in navbar leading to a page with all users in a table
 
 **Changes:**
 1. **Backend**: Create `requireAdmin` middleware (returns 403 if not admin)
-2. **Backend**: Create placeholder endpoint `GET /api/admin/users` (returns empty array for now)
-3. **Frontend**: Add "Admin" section in navbar (conditional on role)
-4. **Frontend**: Add "User Management" link (routes to /admin/users)
-5. **Frontend**: Create empty User Management page showing "Admin Controls"
-6. **Test in browser**:
+2. **Backend**: Create endpoint `GET /api/admin/users` (returns all users with role info)
+3. **Frontend**: Add "User Management" link to navbar (conditional on admin role)
+4. **Frontend**: Create User Management page at `/admin/users` with full user table
+5. **Frontend**: Add route protection (redirects non-admins to dashboard)
+6. **Frontend**: Table shows: UUID, email, role badge, created date, services count (0 for now)
+7. **Frontend**: Add search functionality to filter users
+8. **Test in browser**:
    - Login as admin → see "User Management" in navbar
-   - Login as regular user → navbar item hidden
-   - Try accessing /admin/users as regular user → redirect to dashboard
-
-**UI Change:** Navbar now has conditional admin section
-
-**Acceptance:** Admin-only navigation visible only to admins
-
----
-
-## Task 5: View All Users Table - Full Stack
-**What you'll see:** Admin can see table of all users with their roles
-
-**Changes:**
-1. **Backend**: Implement `GET /api/admin/users` (returns all users)
-2. **Frontend**: Build table in User Management page
-3. **Frontend**: Show: email/UUID, role badge, created date
-4. **Frontend**: Add data-testid attributes
-5. **Test in browser**:
-   - Login as admin → see table with all users
+   - Click link → see table with all users and their roles
    - Register new user → appears in table immediately
-   - Regular user can't access page (gets redirected)
+   - Login as regular user → navbar item hidden, direct access redirected to dashboard
 
 **Table Columns:**
-- User (email or UUID)
+- UUID (with copy button)
+- Email (or "Anonymous")
 - Role (Admin/User badge)
-- Created
+- Created (date + time)
 - Services (count - shows "0" for now)
 
-**Acceptance:** Admin sees live-updating user table
+**UI Location:** New navbar link + new page at /admin/users
+
+**Acceptance:** Admin can view and search all users in dedicated management page
 
 ---
 
-## Task 6: Global Services & Admin Service Manager - Full Stack
+## Task 5: Global Services & Admin Service Manager - Full Stack
 **What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
@@ -153,7 +140,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 7: Service Enablement for Users - Full Stack
+## Task 6: Service Enablement for Users - Full Stack
 **What you'll see:** Admin can toggle services on/off for each user in User Management table
 
 **Changes:**
@@ -177,7 +164,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 8: Users See Only Enabled Services - Full Stack
+## Task 7: Users See Only Enabled Services - Full Stack
 **What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
@@ -200,7 +187,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 9: Role Management UI - Full Stack
+## Task 8: Role Management UI - Full Stack
 **What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
@@ -224,7 +211,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 10: Migrate Existing Services to Global Catalog - Full Stack
+## Task 9: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -254,7 +241,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 11: Service Auto-Enablement for New Users - Full Stack
+## Task 10: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
