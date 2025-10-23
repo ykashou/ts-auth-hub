@@ -1,281 +1,274 @@
-# User Management with Service Enablement - Iterative Implementation Plan
+# User Management with Service Enablement - Tightly Coupled Iterative Plan
 
-## Approach: Vertical Slices
-Each task implements a complete feature from database → backend → frontend → visible in UI.
-You can stop at any task and have a working (though incomplete) system.
-
----
-
-## Task 1: Add Role Field and Display in UI
-**Goal:** Users have roles, and you can see them in the UI
-
-**Backend:**
-- Add `role` enum to shared/schema.ts: `pgEnum("user_role", ["admin", "user"])`
-- Add `role` field to users table with default `"user"`
-- Update insertUserSchema to include role
-- Run `npm run db:push` to apply schema
-- Update auth endpoints to return `role` in response payload
-- Update JWT token payload to include `role`
-
-**Frontend:**
-- Update auth response types to include `role`
-- Store role in localStorage alongside token
-- Add role badge to dashboard header showing current user's role
-- Add `getUserRole()` helper in client/src/lib/auth.ts
-
-**Test:**
-- Register new user → see "User" badge in dashboard
-- Manually update a user's role to "admin" in database → see "Admin" badge
-
-**Deliverable:** Role badge visible in dashboard for all users
+## Principle: Every Backend Change Has Immediate UI Reflection
+No table, field, or endpoint exists without being visible and usable in the UI in the same task.
 
 ---
 
-## Task 2: Auto-Promote First User to Admin
-**Goal:** First registered user automatically becomes admin
+## Task 1: Add User Roles - Full Stack
+**What you'll see:** Role badge appears in dashboard showing "Admin" or "User"
 
-**Backend:**
-- In `POST /api/auth/register`: check if user count = 0 before creating user
-- If first user, set `role: "admin"` instead of default "user"
-- In `POST /api/auth/uuid-login`: same logic for UUID users
+**Changes:**
+1. **Schema**: Add `role` enum + field to users table (default: "user")
+2. **Backend**: Update auth endpoints to return `role` in response
+3. **Backend**: Add `role` to JWT payload
+4. **Frontend**: Store role in auth state
+5. **Frontend**: Add role badge to dashboard header
+6. **Test in browser**: Register → see "User" badge appear
 
-**Frontend:**
-- Show success toast when promoted to admin
-- Badge automatically updates to "Admin"
+**Database:**
+```typescript
+// shared/schema.ts
+export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
+role: userRoleEnum("role").notNull().default("user")
+```
 
-**Test:**
-- Delete all users from database
-- Register new user → should see "Admin" badge
-- Register second user → should see "User" badge
-- UUID login as first user → should see "Admin" badge
+**API Response:**
+```json
+{ "token": "...", "user": { "id": "...", "email": "...", "role": "user" } }
+```
 
-**Deliverable:** First user gets admin role automatically, visible immediately in UI
+**UI Location:** Dashboard header (top right near services)
 
----
-
-## Task 3: Admin-Only Navigation Guard
-**Goal:** Hide admin features from regular users
-
-**Backend:**
-- Create `requireAdmin` middleware in server/routes.ts
-- Returns 403 if `req.user.role !== 'admin'`
-
-**Frontend:**
-- Update navbar to conditionally show "Admin" section
-- Only show to users with `role === 'admin'`
-- Add placeholder "User Management" link (goes nowhere yet)
-
-**Test:**
-- Login as admin → see "User Management" link in navbar
-- Login as regular user → link is hidden
-- Try to manually navigate to /admin/users as regular user → redirect to dashboard
-
-**Deliverable:** Admin-only links visible only to admins
+**Acceptance:** Role badge visible for all logged-in users
 
 ---
 
-## Task 4: Admin User Directory (Read-Only)
-**Goal:** Admins can see list of all users
+## Task 2: First User Auto-Admin - Full Stack
+**What you'll see:** First registered user gets "Admin" badge, second user gets "User" badge
 
-**Backend:**
-- Create `GET /api/admin/users` endpoint
-- Protected with `requireAdmin` middleware
-- Returns all users with id, email, role, createdAt
+**Changes:**
+1. **Backend**: In register/uuid-login, check user count
+2. **Backend**: If count = 0, set role to "admin"
+3. **Frontend**: Show toast when promoted: "You are the first user - promoted to Admin!"
+4. **Test in browser**: 
+   - Delete all users from DB
+   - Register → see "Admin" badge + toast
+   - Register second user → see "User" badge
 
-**Frontend:**
-- Create `client/src/pages/user-management.tsx`
-- Table showing all users with their roles
-- Add route in App.tsx: `/admin/users`
-- Use data-testid: `table-users`, `row-user-{userId}`, `badge-role-{userId}`
+**Logic:**
+```typescript
+const userCount = await storage.getUserCount();
+const role = userCount === 0 ? "admin" : "user";
+```
 
-**Test:**
-- Login as admin → navigate to /admin/users → see table of all users
-- Login as regular user → try to access /admin/users → get 403 error
-- Register new users → they appear in the table immediately
-
-**Deliverable:** Admin can view all users in a table (no editing yet)
-
----
-
-## Task 5: Create Global Services Table
-**Goal:** Services are global, not user-specific
-
-**Backend:**
-- Create NEW table `global_services` in schema (don't modify existing services yet)
-- Schema: id, name, description, url, redirectUrl, icon, color, secret, secretPreview, createdAt
-- Create `GET /api/admin/global-services` endpoint (admin-only)
-- Create `POST /api/admin/global-services` endpoint (admin-only)
-- Seed 7 default global services when first admin registers
-
-**Frontend:**
-- Create simple admin page at `/admin/services` showing global services
-- List view only (no create UI yet)
-- Add link in admin navbar
-
-**Test:**
-- Login as admin → see 7 seeded global services
-- Regular users can't access /admin/services
-
-**Deliverable:** Global services table exists and is visible to admins
+**Acceptance:** First user is admin, subsequent users are regular users, visible immediately
 
 ---
 
-## Task 6: User-Service Assignments (Backend + Basic UI)
-**Goal:** Track which users have access to which services
+## Task 3: Admin Menu in Navbar - Full Stack
+**What you'll see:** Admins see "User Management" link, regular users don't
 
-**Backend:**
-- Create `userServices` junction table: userId, serviceId, enabledAt
-- Create endpoints:
-  - `GET /api/admin/users/:userId/services` - list enabled services for user
-  - `POST /api/admin/users/:userId/services/:serviceId` - enable service
-  - `DELETE /api/admin/users/:userId/services/:serviceId` - disable service
-- All protected with `requireAdmin`
+**Changes:**
+1. **Backend**: Create `requireAdmin` middleware (returns 403 if not admin)
+2. **Backend**: Create placeholder endpoint `GET /api/admin/users` (returns empty array for now)
+3. **Frontend**: Add "Admin" section in navbar (conditional on role)
+4. **Frontend**: Add "User Management" link (routes to /admin/users)
+5. **Frontend**: Create empty User Management page showing "Admin Controls"
+6. **Test in browser**:
+   - Login as admin → see "User Management" in navbar
+   - Login as regular user → navbar item hidden
+   - Try accessing /admin/users as regular user → redirect to dashboard
 
-**Frontend:**
-- In User Management table, add column showing count of enabled services
-- Click count → expand row to show which services are enabled
-- Simple list view only (no toggles yet)
+**UI Change:** Navbar now has conditional admin section
 
-**Test:**
-- Manually enable services for users via API
-- See enabled service count update in User Management table
-- Expand row → see list of enabled services
-
-**Deliverable:** Can track and view service assignments per user
+**Acceptance:** Admin-only navigation visible only to admins
 
 ---
 
-## Task 7: Service Toggle UI (Full Admin Controls)
-**Goal:** Admins can enable/disable services for users with toggle switches
+## Task 4: View All Users Table - Full Stack
+**What you'll see:** Admin can see table of all users with their roles
 
-**Frontend:**
-- In User Management page, add toggle switches for each global service
-- When toggled ON → call `POST /api/admin/users/:userId/services/:serviceId`
-- When toggled OFF → call `DELETE /api/admin/users/:userId/services/:serviceId`
-- Show loading state during toggle
-- Optimistic UI updates
-- data-testid: `toggle-service-{userId}-{serviceId}`
+**Changes:**
+1. **Backend**: Implement `GET /api/admin/users` (returns all users)
+2. **Frontend**: Build table in User Management page
+3. **Frontend**: Show: email/UUID, role badge, created date
+4. **Frontend**: Add data-testid attributes
+5. **Test in browser**:
+   - Login as admin → see table with all users
+   - Register new user → appears in table immediately
+   - Regular user can't access page (gets redirected)
 
-**Backend:**
-- No changes needed (endpoints exist from Task 6)
+**Table Columns:**
+- User (email or UUID)
+- Role (Admin/User badge)
+- Created
+- Services (count - shows "0" for now)
 
-**Test:**
-- Login as admin → go to User Management
-- Toggle service ON for user → see it reflect immediately
-- Toggle service OFF → see it update
-- Refresh page → toggles persist correctly
-
-**Deliverable:** Admins can enable/disable services for any user via UI
-
----
-
-## Task 8: User Dashboard Shows Only Enabled Services
-**Goal:** Regular users only see services enabled for them
-
-**Backend:**
-- Create `GET /api/services/enabled` endpoint
-- Returns services from userServices junction for authenticated user
-- Admins: return all global services (or also filter by userServices - decide)
-
-**Frontend:**
-- Update dashboard.tsx to fetch from `/api/services/enabled` instead of `/api/services`
-- Show message if user has 0 enabled services
-- Admins see all services (or only enabled - UX decision)
-
-**Test:**
-- Login as regular user with 2 enabled services → see only those 2
-- Admin enables another service → user refreshes → sees 3 services
-- Login as admin → sees all services (or enabled services)
-- Login as user with 0 enabled services → see empty state message
-
-**Deliverable:** Users see only services enabled for them
+**Acceptance:** Admin sees live-updating user table
 
 ---
 
-## Task 9: Prevent Removing Last Admin
-**Goal:** System always has at least one admin
+## Task 5: Global Services & Admin Service Manager - Full Stack
+**What you'll see:** Admin page showing all global services in a card grid
 
-**Backend:**
-- Create `GET /api/admin/count` endpoint → returns admin count
-- Update `PATCH /api/admin/users/:userId/role` endpoint (create if doesn't exist)
-- Before changing admin → user, check if admin count = 1
-- Return 400 error: "Cannot remove last admin"
+**Changes:**
+1. **Schema**: Create `globalServices` table (id, name, description, url, icon, color, secret, createdAt)
+2. **Backend**: Create `POST /api/admin/global-services` endpoint
+3. **Backend**: Create `GET /api/admin/global-services` endpoint
+4. **Backend**: Seed 7 default services when first admin registers
+5. **Frontend**: Create "Service Catalog" page at /admin/services
+6. **Frontend**: Display services in card grid (same style as dashboard)
+7. **Frontend**: Add "Service Catalog" link to admin navbar
+8. **Test in browser**:
+   - Login as admin → click "Service Catalog"
+   - See 7 seeded services in grid
+   - Regular user can't access page
 
-**Frontend:**
-- Add role change button in User Management table
-- Fetch admin count before allowing role change
-- If user is last admin, disable the button with tooltip: "Cannot remove last admin"
-- data-testid: `button-role-change-{userId}`
+**UI Location:** New page at /admin/services with service cards
 
-**Test:**
-- With only 1 admin → button is disabled
-- Create second admin → first admin's button becomes enabled
-- Try to demote second admin → works fine
-- Try to demote last admin via API → get 400 error
-
-**Deliverable:** Cannot remove admin role from last admin
+**Acceptance:** Global services visible in admin UI immediately after seeding
 
 ---
 
-## Task 10: Cleanup and Migration from Old Services
-**Goal:** Migrate existing user-specific services to new system
+## Task 6: Service Enablement for Users - Full Stack
+**What you'll see:** Admin can toggle services on/off for each user in User Management table
 
-**Backend:**
-- Create `server/migrate-to-global-services.ts` script:
-  1. Get all distinct services from old `services` table
-  2. Create global_services entries (deduplicate by name+url)
-  3. For each user's old services, create userServices assignments
-  4. Preserve encrypted secrets
-- Add npm script: `"migrate:services": "tsx server/migrate-to-global-services.ts"`
+**Changes:**
+1. **Schema**: Create `userServices` junction table (userId, serviceId, enabledAt)
+2. **Backend**: Create `GET /api/admin/users/:userId/services` - returns enabled services
+3. **Backend**: Create `POST /api/admin/users/:userId/services/:serviceId` - enable service
+4. **Backend**: Create `DELETE /api/admin/users/:userId/services/:serviceId` - disable service
+5. **Frontend**: Add expandable row in User Management table
+6. **Frontend**: Show toggles for each global service
+7. **Frontend**: When toggled → call enable/disable endpoint
+8. **Frontend**: Update count in table immediately (optimistic UI)
+9. **Test in browser**:
+   - Login as admin → expand user row
+   - See toggles for all 7 services (all OFF initially)
+   - Toggle service ON → see API call + count update
+   - Refresh page → toggle state persists
 
-**Frontend:**
-- Remove references to old user-specific services
-- Update all service queries to use global services + userServices
-- Remove old service creation/edit UI from dashboard (admins manage globally now)
+**Table Change:** "Services" column now clickable, expands to show toggle switches
+
+**Acceptance:** Admin can enable/disable services per user, changes persist
+
+---
+
+## Task 7: Users See Only Enabled Services - Full Stack
+**What you'll see:** Regular user dashboard shows only services enabled for them by admin
+
+**Changes:**
+1. **Backend**: Create `GET /api/services/enabled` endpoint
+2. **Backend**: Returns services from userServices junction for current user
+3. **Backend**: For admins: return all global services (admin override)
+4. **Frontend**: Update dashboard to fetch from `/api/services/enabled`
+5. **Frontend**: Show empty state if user has 0 enabled services
+6. **Frontend**: Message: "No services enabled. Contact admin to request access."
+7. **Test in browser**:
+   - Login as admin → enable 2 services for User A
+   - Login as User A → see only those 2 services
+   - Login as admin → enable 1 more service for User A
+   - User A refreshes → sees 3 services now
+   - Login as User B with 0 enabled services → see empty state
+
+**Dashboard Change:** Service cards now filtered by userServices assignments
+
+**Acceptance:** Users see only their enabled services, admins see all
+
+---
+
+## Task 8: Role Management UI - Full Stack
+**What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
+
+**Changes:**
+1. **Backend**: Create `GET /api/admin/count` endpoint (returns number of admins)
+2. **Backend**: Create `PATCH /api/admin/users/:userId/role` endpoint
+3. **Backend**: Check admin count > 1 before allowing demotion
+4. **Backend**: Return 400 error: "Cannot demote last admin"
+5. **Frontend**: Add role dropdown in User Management table
+6. **Frontend**: Fetch admin count to determine if dropdown should be disabled
+7. **Frontend**: Show tooltip on disabled dropdown: "Cannot demote last admin"
+8. **Frontend**: On role change → show toast + refresh table
+9. **Test in browser**:
+   - With 1 admin → dropdown disabled for that admin
+   - Promote another user to admin → first admin's dropdown becomes enabled
+   - Demote second admin → works fine
+   - Try to demote last admin → see tooltip + disabled state
+
+**Table Change:** Role badge becomes interactive dropdown for admins
+
+**Acceptance:** Cannot remove last admin, role changes work for others
+
+---
+
+## Task 9: Migrate Existing Services to Global Catalog - Full Stack
+**What you'll see:** Old user-specific services become global, users keep access via userServices
+
+**Changes:**
+1. **Backend**: Create migration script `server/migrate-services.ts`
+2. **Backend**: Script logic:
+   - Copy distinct services from old `services` table to `globalServices`
+   - For each user's old services, create userServices entries
+   - Preserve encrypted secrets
+   - Deduplicate by name+url
+3. **Backend**: Add npm script: `"migrate": "tsx server/migrate-services.ts"`
+4. **Frontend**: Remove old service CRUD UI from dashboard
+5. **Frontend**: Add note: "Services are now managed globally by admins"
+6. **Test in browser**:
+   - Run migration: `npm run migrate`
+   - Login as existing user → see all their old services still work
+   - Check User Management → see services correctly assigned
+   - Check Service Catalog → see all unique services
 
 **Migration Steps:**
 1. Backup database
-2. Run `npm run migrate:services`
-3. Verify users can still access their services
-4. Drop old `services` table after verification
-5. Rename `global_services` to `services`
+2. Run `npm run migrate`
+3. Verify in UI
+4. Drop old `services` table
+5. Rename `globalServices` to `services`
 
-**Test:**
-- Run migration with test data
-- All users retain access to their original services
-- No data loss
-- Encrypted secrets still work
-
-**Deliverable:** Complete migration from user-specific to global services with user-level enablement
+**Acceptance:** Existing users retain access to their services after migration
 
 ---
 
-## Testing Checklist (After Each Task)
+## Task 10: Service Auto-Enablement for New Users - Full Stack
+**What you'll see:** New users automatically get access to a default set of services
 
-After completing each task, verify:
-- [ ] Backend changes applied (`npm run db:push` if schema changed)
-- [ ] Frontend compiles without TypeScript errors
-- [ ] Workflow restarts successfully
-- [ ] Manual testing passes for that task's deliverable
-- [ ] No console errors in browser
-- [ ] Previous tasks still work (no regression)
+**Changes:**
+1. **Backend**: Add config for default services (array of service IDs)
+2. **Backend**: After user registration, auto-enable default services
+3. **Backend**: Make this configurable (e.g., first 3 services alphabetically)
+4. **Frontend**: Show indicator in Service Catalog which services are "default enabled"
+5. **Frontend**: Add star icon or "Default" badge on default service cards
+6. **Frontend**: In User Management, show which services were auto-enabled vs manually enabled
+7. **Test in browser**:
+   - Register new user
+   - Login as that user → see 3 default services already enabled
+   - Login as admin → User Management shows those 3 services toggled ON
+   - Admin can still disable them manually
+
+**Config Location:** Environment variable or database setting
+
+**Acceptance:** New users immediately have access to default services without admin intervention
+
+---
+
+## Testing Protocol (After Each Task)
+
+1. **Apply changes**: `npm run db:push` (or `--force` if needed)
+2. **Restart workflow**: Automatic on file save
+3. **Open browser**: Test the specific UI changes described
+4. **Verify persistence**: Refresh page, changes should persist
+5. **Check previous tasks**: Make sure nothing broke
+6. **Check console**: No errors in browser console
 
 ---
 
 ## Rollback Strategy
 
-Each task is independent. If a task fails:
-1. Revert the code changes for that task only
+Each task is atomic. If something breaks:
+1. Revert code changes for that task only
 2. Run `npm run db:push --force` if schema changed
-3. Previous tasks remain functional
-4. Fix the issue and retry
+3. All previous tasks remain working
+4. Debug and retry
 
 ---
 
-## Key Benefits of This Approach
+## Key Differences from Previous Plan
 
-1. **See progress immediately** - Each task shows something in the UI
-2. **Test as you go** - Catch issues early
-3. **Safe to stop** - Can pause at any task
-4. **Easy debugging** - Small changes = easy to find issues
-5. **No big bang** - No "build backend for weeks then build frontend"
+✅ **Every task has UI changes** - Nothing is backend-only
+✅ **Immediate visibility** - Every change shows in browser right away
+✅ **Tight coupling** - Schema + API + UI all in one task
+✅ **Can demo after each task** - Show working feature after every task
+✅ **Easy debugging** - Small changes, easy to find issues
