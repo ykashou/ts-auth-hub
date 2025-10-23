@@ -249,6 +249,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Verify JWT token (for external services using redirect flow)
+  // External services send the token they received from AuthHub redirect
+  // Along with their service secret to authenticate themselves
+  app.post("/api/auth/verify-token", async (req, res) => {
+    try {
+      const { token, secret } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ error: "Token is required" });
+      }
+
+      if (!secret) {
+        return res.status(400).json({ error: "Service secret is required" });
+      }
+
+      // Verify service secret first (external service authentication)
+      // Find service by matching the secret
+      const allServices = await storage.getAllServices();
+      let validService = null;
+      
+      for (const service of allServices) {
+        if (service.hashedSecret) {
+          const isValidSecret = await bcrypt.compare(secret, service.hashedSecret);
+          if (isValidSecret) {
+            validService = service;
+            break;
+          }
+        }
+      }
+
+      if (!validService) {
+        return res.status(401).json({ error: "Invalid service secret" });
+      }
+
+      // Now verify the JWT token
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        
+        // Get full user information
+        const user = await storage.getUser(decoded.id);
+        
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        // Return valid: true and user information
+        const { password, ...sanitizedUser } = user;
+        res.json({
+          valid: true,
+          user: sanitizedUser
+        });
+      } catch (jwtError) {
+        // Token is invalid or expired
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }
+    } catch (error: any) {
+      console.error("Token verification error:", error);
+      res.status(500).json({ error: error.message || "Token verification failed" });
+    }
+  });
+
   // User Management Routes
 
   // Get all users (admin)
