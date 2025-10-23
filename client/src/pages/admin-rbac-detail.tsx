@@ -127,27 +127,8 @@ export default function AdminRbacDetail() {
   });
 
   // Fetch export data for JSON/YAML views
-  const { data: exportData } = useQuery({
+  const { data: exportData, isLoading: exportLoading } = useQuery({
     queryKey: ["/api/admin/rbac/models", modelId, "export"],
-    queryFn: async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-      
-      const response = await fetch(`/api/admin/rbac/models/${modelId}/export?format=json`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch export data: ${response.status}`);
-      }
-      
-      return await response.json();
-    },
     enabled: isAdmin && !!modelId,
   });
 
