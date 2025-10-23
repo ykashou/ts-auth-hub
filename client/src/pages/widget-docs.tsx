@@ -613,10 +613,12 @@ function handleAuthCallback() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-sm mb-2">Step 1: Get Your Service Secret</h4>
+              <h4 className="font-semibold text-sm mb-2">Step 1: Get Your Service ID and Secret</h4>
               <p className="text-sm text-muted-foreground mb-2">
-                Register your service in AuthHub's Config page and copy your service secret (sk_...). 
-                Store it in your backend environment variables as <code className="bg-muted px-1 rounded">AUTH_HUB_SECRET</code>.
+                Register your service in AuthHub's Config page and copy both your <strong>service ID</strong> and 
+                <strong>service secret</strong> (sk_...). Store them in your backend environment variables as 
+                <code className="bg-muted px-1 rounded">AUTH_HUB_SERVICE_ID</code> and 
+                <code className="bg-muted px-1 rounded">AUTH_HUB_SECRET</code>.
               </p>
             </div>
 
@@ -636,8 +638,9 @@ app.post('/api/auth/widget', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        token: token,                       // JWT from redirect
-        secret: process.env.AUTH_HUB_SECRET // Your service secret
+        token: token,                            // JWT from redirect
+        serviceId: process.env.AUTH_HUB_SERVICE_ID, // Your service ID
+        secret: process.env.AUTH_HUB_SECRET      // Your service secret
       })
     });
 
@@ -672,8 +675,9 @@ app.post('/api/auth/widget', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        token: token,                       // JWT from redirect
-        secret: process.env.AUTH_HUB_SECRET // Your service secret
+        token: token,                            // JWT from redirect
+        serviceId: process.env.AUTH_HUB_SERVICE_ID, // Your service ID
+        secret: process.env.AUTH_HUB_SECRET      // Your service secret
       })
     });
 

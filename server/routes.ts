@@ -251,35 +251,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Verify JWT token (for external services using redirect flow)
   // External services send the token they received from AuthHub redirect
-  // Along with their service secret to authenticate themselves
+  // Along with their service ID and secret to authenticate themselves
   app.post("/api/auth/verify-token", async (req, res) => {
     try {
-      const { token, secret } = req.body;
+      const { token, serviceId, secret } = req.body;
 
       if (!token) {
         return res.status(400).json({ error: "Token is required" });
       }
 
-      if (!secret) {
-        return res.status(400).json({ error: "Service secret is required" });
+      if (!serviceId || !secret) {
+        return res.status(400).json({ error: "serviceId and secret are required" });
       }
 
-      // Verify service secret first (external service authentication)
-      // Find service by matching the secret
-      const allServices = await storage.getAllServices();
-      let validService = null;
+      // Verify service exists and secret is valid
+      const service = await storage.getServiceById(serviceId);
       
-      for (const service of allServices) {
-        if (service.hashedSecret) {
-          const isValidSecret = await bcrypt.compare(secret, service.hashedSecret);
-          if (isValidSecret) {
-            validService = service;
-            break;
-          }
-        }
+      if (!service) {
+        return res.status(401).json({ error: "Invalid service" });
       }
 
-      if (!validService) {
+      if (!service.hashedSecret) {
+        return res.status(401).json({ error: "Service has no secret configured" });
+      }
+
+      const isValidSecret = await bcrypt.compare(secret, service.hashedSecret);
+      if (!isValidSecret) {
         return res.status(401).json({ error: "Invalid service secret" });
       }
 
