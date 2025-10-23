@@ -1140,6 +1140,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== Role-Permission Assignment Routes ====================
 
+  // Get all role-permission mappings for a model (admin only)
+  app.get("/api/admin/rbac/models/:modelId/role-permission-mappings", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const mappings = await storage.getRolePermissionMappingsForModel(modelId);
+      res.json(mappings);
+    } catch (error: any) {
+      console.error("Get role-permission mappings error:", error);
+      res.status(500).json({ error: "Failed to fetch role-permission mappings" });
+    }
+  });
+
   // Get permissions for a role (admin only)
   app.get("/api/admin/rbac/roles/:roleId/permissions", verifyToken, requireAdmin, async (req, res) => {
     try {

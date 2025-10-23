@@ -56,6 +56,7 @@ export interface IStorage {
   removePermissionFromRole(roleId: string, permissionId: string): Promise<void>;
   getPermissionsForRole(roleId: string): Promise<Permission[]>;
   setRolePermissions(roleId: string, permissionIds: string[]): Promise<void>;
+  getRolePermissionMappingsForModel(rbacModelId: string): Promise<Array<{ roleId: string; permissions: Permission[] }>>;
 
   // RBAC Seeding
   seedDefaultRbacModels(userId: string): Promise<void>;
@@ -339,6 +340,21 @@ export class DatabaseStorage implements IStorage {
         .insert(rolePermissions)
         .values(permissionIds.map(permissionId => ({ roleId, permissionId })));
     }
+  }
+
+  async getRolePermissionMappingsForModel(rbacModelId: string): Promise<Array<{ roleId: string; permissions: Permission[] }>> {
+    // Get all roles for this model
+    const modelRoles = await this.getRolesByModel(rbacModelId);
+    
+    // For each role, get its permissions
+    const mappings = await Promise.all(
+      modelRoles.map(async (role) => ({
+        roleId: role.id,
+        permissions: await this.getPermissionsForRole(role.id),
+      }))
+    );
+    
+    return mappings;
   }
 
   // RBAC Seeding operations
