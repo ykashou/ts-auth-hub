@@ -124,13 +124,24 @@ export default function AdminRbacDetail() {
   const { data: allRolePermissionMappings = [] } = useQuery<Array<{ roleId: string; permissions: Permission[] }>>({
     queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"],
     queryFn: async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
+      
       const mappings = await Promise.all(
         roles.map(async (role) => {
           const response = await fetch(`/api/admin/rbac/roles/${role.id}/permissions`, {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch permissions for role ${role.id}: ${response.status}`);
+          }
+          
           const permissions = await response.json();
           return { roleId: role.id, permissions };
         })
@@ -144,11 +155,22 @@ export default function AdminRbacDetail() {
   const { data: exportData } = useQuery({
     queryKey: ["/api/admin/rbac/models", modelId, "export"],
     queryFn: async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
+      
       const response = await fetch(`/api/admin/rbac/models/${modelId}/export?format=json`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch export data: ${response.status}`);
+      }
+      
       return await response.json();
     },
     enabled: isAdmin && !!modelId,
@@ -267,7 +289,9 @@ export default function AdminRbacDetail() {
   // Helper function to check if a role has a permission
   const roleHasPermission = (roleId: string, permissionId: string): boolean => {
     const mapping = allRolePermissionMappings.find(m => m.roleId === roleId);
-    return mapping?.permissions.some(p => p.id === permissionId) || false;
+    return (mapping?.permissions && Array.isArray(mapping.permissions)) 
+      ? mapping.permissions.some(p => p.id === permissionId) 
+      : false;
   };
 
   // Filter roles and permissions based on search
@@ -290,6 +314,41 @@ export default function AdminRbacDetail() {
       newExpanded.add(roleId);
     }
     setExpandedRoles(newExpanded);
+  };
+
+  // Handle export downloads
+  const handleExport = async (format: 'json' | 'yaml') => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast({ title: "Error", description: "Not authenticated", variant: "destructive" });
+        return;
+      }
+
+      const response = await fetch(`/api/admin/rbac/models/${modelId}/export?format=${format}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${model?.name.replace(/\s+/g, '_')}_rbac.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({ title: "Success", description: `${format.toUpperCase()} exported successfully` });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Export failed", variant: "destructive" });
+    }
   };
 
   // Convert JSON to YAML format (simple implementation)
@@ -598,7 +657,7 @@ export default function AdminRbacDetail() {
                 />
                 <Button
                   variant="outline"
-                  onClick={() => window.open(`/api/admin/rbac/models/${modelId}/export?format=json`, '_blank')}
+                  onClick={() => handleExport('json')}
                   data-testid="button-export-json"
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -606,7 +665,7 @@ export default function AdminRbacDetail() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => window.open(`/api/admin/rbac/models/${modelId}/export?format=yaml`, '_blank')}
+                  onClick={() => handleExport('yaml')}
                   data-testid="button-export-yaml"
                 >
                   <Download className="mr-2 h-4 w-4" />
