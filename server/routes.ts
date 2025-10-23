@@ -99,6 +99,41 @@ const requireAdmin = (req: any, res: any, next: any) => {
   next();
 };
 
+// Helper function to convert object to YAML format (simple implementation)
+function convertToYAML(obj: any, indent: number = 0): string {
+  const spaces = ' '.repeat(indent);
+  let yaml = '';
+
+  if (Array.isArray(obj)) {
+    obj.forEach((item) => {
+      if (typeof item === 'object' && item !== null) {
+        yaml += `${spaces}- `;
+        const itemYaml = convertToYAML(item, indent + 2);
+        yaml += itemYaml.substring(indent + 2) + '\n';
+      } else {
+        yaml += `${spaces}- ${item}\n`;
+      }
+    });
+  } else if (typeof obj === 'object' && obj !== null) {
+    Object.keys(obj).forEach((key) => {
+      const value = obj[key];
+      if (Array.isArray(value)) {
+        yaml += `${spaces}${key}:\n`;
+        yaml += convertToYAML(value, indent + 2);
+      } else if (typeof value === 'object' && value !== null) {
+        yaml += `${spaces}${key}:\n`;
+        yaml += convertToYAML(value, indent + 2);
+      } else {
+        yaml += `${spaces}${key}: ${value}\n`;
+      }
+    });
+  } else {
+    yaml = `${obj}`;
+  }
+
+  return yaml;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
 
@@ -866,6 +901,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Delete RBAC model error:", error);
       res.status(500).json({ error: "Failed to delete RBAC model" });
+    }
+  });
+
+  // Export RBAC model (admin only) - returns JSON or YAML format
+  app.get("/api/admin/rbac/models/:id/export", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { format = 'json' } = req.query;
+
+      // Get model
+      const model = await storage.getRbacModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      // Get all roles and permissions for this model
+      const roles = await storage.getRolesByModel(id);
+      const permissions = await storage.getPermissionsByModel(id);
+
+      // Get permission assignments for each role
+      const rolesWithPermissions = await Promise.all(
+        roles.map(async (role) => {
+          const rolePermissions = await storage.getPermissionsForRole(role.id);
+          return {
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            permissions: rolePermissions.map(p => ({
+              id: p.id,
+              name: p.name,
+              description: p.description,
+            })),
+          };
+        })
+      );
+
+      // Build export data structure
+      const exportData = {
+        model: {
+          id: model.id,
+          name: model.name,
+          description: model.description,
+          createdAt: model.createdAt,
+        },
+        roles: rolesWithPermissions,
+        permissions: permissions.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+        })),
+      };
+
+      // Return in requested format
+      if (format === 'yaml') {
+        // Simple YAML conversion (without external library)
+        const yamlStr = convertToYAML(exportData);
+        res.setHeader('Content-Type', 'application/x-yaml');
+        res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.yaml"`);
+        res.send(yamlStr);
+      } else {
+        // JSON format (default)
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.json"`);
+        res.json(exportData);
+      }
+    } catch (error: any) {
+      console.error("Export RBAC model error:", error);
+      res.status(500).json({ error: "Failed to export RBAC model" });
     }
   });
 
