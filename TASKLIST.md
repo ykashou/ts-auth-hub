@@ -259,42 +259,92 @@ Viewer     |     ✗     |     ✓     |      ✗
 ---
 
 ## Task 8: RBAC Visualization - Permission Matrix & Tree View - Full Stack
-**What you'll see:** Elegant visual representations of RBAC models with an interactive permission matrix and hierarchical tree view
+**What you'll see:** Elegant visual representations of RBAC models with an interactive permission matrix, hierarchical tree view, JSON/YAML export, and seeded default models
 
 **Changes:**
-1. **Frontend**: Add visualization tab to RBAC model detail page (third tab after Roles and Permissions)
-2. **Frontend**: Create Permission Matrix component showing roles × permissions grid
-3. **Frontend**: Matrix displays checkboxes for each role-permission intersection (read-only visualization)
-4. **Frontend**: Add hover tooltips showing permission details and role descriptions
-5. **Frontend**: Color-code matrix cells: granted (green), denied (red/gray), inherited (blue)
-6. **Frontend**: Add row/column headers with expand/collapse for better readability
-7. **Frontend**: Create Hierarchical Tree View component showing RBAC model structure
-8. **Frontend**: Tree shows model → roles → assigned permissions in expandable nodes
-9. **Frontend**: Display role count and permission count as badges on tree nodes
-10. **Frontend**: Add visual indicators for permission inheritance and conflicts
-11. **Frontend**: Implement search/filter functionality to highlight specific roles or permissions
-12. **Frontend**: Add export functionality (download matrix as CSV or PNG)
-13. **Frontend**: Add toggle between matrix view and tree view
-14. **Frontend**: Responsive design for both desktop and mobile viewing
-15. **Test in browser**:
-    - Navigate to RBAC model detail → click "Visualization" tab
-    - See permission matrix with all roles as rows and permissions as columns
-    - Hover over cells → see tooltips with details
-    - See checkmarks (✓) for granted permissions, empty for denied
-    - Toggle to tree view → see hierarchical structure:
-      ```
-      📋 Content Management Model
-      ├── 👤 Owner (3 permissions)
-      │   ├── ✓ edit_data
-      │   ├── ✓ view_data
-      │   └── ✓ delete_data
-      ├── 👤 Manager (2 permissions)
-      │   ├── ✓ edit_data
-      │   └── ✓ view_data
-      └── 👤 Viewer (1 permission)
-          └── ✓ view_data
-      ```
-    - Use search bar → type "edit" → highlights all roles with edit permissions
+1. **Backend**: Create RBAC model seeding system that auto-generates default models on first admin registration
+2. **Backend**: Seed 3 default RBAC models with complete role/permission structures:
+   - "Content Management System" (Owner, Editor, Viewer roles with create/read/update/delete permissions)
+   - "Analytics Platform" (Admin, Analyst, Viewer roles with dashboard/report/export permissions)
+   - "E-Commerce Platform" (Admin, Manager, Staff, Customer roles with product/order/inventory permissions)
+3. **Backend**: Create `GET /api/admin/rbac/models/:id/export` endpoint returning model in JSON/YAML format
+4. **Frontend**: Add visualization tab to RBAC model detail page (third tab after Roles and Permissions)
+5. **Frontend**: Create Permission Matrix component showing roles × permissions grid
+6. **Frontend**: Matrix displays checkboxes for each role-permission intersection (read-only visualization)
+7. **Frontend**: Add hover tooltips showing permission details and role descriptions
+8. **Frontend**: Color-code matrix cells: granted (green), denied (red/gray), inherited (blue)
+9. **Frontend**: Add row/column headers with expand/collapse for better readability
+10. **Frontend**: Create Hierarchical Tree View component showing RBAC model structure
+11. **Frontend**: Tree shows model → roles → assigned permissions in expandable nodes
+12. **Frontend**: Display role count and permission count as badges on tree nodes
+13. **Frontend**: Add visual indicators for permission inheritance and conflicts
+14. **Frontend**: Create JSON View component with syntax highlighting and copy-to-clipboard
+15. **Frontend**: Create YAML View component with syntax highlighting and copy-to-clipboard
+16. **Frontend**: Implement search/filter functionality to highlight specific roles or permissions
+17. **Frontend**: Add export functionality (download matrix as CSV or PNG)
+18. **Frontend**: Add view toggle with 4 options: Matrix / Tree / JSON / YAML
+19. **Frontend**: Responsive design for both desktop and mobile viewing
+20. **Test in browser**:
+    - Login as first admin → see 3 default RBAC models already seeded:
+      - "Content Management System" (3 roles, 4 permissions)
+      - "Analytics Platform" (3 roles, 3 permissions)
+      - "E-Commerce Platform" (4 roles, 5 permissions)
+    - Click on "Content Management System" → navigate to model detail
+    - Click "Visualization" tab → see view toggle (Matrix / Tree / JSON / YAML)
+    - **Matrix View**:
+      - See permission matrix with all roles as rows and permissions as columns
+      - Hover over cells → see tooltips with details
+      - See checkmarks (✓) for granted permissions, empty for denied
+    - **Tree View**:
+      - Toggle to tree view → see hierarchical structure:
+        ```
+        📋 Content Management System
+        ├── 👤 Owner (4 permissions)
+        │   ├── ✓ create:content
+        │   ├── ✓ read:content
+        │   ├── ✓ update:content
+        │   └── ✓ delete:content
+        ├── 👤 Editor (3 permissions)
+        │   ├── ✓ create:content
+        │   ├── ✓ read:content
+        │   └── ✓ update:content
+        └── 👤 Viewer (1 permission)
+            └── ✓ read:content
+        ```
+    - **JSON View**:
+      - Toggle to JSON view → see syntax-highlighted JSON structure:
+        ```json
+        {
+          "model": {
+            "id": "...",
+            "name": "Content Management System",
+            "description": "...",
+            "roles": [
+              {
+                "id": "...",
+                "name": "Owner",
+                "permissions": ["create:content", "read:content", "update:content", "delete:content"]
+              }
+            ]
+          }
+        }
+        ```
+      - Click copy button → JSON copied to clipboard
+    - **YAML View**:
+      - Toggle to YAML view → see syntax-highlighted YAML structure:
+        ```yaml
+        model:
+          name: Content Management System
+          roles:
+            - name: Owner
+              permissions:
+                - create:content
+                - read:content
+                - update:content
+                - delete:content
+        ```
+      - Click copy button → YAML copied to clipboard
+    - Use search bar → type "create" → highlights all roles with create permissions across all views
     - Click export → downloads permission matrix as CSV
     - Works on mobile with horizontal scrolling for large matrices
 
@@ -318,19 +368,87 @@ Viewer     |     ✗     |     ✓     |      ✗
 - Indentation showing hierarchy
 - Different colors for different permission levels
 
+**JSON View Visual Example:**
+```json
+{
+  "model": {
+    "id": "uuid-here",
+    "name": "Content Management System",
+    "description": "RBAC model for CMS applications",
+    "roles": [
+      {
+        "id": "role-uuid",
+        "name": "Owner",
+        "description": "Full access to all content operations",
+        "permissions": [
+          { "id": "perm-uuid", "name": "create:content", "description": "Create new content" },
+          { "id": "perm-uuid", "name": "read:content", "description": "View content" },
+          { "id": "perm-uuid", "name": "update:content", "description": "Edit existing content" },
+          { "id": "perm-uuid", "name": "delete:content", "description": "Delete content" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**YAML View Visual Example:**
+```yaml
+model:
+  id: uuid-here
+  name: Content Management System
+  description: RBAC model for CMS applications
+  roles:
+    - id: role-uuid
+      name: Owner
+      description: Full access to all content operations
+      permissions:
+        - id: perm-uuid
+          name: create:content
+          description: Create new content
+        - id: perm-uuid
+          name: read:content
+          description: View content
+        - id: perm-uuid
+          name: update:content
+          description: Edit existing content
+        - id: perm-uuid
+          name: delete:content
+          description: Delete content
+```
+
+**Seeded Default Models:**
+1. **Content Management System**:
+   - Roles: Owner (4 perms), Editor (3 perms), Viewer (1 perm)
+   - Permissions: create:content, read:content, update:content, delete:content
+2. **Analytics Platform**:
+   - Roles: Admin (3 perms), Analyst (2 perms), Viewer (1 perm)
+   - Permissions: view:dashboards, create:reports, export:data
+3. **E-Commerce Platform**:
+   - Roles: Admin (5 perms), Manager (4 perms), Staff (2 perms), Customer (1 perm)
+   - Permissions: manage:products, manage:orders, manage:inventory, view:analytics, view:products
+
 **UI Components:**
 - Visualization tab in model detail page
 - Permission matrix table with interactive cells
 - Tree view with expandable nodes
-- View toggle (matrix/tree switch)
-- Search/filter bar
-- Export button (CSV/PNG options)
+- JSON view with syntax highlighting and copy button
+- YAML view with syntax highlighting and copy button
+- View toggle with 4 buttons (Matrix / Tree / JSON / YAML)
+- Search/filter bar (works across all views)
+- Export button (CSV/PNG for matrix, JSON/YAML download)
 - Hover tooltips
 - Legend explaining colors and icons
 
 **UI Location:** New "Visualization" tab in /admin/rbac/:id detail page
 
-**Acceptance:** Admin can visualize complete RBAC model structure through both matrix and tree representations, making it easy to understand role-permission relationships at a glance
+**Acceptance:** 
+- First admin registration auto-seeds 3 complete RBAC models with roles and permissions
+- Admin can visualize complete RBAC model structure through 4 different views (Matrix, Tree, JSON, YAML)
+- JSON and YAML views provide copy-to-clipboard functionality for easy integration
+- All views support search/filter functionality
+- Export options work for all view types
+- Making it easy to understand, export, and integrate role-permission relationships
 
 ---
 
