@@ -140,6 +140,20 @@ export default function AdminRbacDetail() {
     enabled: isAdmin && !!modelId && roles.length > 0,
   });
 
+  // Fetch export data for JSON/YAML views
+  const { data: exportData } = useQuery({
+    queryKey: ["/api/admin/rbac/models", modelId, "export"],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/rbac/models/${modelId}/export?format=json`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+      return await response.json();
+    },
+    enabled: isAdmin && !!modelId,
+  });
+
   // Mutations
   const createRoleMutation = useMutation({
     mutationFn: async (data: { name: string; description: string }) => {
@@ -276,6 +290,45 @@ export default function AdminRbacDetail() {
       newExpanded.add(roleId);
     }
     setExpandedRoles(newExpanded);
+  };
+
+  // Convert JSON to YAML format (simple implementation)
+  const jsonToYaml = (obj: any, indent: number = 0): string => {
+    const spaces = '  '.repeat(indent);
+    let yaml = '';
+
+    if (Array.isArray(obj)) {
+      obj.forEach((item) => {
+        if (typeof item === 'object' && item !== null) {
+          yaml += `${spaces}- `;
+          const itemYaml = jsonToYaml(item, indent + 1);
+          const lines = itemYaml.split('\n');
+          yaml += lines[0] + '\n';
+          for (let i = 1; i < lines.length; i++) {
+            if (lines[i]) yaml += `  ${lines[i]}\n`;
+          }
+        } else {
+          yaml += `${spaces}- ${item}\n`;
+        }
+      });
+    } else if (typeof obj === 'object' && obj !== null) {
+      Object.keys(obj).forEach((key) => {
+        const value = obj[key];
+        if (Array.isArray(value)) {
+          yaml += `${spaces}${key}:\n`;
+          yaml += jsonToYaml(value, indent + 1);
+        } else if (typeof value === 'object' && value !== null) {
+          yaml += `${spaces}${key}:\n`;
+          yaml += jsonToYaml(value, indent + 1);
+        } else {
+          yaml += `${spaces}${key}: ${value}\n`;
+        }
+      });
+    } else {
+      yaml = `${obj}`;
+    }
+
+    return yaml;
   };
 
   const handleCreateRole = () => {
@@ -723,14 +776,40 @@ export default function AdminRbacDetail() {
                 </Card>
               )}
               {viewType === "json" && (
-                <div className="text-muted-foreground text-center py-12">
-                  JSON View (Coming next)
-                </div>
+                <Card>
+                  <CardContent className="p-6">
+                    {!exportData ? (
+                      <p className="text-muted-foreground text-center py-8">Loading export data...</p>
+                    ) : (
+                      <div className="relative">
+                        <pre
+                          className="bg-muted p-4 rounded-md overflow-x-auto text-sm font-mono"
+                          data-testid="json-view"
+                        >
+                          <code>{JSON.stringify(exportData, null, 2)}</code>
+                        </pre>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
               {viewType === "yaml" && (
-                <div className="text-muted-foreground text-center py-12">
-                  YAML View (Coming next)
-                </div>
+                <Card>
+                  <CardContent className="p-6">
+                    {!exportData ? (
+                      <p className="text-muted-foreground text-center py-8">Loading export data...</p>
+                    ) : (
+                      <div className="relative">
+                        <pre
+                          className="bg-muted p-4 rounded-md overflow-x-auto text-sm font-mono"
+                          data-testid="yaml-view"
+                        >
+                          <code>{jsonToYaml(exportData)}</code>
+                        </pre>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
             </div>
           </TabsContent>
