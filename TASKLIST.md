@@ -452,59 +452,106 @@ model:
 
 ---
 
-## Task 9: Service-Model & User-Role Assignment - Full Stack
-**What you'll see:** Admin can assign RBAC models to services and assign users to roles within each service
+## Task 9: Service-Model Assignment - Full Stack
+**What you'll see:** Admin can assign RBAC models to services, linking access control frameworks to specific services
 
 **Changes:**
 1. **Schema**: Create `serviceRbacModels` table (serviceId, modelId, assignedAt)
-2. **Schema**: Create `userServiceRoles` table (userId, serviceId, roleId, assignedAt)
-3. **Backend**: Create `GET /api/admin/services/:serviceId/rbac` endpoint (get assigned model for service)
-4. **Backend**: Create `POST /api/admin/services/:serviceId/rbac` endpoint (assign model to service)
-5. **Backend**: Create `DELETE /api/admin/services/:serviceId/rbac` endpoint (remove model from service)
-6. **Backend**: Create `GET /api/admin/users/:userId/service-roles` endpoint (get user's roles across all services)
-7. **Backend**: Create `POST /api/admin/users/:userId/services/:serviceId/role` endpoint (assign user to role in service)
-8. **Backend**: Create `DELETE /api/admin/users/:userId/services/:serviceId/role` endpoint (remove user role in service)
-9. **Frontend**: Add RBAC model selector to service configuration/edit page
-10. **Frontend**: Display which model is assigned to each service
-11. **Frontend**: In User Management page, add expandable "Service Roles" section per user
-12. **Frontend**: Show grid of services with role dropdowns for each service
-13. **Frontend**: Dropdown options are roles from that service's assigned RBAC model
-14. **Frontend**: In RBAC model detail, show which services use this model
-15. **Test in browser**:
-    - Go to Service Catalog → edit "Blog CMS" service
-    - Assign RBAC model "Content Management" → saved
-    - Edit "Analytics Dashboard" service → assign different model "Analytics RBAC"
-    - Go to User Management → expand user row
-    - See "Service Roles" section with all services
-    - For "Blog CMS", dropdown shows roles: Editor, Reviewer, Publisher (from Content Management model)
-    - For "Analytics Dashboard", dropdown shows roles: Analyst, Admin (from Analytics RBAC model)
-    - Assign user to "Editor" role in Blog CMS → persists
-    - Assign same user to "Admin" role in Analytics → persists
-    - User now has different roles in different services
-    - Go to RBAC model detail → see list of services using this model
+2. **Backend**: Create `GET /api/admin/services/:serviceId/rbac` endpoint (get assigned model for service)
+3. **Backend**: Create `POST /api/admin/services/:serviceId/rbac` endpoint (assign model to service)
+4. **Backend**: Create `DELETE /api/admin/services/:serviceId/rbac` endpoint (remove model from service)
+5. **Backend**: Create `GET /api/admin/rbac/models/:modelId/services` endpoint (get services using this model)
+6. **Frontend**: Add RBAC model selector to service configuration/edit page
+7. **Frontend**: Display which model is currently assigned to each service (show model name badge)
+8. **Frontend**: In service card/list, show indicator if service has RBAC model assigned
+9. **Frontend**: In RBAC model detail page, add "Services Using This Model" section
+10. **Frontend**: Show list of services with links to service config
+11. **Frontend**: Allow removing model assignment from service config
+12. **Test in browser**:
+    - Navigate to Services page (user-specific services)
+    - Click edit on a service (e.g., "Git Garden")
+    - See RBAC model selector dropdown showing all available models
+    - Select "Content Management System" model → save
+    - Service card now shows "RBAC: Content Management System" badge
+    - Edit another service, assign "Analytics Platform" model
+    - Navigate to RBAC Models page → click "Content Management System"
+    - See "Services Using This Model" section showing "Git Garden"
+    - Click service link → navigates to service config
+    - Remove model assignment → badge disappears
+    - RBAC model detail no longer shows this service
 
-**User-Service-Role Example:**
-- User "Alice":
-  - Blog CMS (uses Content Management model): Role = "Editor"
-  - Analytics Dashboard (uses Analytics RBAC model): Role = "Admin"
-  - Documentation Site (uses Content Management model): Role = "Reviewer"
+**Service-Model Assignment Example:**
+- Service "Git Garden": uses "Content Management System" RBAC model
+- Service "Iron Path": uses "Analytics Platform" RBAC model
+- Service "PurpleGreen": uses "E-Commerce Platform" RBAC model
+- Service "BTCPay Dashboard": no RBAC model assigned yet
 
 **UI Components:**
-- RBAC model selector in service edit dialog
-- Service-role assignment grid in User Management
-- Service usage indicator in RBAC model detail
-- Role dropdown per service (populated from service's model)
+- RBAC model selector dropdown in service edit dialog
+- Model badge on service cards (when model assigned)
+- "Services Using This Model" section in RBAC model detail page
+- Remove model assignment button in service config
 
 **UI Locations:**
-- Service configuration page (model assignment)
-- User Management page (user role assignments)
-- RBAC model detail page (service usage list)
+- Service configuration/edit page (user's services at /dashboard or admin view)
+- RBAC model detail page (new section showing service usage)
 
-**Acceptance:** Admin can assign different RBAC models to services and assign users to appropriate roles per service, enabling per-service access control
+**Acceptance:** Admin can link RBAC models to services, see which services use which models, and manage these assignments
 
 ---
 
-## Task 10: Global Services & Admin Service Manager - Full Stack
+## Task 10: User-Role Assignment - Full Stack
+**What you'll see:** Admin can assign users to specific roles within services that have RBAC models
+
+**Changes:**
+1. **Schema**: Create `userServiceRoles` table (userId, serviceId, roleId, assignedAt)
+2. **Backend**: Create `GET /api/admin/users/:userId/service-roles` endpoint (get user's roles across all services)
+3. **Backend**: Create `POST /api/admin/users/:userId/services/:serviceId/role` endpoint (assign user to role in service)
+4. **Backend**: Create `DELETE /api/admin/users/:userId/services/:serviceId/role` endpoint (remove user role in service)
+5. **Backend**: Create `GET /api/admin/services/:serviceId/user-roles` endpoint (get all user-role assignments for a service)
+6. **Frontend**: In User Management page, add expandable "Service Roles" section per user row
+7. **Frontend**: Show grid of all services with role dropdowns for each service
+8. **Frontend**: Dropdown options are roles from that service's assigned RBAC model
+9. **Frontend**: If service has no RBAC model, show "No RBAC model assigned" message
+10. **Frontend**: Show current role assignment (or "No role" if unassigned)
+11. **Frontend**: In service detail/config, add "User Roles" section showing all users and their roles
+12. **Test in browser**:
+    - Ensure services have RBAC models assigned (from Task 9)
+    - Go to User Management page
+    - Click to expand a user row
+    - See "Service Roles" section with all services listed
+    - For "Git Garden" (using Content Management model), dropdown shows: Administrator, Editor, Author, Contributor, Viewer, Moderator
+    - For "Iron Path" (using Analytics Platform model), dropdown shows: Admin, Analyst, Data Engineer, Report Builder, Dashboard Viewer, Guest
+    - Assign user to "Editor" role in Git Garden → persists
+    - Assign same user to "Admin" role in Iron Path → persists
+    - User now has different roles in different services
+    - Navigate to service config for "Git Garden"
+    - See "User Roles" section showing all users with their assigned roles
+    - User with "Editor" role is listed
+
+**User-Service-Role Example:**
+- User "Alice":
+  - Git Garden (uses Content Management System model): Role = "Editor"
+  - Iron Path (uses Analytics Platform model): Role = "Admin"
+  - PurpleGreen (uses E-Commerce Platform model): Role = "Manager"
+  - BTCPay Dashboard (no RBAC model): No role (disabled dropdown)
+
+**UI Components:**
+- Expandable "Service Roles" section in User Management table
+- Service-role assignment grid with dropdowns
+- Role dropdown per service (populated from service's RBAC model)
+- "User Roles" section in service detail page
+- User-role assignment list/table
+
+**UI Locations:**
+- User Management page (expandable row showing user's roles across all services)
+- Service configuration/detail page (showing all users and their roles for that service)
+
+**Acceptance:** Admin can assign users to specific roles within services based on the service's RBAC model, enabling granular per-service access control
+
+---
+
+## Task 11: Global Services & Admin Service Manager - Full Stack
 **What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**

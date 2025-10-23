@@ -3,6 +3,13 @@
 ## Overview
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
+## Recent Progress
+- ✅ Completed Tasks 1-8: User roles, admin dashboard, user management with advanced features, RBAC model creation, roles & permissions CRUD, and comprehensive RBAC visualization (Permission Matrix, Tree View, JSON/YAML export)
+- ✅ Fixed syntax highlighting issues by using simple pre/code blocks instead of react-syntax-highlighter
+- ✅ Task 9 has been split into two separate tasks:
+  - Task 9: Service-Model Assignment (linking RBAC models to services)
+  - Task 10: User-Role Assignment (assigning users to roles within services)
+
 ## User Preferences
 - Professional, trustworthy aesthetic
 - Clean, minimal design without decorative elements
