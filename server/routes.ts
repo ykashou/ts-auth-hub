@@ -936,6 +936,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Verify JWT token for a specific service (for external services)
+  // This endpoint allows external services to verify tokens they received via OAuth redirect
+  app.get("/api/services/:serviceId/verify-token", async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      const token = req.headers.authorization?.replace("Bearer ", "");
+
+      if (!token) {
+        return res.status(400).json({ error: "Token is required in Authorization header" });
+      }
+
+      // Get the service
+      const service = await storage.getServiceById(serviceId);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      if (!service.secret) {
+        return res.status(500).json({ error: "Service has no secret configured" });
+      }
+
+      // Decrypt the service secret
+      const decryptedSecret = decryptSecret(service.secret);
+
+      // Verify the JWT token (should be signed with service secret)
+      try {
+        const decoded = jwt.verify(token, decryptedSecret) as any;
+        
+        // Return the decoded token payload which includes RBAC data
+        res.json({
+          valid: true,
+          payload: {
+            userId: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+            rbacRole: decoded.rbacRole || null,
+            permissions: decoded.permissions || [],
+            rbacModel: decoded.rbacModel || null
+          }
+        });
+      } catch (jwtError) {
+        // Token is invalid or expired
+        return res.status(401).json({ 
+          valid: false,
+          error: "Invalid or expired token" 
+        });
+      }
+    } catch (error: any) {
+      console.error("Token verification error:", error);
+      res.status(500).json({ error: error.message || "Token verification failed" });
+    }
+  });
+
   // ==================== User-Service-Role Assignment Routes ====================
   
   // Get all user-service-role assignments (admin only)
