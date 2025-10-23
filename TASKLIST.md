@@ -598,25 +598,18 @@ model:
 
 ---
 
-## Task 12: Global Services & Admin Service Manager - Full Stack
-**What you'll see:** Admin page showing all global services in a card grid
+## Task 12: Seed Default Services - Backend Only
+**What you'll see:** 7 default services automatically created when first admin registers
 
 **Changes:**
-1. **Schema**: Create `globalServices` table (id, name, description, url, icon, color, secret, createdAt)
-2. **Backend**: Create `POST /api/admin/global-services` endpoint
-3. **Backend**: Create `GET /api/admin/global-services` endpoint
-4. **Backend**: Seed 7 default services when first admin registers
-5. **Frontend**: Create "Service Catalog" page at /admin/services
-6. **Frontend**: Display services in card grid (same style as dashboard)
-7. **Frontend**: Add "Service Catalog" link to admin navbar
-8. **Test in browser**:
-   - Login as admin → click "Service Catalog"
-   - See 7 seeded services in grid
-   - Regular user can't access page
+1. **Backend**: Seed 7 default services on first admin registration
+2. **Backend**: Services created without userId (shared across all users)
+3. **Test**: Delete all users → register first admin → verify 7 services exist in database
 
-**UI Location:** New page at /admin/services with service cards
+**Seeded Services:**
+- Git Garden, Iron Path, PurpleGreen, BTCPay Dashboard, CodeCraft, DataVault, CloudNest
 
-**Acceptance:** Global services visible in admin UI immediately after seeding
+**Acceptance:** First admin registration creates 7 default services in database
 
 ---
 

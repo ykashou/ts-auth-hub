@@ -24,11 +24,11 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Services table - configured service cards that appear after login
-// Each service belongs to a specific user
+// Services table - configured service cards shared across all users
+// Global services (userId = null) are available to all users based on admin enablement
 export const services = pgTable("services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Nullable: null = global service
   name: text("name").notNull(),
   description: text("description").notNull(),
   url: text("url").notNull(),
