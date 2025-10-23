@@ -354,10 +354,10 @@ export class DatabaseStorage implements IStorage {
       return; // Already seeded
     }
 
-    // Seed Model 1: Content Management System
+    // Seed Model 1: Content Management System (Enhanced)
     const cmsModel = await this.createRbacModel({
       name: "Content Management System",
-      description: "RBAC model for CMS applications with content creation, editing, and publishing capabilities",
+      description: "Comprehensive RBAC model for CMS platforms with granular content, media, user, and settings management",
       createdBy: userId,
     });
 
@@ -365,171 +365,331 @@ export class DatabaseStorage implements IStorage {
     const ownerRole = await this.createRole({
       rbacModelId: cmsModel.id,
       name: "Owner",
-      description: "Full access to all content operations including creation, editing, publishing, and deletion",
+      description: "Full administrative access including user management, system settings, and all content operations",
+    });
+
+    const adminRole = await this.createRole({
+      rbacModelId: cmsModel.id,
+      name: "Administrator",
+      description: "Can manage content, media, and basic settings but cannot modify user roles or critical system settings",
     });
 
     const editorRole = await this.createRole({
       rbacModelId: cmsModel.id,
       name: "Editor",
-      description: "Can create, read, and update content but cannot delete",
+      description: "Can create, edit, publish, and delete own content; can review and edit others' content",
+    });
+
+    const authorRole = await this.createRole({
+      rbacModelId: cmsModel.id,
+      name: "Author",
+      description: "Can create and edit own content, submit for review, but cannot publish or delete",
+    });
+
+    const contributorRole = await this.createRole({
+      rbacModelId: cmsModel.id,
+      name: "Contributor",
+      description: "Can create draft content only, must submit to editors for review and publishing",
     });
 
     const viewerRole = await this.createRole({
       rbacModelId: cmsModel.id,
       name: "Viewer",
-      description: "Read-only access to view content",
+      description: "Read-only access to published content",
     });
 
-    // Create permissions for CMS
-    const createContent = await this.createPermission({
-      rbacModelId: cmsModel.id,
-      name: "create:content",
-      description: "Create new content",
-    });
+    // Create comprehensive permissions for CMS
+    const cmsPerms = {
+      // Content permissions
+      contentCreate: await this.createPermission({ rbacModelId: cmsModel.id, name: "content:create", description: "Create new content" }),
+      contentRead: await this.createPermission({ rbacModelId: cmsModel.id, name: "content:read", description: "View all content" }),
+      contentUpdate: await this.createPermission({ rbacModelId: cmsModel.id, name: "content:update", description: "Edit any content" }),
+      contentDelete: await this.createPermission({ rbacModelId: cmsModel.id, name: "content:delete", description: "Delete any content" }),
+      contentPublish: await this.createPermission({ rbacModelId: cmsModel.id, name: "content:publish", description: "Publish content live" }),
+      contentUnpublish: await this.createPermission({ rbacModelId: cmsModel.id, name: "content:unpublish", description: "Remove content from publication" }),
+      
+      // Media permissions
+      mediaUpload: await this.createPermission({ rbacModelId: cmsModel.id, name: "media:upload", description: "Upload images, videos, files" }),
+      mediaDelete: await this.createPermission({ rbacModelId: cmsModel.id, name: "media:delete", description: "Delete media files" }),
+      
+      // User management
+      usersView: await this.createPermission({ rbacModelId: cmsModel.id, name: "users:view", description: "View user list and profiles" }),
+      usersManage: await this.createPermission({ rbacModelId: cmsModel.id, name: "users:manage", description: "Create, edit, and delete users" }),
+      rolesManage: await this.createPermission({ rbacModelId: cmsModel.id, name: "roles:manage", description: "Assign and modify user roles" }),
+      
+      // Settings
+      settingsView: await this.createPermission({ rbacModelId: cmsModel.id, name: "settings:view", description: "View system settings" }),
+      settingsEdit: await this.createPermission({ rbacModelId: cmsModel.id, name: "settings:edit", description: "Modify system configuration" }),
+      
+      // Comments
+      commentsModerate: await this.createPermission({ rbacModelId: cmsModel.id, name: "comments:moderate", description: "Approve, edit, or delete comments" }),
+    };
 
-    const readContent = await this.createPermission({
-      rbacModelId: cmsModel.id,
-      name: "read:content",
-      description: "View content",
-    });
+    // Assign permissions to roles with realistic hierarchies
+    await this.setRolePermissions(ownerRole.id, Object.values(cmsPerms).map(p => p.id));
+    
+    await this.setRolePermissions(adminRole.id, [
+      cmsPerms.contentCreate.id, cmsPerms.contentRead.id, cmsPerms.contentUpdate.id, 
+      cmsPerms.contentDelete.id, cmsPerms.contentPublish.id, cmsPerms.contentUnpublish.id,
+      cmsPerms.mediaUpload.id, cmsPerms.mediaDelete.id,
+      cmsPerms.usersView.id, cmsPerms.settingsView.id, cmsPerms.settingsEdit.id,
+      cmsPerms.commentsModerate.id
+    ]);
+    
+    await this.setRolePermissions(editorRole.id, [
+      cmsPerms.contentCreate.id, cmsPerms.contentRead.id, cmsPerms.contentUpdate.id,
+      cmsPerms.contentDelete.id, cmsPerms.contentPublish.id, cmsPerms.contentUnpublish.id,
+      cmsPerms.mediaUpload.id, cmsPerms.commentsModerate.id
+    ]);
+    
+    await this.setRolePermissions(authorRole.id, [
+      cmsPerms.contentCreate.id, cmsPerms.contentRead.id, cmsPerms.contentUpdate.id,
+      cmsPerms.mediaUpload.id
+    ]);
+    
+    await this.setRolePermissions(contributorRole.id, [
+      cmsPerms.contentCreate.id, cmsPerms.contentRead.id, cmsPerms.mediaUpload.id
+    ]);
+    
+    await this.setRolePermissions(viewerRole.id, [cmsPerms.contentRead.id]);
 
-    const updateContent = await this.createPermission({
-      rbacModelId: cmsModel.id,
-      name: "update:content",
-      description: "Edit existing content",
-    });
-
-    const deleteContent = await this.createPermission({
-      rbacModelId: cmsModel.id,
-      name: "delete:content",
-      description: "Delete content",
-    });
-
-    // Assign permissions to roles
-    await this.setRolePermissions(ownerRole.id, [createContent.id, readContent.id, updateContent.id, deleteContent.id]);
-    await this.setRolePermissions(editorRole.id, [createContent.id, readContent.id, updateContent.id]);
-    await this.setRolePermissions(viewerRole.id, [readContent.id]);
-
-    // Seed Model 2: Analytics Platform
+    // Seed Model 2: Analytics Platform (Enhanced)
     const analyticsModel = await this.createRbacModel({
       name: "Analytics Platform",
-      description: "RBAC model for analytics applications with dashboard viewing, report creation, and data export",
+      description: "Enterprise analytics RBAC model with dashboards, reports, data sources, alerts, and collaboration features",
       createdBy: userId,
     });
 
     // Create roles for Analytics
-    const adminRole = await this.createRole({
+    const analyticsAdminRole = await this.createRole({
       rbacModelId: analyticsModel.id,
-      name: "Admin",
-      description: "Full access to all analytics features",
+      name: "Analytics Administrator",
+      description: "Full control over analytics platform, data sources, users, and system configuration",
+    });
+
+    const dataEngineerRole = await this.createRole({
+      rbacModelId: analyticsModel.id,
+      name: "Data Engineer",
+      description: "Can manage data sources, create datasets, and configure data pipelines",
+    });
+
+    const seniorAnalystRole = await this.createRole({
+      rbacModelId: analyticsModel.id,
+      name: "Senior Analyst",
+      description: "Can create and edit dashboards, reports, alerts, and share with teams",
     });
 
     const analystRole = await this.createRole({
       rbacModelId: analyticsModel.id,
       name: "Analyst",
-      description: "Can view dashboards and create reports",
+      description: "Can view all dashboards, create personal reports, and export data",
+    });
+
+    const businessUserRole = await this.createRole({
+      rbacModelId: analyticsModel.id,
+      name: "Business User",
+      description: "Can view shared dashboards and reports, limited export capabilities",
     });
 
     const analyticsViewerRole = await this.createRole({
       rbacModelId: analyticsModel.id,
       name: "Viewer",
-      description: "View-only access to dashboards",
+      description: "Read-only access to assigned dashboards",
     });
 
-    // Create permissions for Analytics
-    const viewDashboards = await this.createPermission({
-      rbacModelId: analyticsModel.id,
-      name: "view:dashboards",
-      description: "View analytics dashboards",
-    });
-
-    const createReports = await this.createPermission({
-      rbacModelId: analyticsModel.id,
-      name: "create:reports",
-      description: "Create and save custom reports",
-    });
-
-    const exportData = await this.createPermission({
-      rbacModelId: analyticsModel.id,
-      name: "export:data",
-      description: "Export analytics data",
-    });
+    // Create comprehensive permissions for Analytics
+    const analyticsPerms = {
+      // Dashboard permissions
+      dashboardView: await this.createPermission({ rbacModelId: analyticsModel.id, name: "dashboard:view", description: "View dashboards" }),
+      dashboardCreate: await this.createPermission({ rbacModelId: analyticsModel.id, name: "dashboard:create", description: "Create new dashboards" }),
+      dashboardEdit: await this.createPermission({ rbacModelId: analyticsModel.id, name: "dashboard:edit", description: "Edit dashboards" }),
+      dashboardDelete: await this.createPermission({ rbacModelId: analyticsModel.id, name: "dashboard:delete", description: "Delete dashboards" }),
+      dashboardShare: await this.createPermission({ rbacModelId: analyticsModel.id, name: "dashboard:share", description: "Share dashboards with others" }),
+      
+      // Report permissions
+      reportView: await this.createPermission({ rbacModelId: analyticsModel.id, name: "report:view", description: "View reports" }),
+      reportCreate: await this.createPermission({ rbacModelId: analyticsModel.id, name: "report:create", description: "Create custom reports" }),
+      reportSchedule: await this.createPermission({ rbacModelId: analyticsModel.id, name: "report:schedule", description: "Schedule automated reports" }),
+      
+      // Data permissions
+      dataExport: await this.createPermission({ rbacModelId: analyticsModel.id, name: "data:export", description: "Export data to CSV/Excel" }),
+      dataSourceView: await this.createPermission({ rbacModelId: analyticsModel.id, name: "datasource:view", description: "View data source configurations" }),
+      dataSourceManage: await this.createPermission({ rbacModelId: analyticsModel.id, name: "datasource:manage", description: "Create and modify data sources" }),
+      
+      // Alert permissions
+      alertView: await this.createPermission({ rbacModelId: analyticsModel.id, name: "alert:view", description: "View alert configurations" }),
+      alertCreate: await this.createPermission({ rbacModelId: analyticsModel.id, name: "alert:create", description: "Create and configure alerts" }),
+      
+      // Admin permissions
+      usersManage: await this.createPermission({ rbacModelId: analyticsModel.id, name: "users:manage", description: "Manage platform users" }),
+      settingsManage: await this.createPermission({ rbacModelId: analyticsModel.id, name: "settings:manage", description: "Configure platform settings" }),
+    };
 
     // Assign permissions to roles
-    await this.setRolePermissions(adminRole.id, [viewDashboards.id, createReports.id, exportData.id]);
-    await this.setRolePermissions(analystRole.id, [viewDashboards.id, createReports.id]);
-    await this.setRolePermissions(analyticsViewerRole.id, [viewDashboards.id]);
+    await this.setRolePermissions(analyticsAdminRole.id, Object.values(analyticsPerms).map(p => p.id));
+    
+    await this.setRolePermissions(dataEngineerRole.id, [
+      analyticsPerms.dashboardView.id, analyticsPerms.reportView.id,
+      analyticsPerms.dataSourceView.id, analyticsPerms.dataSourceManage.id,
+      analyticsPerms.dataExport.id
+    ]);
+    
+    await this.setRolePermissions(seniorAnalystRole.id, [
+      analyticsPerms.dashboardView.id, analyticsPerms.dashboardCreate.id,
+      analyticsPerms.dashboardEdit.id, analyticsPerms.dashboardDelete.id, analyticsPerms.dashboardShare.id,
+      analyticsPerms.reportView.id, analyticsPerms.reportCreate.id, analyticsPerms.reportSchedule.id,
+      analyticsPerms.alertView.id, analyticsPerms.alertCreate.id,
+      analyticsPerms.dataExport.id
+    ]);
+    
+    await this.setRolePermissions(analystRole.id, [
+      analyticsPerms.dashboardView.id, analyticsPerms.dashboardCreate.id,
+      analyticsPerms.reportView.id, analyticsPerms.reportCreate.id,
+      analyticsPerms.alertView.id, analyticsPerms.dataExport.id
+    ]);
+    
+    await this.setRolePermissions(businessUserRole.id, [
+      analyticsPerms.dashboardView.id, analyticsPerms.reportView.id,
+      analyticsPerms.dataExport.id
+    ]);
+    
+    await this.setRolePermissions(analyticsViewerRole.id, [
+      analyticsPerms.dashboardView.id, analyticsPerms.reportView.id
+    ]);
 
-    // Seed Model 3: E-Commerce Platform
+    // Seed Model 3: E-Commerce Platform (Enhanced)
     const ecommerceModel = await this.createRbacModel({
       name: "E-Commerce Platform",
-      description: "RBAC model for e-commerce applications with product, order, and inventory management",
+      description: "Complete e-commerce RBAC model covering products, orders, customers, inventory, marketing, and financial operations",
       createdBy: userId,
     });
 
     // Create roles for E-Commerce
     const ecomAdminRole = await this.createRole({
       rbacModelId: ecommerceModel.id,
-      name: "Admin",
-      description: "Full access to all e-commerce features",
+      name: "Platform Administrator",
+      description: "Full administrative access to all platform features, settings, and financial data",
     });
 
-    const managerRole = await this.createRole({
+    const storeManagerRole = await this.createRole({
       rbacModelId: ecommerceModel.id,
-      name: "Manager",
-      description: "Can manage products, orders, and inventory but cannot access analytics",
+      name: "Store Manager",
+      description: "Manages products, inventory, orders, and customer service but no access to financial settings",
     });
 
-    const staffRole = await this.createRole({
+    const inventoryManagerRole = await this.createRole({
       rbacModelId: ecommerceModel.id,
-      name: "Staff",
-      description: "Can view products and manage orders",
+      name: "Inventory Manager",
+      description: "Manages stock levels, suppliers, warehouses, and fulfillment operations",
+    });
+
+    const marketingManagerRole = await this.createRole({
+      rbacModelId: ecommerceModel.id,
+      name: "Marketing Manager",
+      description: "Manages promotions, discounts, campaigns, and customer communications",
+    });
+
+    const customerServiceRole = await this.createRole({
+      rbacModelId: ecommerceModel.id,
+      name: "Customer Service",
+      description: "Handles customer inquiries, processes returns, and manages order issues",
+    });
+
+    const salesStaffRole = await this.createRole({
+      rbacModelId: ecommerceModel.id,
+      name: "Sales Staff",
+      description: "Can view products, create orders, and access customer information",
     });
 
     const customerRole = await this.createRole({
       rbacModelId: ecommerceModel.id,
       name: "Customer",
-      description: "Can view products only",
+      description: "Standard shopping experience with order tracking and account management",
     });
 
-    // Create permissions for E-Commerce
-    const manageProducts = await this.createPermission({
-      rbacModelId: ecommerceModel.id,
-      name: "manage:products",
-      description: "Create, update, and delete products",
-    });
-
-    const manageOrders = await this.createPermission({
-      rbacModelId: ecommerceModel.id,
-      name: "manage:orders",
-      description: "View and update orders",
-    });
-
-    const manageInventory = await this.createPermission({
-      rbacModelId: ecommerceModel.id,
-      name: "manage:inventory",
-      description: "Manage product inventory levels",
-    });
-
-    const viewAnalytics = await this.createPermission({
-      rbacModelId: ecommerceModel.id,
-      name: "view:analytics",
-      description: "View sales and performance analytics",
-    });
-
-    const viewProducts = await this.createPermission({
-      rbacModelId: ecommerceModel.id,
-      name: "view:products",
-      description: "View product catalog",
-    });
+    // Create comprehensive permissions for E-Commerce
+    const ecomPerms = {
+      // Product permissions
+      productView: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "product:view", description: "View product catalog" }),
+      productCreate: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "product:create", description: "Add new products" }),
+      productEdit: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "product:edit", description: "Edit product details" }),
+      productDelete: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "product:delete", description: "Remove products" }),
+      productPublish: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "product:publish", description: "Publish/unpublish products" }),
+      
+      // Inventory permissions
+      inventoryView: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "inventory:view", description: "View stock levels" }),
+      inventoryUpdate: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "inventory:update", description: "Adjust inventory quantities" }),
+      supplierManage: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "supplier:manage", description: "Manage suppliers and purchase orders" }),
+      
+      // Order permissions
+      orderView: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "order:view", description: "View customer orders" }),
+      orderCreate: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "order:create", description: "Create new orders" }),
+      orderUpdate: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "order:update", description: "Update order status" }),
+      orderCancel: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "order:cancel", description: "Cancel orders" }),
+      orderRefund: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "order:refund", description: "Process refunds" }),
+      
+      // Customer permissions
+      customerView: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "customer:view", description: "View customer information" }),
+      customerEdit: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "customer:edit", description: "Edit customer details" }),
+      
+      // Marketing permissions
+      discountCreate: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "discount:create", description: "Create discount codes and promotions" }),
+      campaignManage: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "campaign:manage", description: "Manage marketing campaigns" }),
+      
+      // Analytics & Reporting
+      analyticsView: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "analytics:view", description: "View sales and performance analytics" }),
+      reportExport: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "report:export", description: "Export reports and data" }),
+      
+      // Settings permissions
+      settingsView: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "settings:view", description: "View platform settings" }),
+      settingsEdit: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "settings:edit", description: "Modify platform configuration" }),
+      paymentSettings: await this.createPermission({ rbacModelId: ecommerceModel.id, name: "payment:settings", description: "Configure payment gateways" }),
+    };
 
     // Assign permissions to roles
-    await this.setRolePermissions(ecomAdminRole.id, [manageProducts.id, manageOrders.id, manageInventory.id, viewAnalytics.id, viewProducts.id]);
-    await this.setRolePermissions(managerRole.id, [manageProducts.id, manageOrders.id, manageInventory.id, viewProducts.id]);
-    await this.setRolePermissions(staffRole.id, [manageOrders.id, viewProducts.id]);
-    await this.setRolePermissions(customerRole.id, [viewProducts.id]);
+    await this.setRolePermissions(ecomAdminRole.id, Object.values(ecomPerms).map(p => p.id));
+    
+    await this.setRolePermissions(storeManagerRole.id, [
+      ecomPerms.productView.id, ecomPerms.productCreate.id, ecomPerms.productEdit.id, 
+      ecomPerms.productDelete.id, ecomPerms.productPublish.id,
+      ecomPerms.inventoryView.id, ecomPerms.inventoryUpdate.id,
+      ecomPerms.orderView.id, ecomPerms.orderUpdate.id, ecomPerms.orderCancel.id, ecomPerms.orderRefund.id,
+      ecomPerms.customerView.id, ecomPerms.customerEdit.id,
+      ecomPerms.analyticsView.id, ecomPerms.reportExport.id,
+      ecomPerms.settingsView.id
+    ]);
+    
+    await this.setRolePermissions(inventoryManagerRole.id, [
+      ecomPerms.productView.id,
+      ecomPerms.inventoryView.id, ecomPerms.inventoryUpdate.id, ecomPerms.supplierManage.id,
+      ecomPerms.orderView.id, ecomPerms.orderUpdate.id,
+      ecomPerms.analyticsView.id
+    ]);
+    
+    await this.setRolePermissions(marketingManagerRole.id, [
+      ecomPerms.productView.id, ecomPerms.productEdit.id,
+      ecomPerms.customerView.id,
+      ecomPerms.discountCreate.id, ecomPerms.campaignManage.id,
+      ecomPerms.analyticsView.id, ecomPerms.reportExport.id
+    ]);
+    
+    await this.setRolePermissions(customerServiceRole.id, [
+      ecomPerms.productView.id,
+      ecomPerms.orderView.id, ecomPerms.orderUpdate.id, ecomPerms.orderCancel.id, ecomPerms.orderRefund.id,
+      ecomPerms.customerView.id, ecomPerms.customerEdit.id
+    ]);
+    
+    await this.setRolePermissions(salesStaffRole.id, [
+      ecomPerms.productView.id,
+      ecomPerms.orderView.id, ecomPerms.orderCreate.id,
+      ecomPerms.customerView.id
+    ]);
+    
+    await this.setRolePermissions(customerRole.id, [
+      ecomPerms.productView.id, ecomPerms.orderView.id
+    ]);
 
-    console.log("✅ Successfully seeded 3 default RBAC models with roles and permissions");
+    console.log("✅ Successfully seeded 3 comprehensive RBAC models with realistic role hierarchies and permissions");
   }
 }
 
