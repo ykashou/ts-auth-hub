@@ -1,8 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Navbar() {
   const [location, setLocation] = useLocation();
@@ -19,18 +25,25 @@ export default function Navbar() {
     setLocation("/login");
   };
 
-  const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home, testId: "button-dashboard", adminOnly: false },
-    { path: "/admin/users", label: "User Management", icon: Users, testId: "button-user-management", adminOnly: true },
-    { path: "/admin/role-assignments", label: "Role Assignments", icon: ShieldCheck, testId: "button-role-assignments", adminOnly: true },
-    { path: "/admin/rbac", label: "RBAC Models", icon: Shield, testId: "button-rbac-models", adminOnly: true },
-    { path: "/services", label: "Services", icon: Boxes, testId: "button-services", adminOnly: true },
-    { path: "/config", label: "Config", icon: Settings2, testId: "button-config", adminOnly: true },
-    { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs", adminOnly: true },
-    { path: "/widget-docs", label: "Widget", icon: Code2, testId: "button-widget-docs", adminOnly: true },
+  const userManagementItems = [
+    { path: "/admin/users", label: "Users", icon: Users, testId: "button-user-management" },
+    { path: "/admin/rbac", label: "RBAC Models", icon: Shield, testId: "button-rbac-models" },
+    { path: "/admin/role-assignments", label: "Role Assignments", icon: ShieldCheck, testId: "button-role-assignments" },
   ];
 
-  const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const serviceManagementItems = [
+    { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
+    { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
+  ];
+
+  const documentationItems = [
+    { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs" },
+    { path: "/widget-docs", label: "Widget", icon: Code2, testId: "button-widget-docs" },
+  ];
+
+  const isUserManagementActive = userManagementItems.some(item => location === item.path);
+  const isServiceManagementActive = serviceManagementItems.some(item => location === item.path);
+  const isDocumentationActive = documentationItems.some(item => location === item.path);
 
   return (
     <header className="bg-card border-b border-border sticky top-0 z-10">
@@ -46,22 +59,114 @@ export default function Navbar() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {visibleNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.path;
-              return (
-                <Button
-                  key={item.path}
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  data-testid={item.testId}
-                  onClick={() => setLocation(item.path)}
-                >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {item.label}
-                </Button>
-              );
-            })}
+            {/* Dashboard Button */}
+            <Button
+              variant={location === "/dashboard" ? "default" : "outline"}
+              size="sm"
+              data-testid="button-dashboard"
+              onClick={() => setLocation("/dashboard")}
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Dashboard
+            </Button>
+
+            {/* User Management Dropdown */}
+            {isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isUserManagementActive ? "default" : "outline"}
+                    size="sm"
+                    data-testid="dropdown-user-management"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    User Management
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {userManagementItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={item.path}
+                        onClick={() => setLocation(item.path)}
+                        data-testid={item.testId}
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {item.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Service Management Dropdown */}
+            {isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isServiceManagementActive ? "default" : "outline"}
+                    size="sm"
+                    data-testid="dropdown-service-management"
+                  >
+                    <Boxes className="w-4 h-4 mr-2" />
+                    Service Management
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {serviceManagementItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={item.path}
+                        onClick={() => setLocation(item.path)}
+                        data-testid={item.testId}
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {item.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Documentation Dropdown */}
+            {isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isDocumentationActive ? "default" : "outline"}
+                    size="sm"
+                    data-testid="dropdown-documentation"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Documentation
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {documentationItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={item.path}
+                        onClick={() => setLocation(item.path)}
+                        data-testid={item.testId}
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {item.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Logout Button */}
             <Button
               variant="outline"
               size="sm"
