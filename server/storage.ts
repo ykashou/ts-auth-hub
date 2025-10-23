@@ -75,6 +75,11 @@ export interface IStorage {
   getServiceUserRoles(serviceId: string): Promise<UserServiceRole[]>;
   getRoleUserAssignments(roleId: string): Promise<UserServiceRole[]>;
   getAllUserServiceRoles(): Promise<UserServiceRole[]>;
+  getUserPermissionsForService(userId: string, serviceId: string): Promise<{
+    role: { id: string; name: string; description: string | null } | null;
+    permissions: Array<{ id: string; name: string; description: string | null }>;
+    rbacModel: { id: string; name: string; description: string | null } | null;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -814,6 +819,87 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(userServiceRoles);
+  }
+
+  async getUserPermissionsForService(userId: string, serviceId: string): Promise<{
+    role: { id: string; name: string; description: string | null } | null;
+    permissions: Array<{ id: string; name: string; description: string | null }>;
+    rbacModel: { id: string; name: string; description: string | null } | null;
+  }> {
+    // Get RBAC model for the service
+    const rbacModel = await this.getRbacModelForService(serviceId);
+    
+    if (!rbacModel) {
+      // No RBAC model assigned to service
+      return {
+        role: null,
+        permissions: [],
+        rbacModel: null
+      };
+    }
+
+    // Get user's role assignment for this service
+    const userServiceRolesList = await db
+      .select()
+      .from(userServiceRoles)
+      .where(
+        and(
+          eq(userServiceRoles.userId, userId),
+          eq(userServiceRoles.serviceId, serviceId)
+        )
+      );
+
+    if (userServiceRolesList.length === 0) {
+      // User has no role assigned for this service
+      return {
+        role: null,
+        permissions: [],
+        rbacModel: {
+          id: rbacModel.id,
+          name: rbacModel.name,
+          description: rbacModel.description
+        }
+      };
+    }
+
+    const userServiceRole = userServiceRolesList[0];
+    
+    // Get role details
+    const role = await this.getRole(userServiceRole.roleId);
+    
+    if (!role) {
+      // Role not found (shouldn't happen with FK constraints)
+      return {
+        role: null,
+        permissions: [],
+        rbacModel: {
+          id: rbacModel.id,
+          name: rbacModel.name,
+          description: rbacModel.description
+        }
+      };
+    }
+
+    // Get permissions for the role
+    const rolePermissions = await this.getPermissionsForRole(role.id);
+
+    return {
+      role: {
+        id: role.id,
+        name: role.name,
+        description: role.description
+      },
+      permissions: rolePermissions.map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description
+      })),
+      rbacModel: {
+        id: rbacModel.id,
+        name: rbacModel.name,
+        description: rbacModel.description
+      }
+    };
   }
 }
 
