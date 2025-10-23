@@ -588,76 +588,67 @@ function handleAuthCallback() {
           </CardContent>
         </Card>
 
-        {/* Backend Token Verification - CRITICAL */}
+        {/* Backend Token Verification - LOCAL VERIFICATION */}
         <Card className="mb-6 border-primary/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-primary">
               <Shield className="w-5 h-5" />
-              Backend Token Verification (Required)
+              Backend Token Verification (Local)
             </CardTitle>
             <CardDescription>
-              <strong>IMPORTANT:</strong> External services cannot verify JWT tokens locally. 
-              You must call AuthHub's API to verify tokens.
+              Verify JWT tokens locally using your service secret - no callback to AuthHub needed!
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-destructive/10 border border-destructive/30 p-3 rounded-lg">
-              <p className="text-sm text-destructive font-semibold mb-2">
-                ⚠️ Common Mistake
+            <div className="bg-primary/10 border border-primary/30 p-3 rounded-lg">
+              <p className="text-sm text-primary font-semibold mb-2">
+                ✓ Key Insight
               </p>
               <p className="text-sm text-muted-foreground">
-                Do NOT try to verify tokens locally using your service secret. JWT tokens are signed 
-                with AuthHub's private key, not your service secret. Your service secret is only for 
-                authenticating to AuthHub's API.
+                When you pass your <code className="bg-muted px-1 rounded">serviceId</code> in the redirect URL, 
+                AuthHub signs the JWT with <strong>your service's secret</strong> instead of its own SESSION_SECRET. 
+                This allows you to verify tokens locally using the same secret you have in your environment variables!
               </p>
             </div>
 
             <div>
-              <h4 className="font-semibold text-sm mb-2">Step 1: Get Your Service ID and Secret</h4>
+              <h4 className="font-semibold text-sm mb-2">Step 1: Setup Your Integration URL</h4>
               <p className="text-sm text-muted-foreground mb-2">
-                Register your service in AuthHub's Config page and copy both your <strong>service ID</strong> and 
-                <strong>service secret</strong> (sk_...). Store them in your backend environment variables as 
-                <code className="bg-muted px-1 rounded">AUTH_HUB_SERVICE_ID</code> and 
-                <code className="bg-muted px-1 rounded">AUTH_HUB_SECRET</code>.
+                When redirecting users to AuthHub, include your <code className="bg-muted px-1 rounded">serviceId</code>:
               </p>
+              <pre className="bg-muted p-3 rounded-lg overflow-x-auto text-sm">
+                <code>{`https://authhub.example.com/login?serviceId=YOUR_SERVICE_ID&redirect_uri=YOUR_CALLBACK_URL`}</code>
+              </pre>
             </div>
 
             <Separator />
 
             <div>
-              <h4 className="font-semibold text-sm mb-2">Step 2: Verify Tokens via AuthHub API</h4>
+              <h4 className="font-semibold text-sm mb-2">Step 2: Verify Tokens Locally</h4>
               <div className="relative mt-2">
                 <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
                   <code>{`// Backend route (Node.js/Express example)
-app.post('/api/auth/widget', async (req, res) => {
-  const { token } = req.body;
+const jwt = require('jsonwebtoken');
+
+app.post('/api/auth/callback', async (req, res) => {
+  const { token } = req.body; // or get from URL params
   
   try {
-    // Call AuthHub to verify the token
-    const response = await fetch('${currentDomain}/api/auth/verify-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: token,                            // JWT from redirect
-        serviceId: process.env.AUTH_HUB_SERVICE_ID, // Your service ID
-        secret: process.env.AUTH_HUB_SECRET      // Your service secret
-      })
-    });
-
-    const data = await response.json();
+    // Verify token locally using YOUR service secret
+    const decoded = jwt.verify(token, process.env.AUTH_HUB_SECRET);
     
-    if (data.valid) {
-      // Token is valid - create session for this user
-      const user = data.user;
-      req.session.userId = user.id;
-      req.session.email = user.email;
-      
-      res.json({ success: true, user });
-    } else {
-      res.status(401).json({ error: 'Invalid token' });
-    }
+    // Token is valid - decoded contains { id, email }
+    const userId = decoded.id;
+    const userEmail = decoded.email;
+    
+    // Create your own session
+    req.session.userId = userId;
+    req.session.email = userEmail;
+    
+    res.json({ success: true, user: decoded });
   } catch (error) {
-    res.status(500).json({ error: 'Verification failed' });
+    // Token invalid or expired
+    res.status(401).json({ error: 'Invalid token' });
   }
 });`}</code>
                 </pre>
@@ -666,35 +657,27 @@ app.post('/api/auth/widget', async (req, res) => {
                   variant="ghost"
                   className="absolute top-2 right-2"
                   onClick={() => copyToClipboard(`// Backend route (Node.js/Express example)
-app.post('/api/auth/widget', async (req, res) => {
-  const { token } = req.body;
+const jwt = require('jsonwebtoken');
+
+app.post('/api/auth/callback', async (req, res) => {
+  const { token } = req.body; // or get from URL params
   
   try {
-    // Call AuthHub to verify the token
-    const response = await fetch('${currentDomain}/api/auth/verify-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: token,                            // JWT from redirect
-        serviceId: process.env.AUTH_HUB_SERVICE_ID, // Your service ID
-        secret: process.env.AUTH_HUB_SECRET      // Your service secret
-      })
-    });
-
-    const data = await response.json();
+    // Verify token locally using YOUR service secret
+    const decoded = jwt.verify(token, process.env.AUTH_HUB_SECRET);
     
-    if (data.valid) {
-      // Token is valid - create session for this user
-      const user = data.user;
-      req.session.userId = user.id;
-      req.session.email = user.email;
-      
-      res.json({ success: true, user });
-    } else {
-      res.status(401).json({ error: 'Invalid token' });
-    }
+    // Token is valid - decoded contains { id, email }
+    const userId = decoded.id;
+    const userEmail = decoded.email;
+    
+    // Create your own session
+    req.session.userId = userId;
+    req.session.email = userEmail;
+    
+    res.json({ success: true, user: decoded });
   } catch (error) {
-    res.status(500).json({ error: 'Verification failed' });
+    // Token invalid or expired
+    res.status(401).json({ error: 'Invalid token' });
   }
 });`, 'backend-verify')}
                   data-testid="button-copy-backend-verify"
@@ -711,12 +694,13 @@ app.post('/api/auth/widget', async (req, res) => {
             <Separator />
 
             <div>
-              <h4 className="font-semibold text-sm mb-2">Why This Approach?</h4>
+              <h4 className="font-semibold text-sm mb-2">How It Works</h4>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
-                <li>JWT tokens are signed with AuthHub's private SESSION_SECRET</li>
-                <li>Your service secret (sk_*) proves your service is legitimate</li>
-                <li>AuthHub verifies both the token signature and your service secret</li>
-                <li>Returns user data if both are valid</li>
+                <li>You pass your <code className="bg-muted px-1 rounded">serviceId</code> in the Auth Hub redirect URL</li>
+                <li>AuthHub looks up your service's secret and signs the JWT with it</li>
+                <li>You verify the JWT locally using the same secret from your env vars</li>
+                <li>No callback to AuthHub needed - fully decentralized!</li>
+                <li>Tokens expire in 7 days by default</li>
               </ul>
             </div>
           </CardContent>
