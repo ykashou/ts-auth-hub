@@ -22,13 +22,13 @@ export interface IStorage {
   getApiKeyByKey(key: string): Promise<ApiKey | undefined>;
   getAllApiKeys(): Promise<ApiKey[]>;
 
-  // Service operations
-  createService(service: InsertService & { secret?: string; secretPreview?: string; userId: string }): Promise<Service>;
-  getService(id: string, userId: string): Promise<Service | undefined>;
-  getServiceById(id: string): Promise<Service | undefined>; // Get service by ID (for JWT signing and verification)
-  getAllServicesByUser(userId: string): Promise<Service[]>;
-  updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
-  deleteService(id: string, userId: string): Promise<void>;
+  // Service operations (globally defined services)
+  createService(service: InsertService & { secret?: string; secretPreview?: string }): Promise<Service>;
+  getServiceById(id: string): Promise<Service | undefined>; // Get service by ID
+  getAllServices(): Promise<Service[]>; // Get all global services
+  updateService(id: string, service: Partial<Service>): Promise<Service>;
+  deleteService(id: string): Promise<void>;
+  seedDefaultServices(): Promise<void>; // Seed 7 default services on first admin registration
 
   // RBAC Model operations
   createRbacModel(model: InsertRbacModel & { createdBy: string }): Promise<RbacModel>;
@@ -169,8 +169,8 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(apiKeys);
   }
 
-  // Service operations
-  async createService(insertService: InsertService & { secret?: string; secretPreview?: string; userId: string }): Promise<Service> {
+  // Service operations (globally defined services)
+  async createService(insertService: InsertService & { secret?: string; secretPreview?: string }): Promise<Service> {
     const [service] = await db
       .insert(services)
       .values(insertService)
@@ -178,36 +178,108 @@ export class DatabaseStorage implements IStorage {
     return service;
   }
 
-  async getService(id: string, userId: string): Promise<Service | undefined> {
-    const [service] = await db
-      .select()
-      .from(services)
-      .where(and(eq(services.id, id), eq(services.userId, userId)));
-    return service || undefined;
-  }
-
   async getServiceById(id: string): Promise<Service | undefined> {
-    // Get service by ID only, without userId filtering
-    // Used for widget authentication where the secret itself proves authorization
     const [service] = await db.select().from(services).where(eq(services.id, id));
     return service || undefined;
   }
 
-  async getAllServicesByUser(userId: string): Promise<Service[]> {
-    return await db.select().from(services).where(eq(services.userId, userId));
+  async getAllServices(): Promise<Service[]> {
+    return await db.select().from(services);
   }
 
-  async updateService(id: string, userId: string, updateData: Partial<Service>): Promise<Service> {
+  async updateService(id: string, updateData: Partial<Service>): Promise<Service> {
     const [service] = await db
       .update(services)
       .set(updateData)
-      .where(and(eq(services.id, id), eq(services.userId, userId)))
+      .where(eq(services.id, id))
       .returning();
     return service;
   }
 
-  async deleteService(id: string, userId: string): Promise<void> {
-    await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
+  async deleteService(id: string): Promise<void> {
+    await db.delete(services).where(eq(services.id, id));
+  }
+
+  async seedDefaultServices(): Promise<void> {
+    const serviceCount = await db.select().from(services);
+    if (serviceCount.length > 0) {
+      return; // Services already seeded
+    }
+
+    const defaultServices: Array<InsertService & { secret: string; secretPreview: string }> = [
+      {
+        name: "Git Garden",
+        description: "Version control and collaboration platform",
+        url: "https://gitgarden.example.com",
+        icon: "GitBranch",
+        color: "hsl(142, 76%, 36%)",
+        secret: "", // Will be generated below
+        secretPreview: ""
+      },
+      {
+        name: "Iron Path",
+        description: "Project management and task tracking",
+        url: "https://ironpath.example.com",
+        icon: "Compass",
+        color: "hsl(217, 91%, 60%)",
+        secret: "",
+        secretPreview: ""
+      },
+      {
+        name: "PurpleGreen",
+        description: "Design collaboration and prototyping",
+        url: "https://purplegreen.example.com",
+        icon: "Palette",
+        color: "hsl(280, 70%, 50%)",
+        secret: "",
+        secretPreview: ""
+      },
+      {
+        name: "BTCPay Dashboard",
+        description: "Cryptocurrency payment processing",
+        url: "https://btcpay.example.com",
+        icon: "Bitcoin",
+        color: "hsl(36, 100%, 50%)",
+        secret: "",
+        secretPreview: ""
+      },
+      {
+        name: "CodeCraft",
+        description: "Integrated development environment",
+        url: "https://codecraft.example.com",
+        icon: "Code",
+        color: "hsl(195, 100%, 50%)",
+        secret: "",
+        secretPreview: ""
+      },
+      {
+        name: "DataVault",
+        description: "Secure data storage and backup",
+        url: "https://datavault.example.com",
+        icon: "Database",
+        color: "hsl(160, 60%, 40%)",
+        secret: "",
+        secretPreview: ""
+      },
+      {
+        name: "CloudNest",
+        description: "Cloud infrastructure management",
+        url: "https://cloudnest.example.com",
+        icon: "Cloud",
+        color: "hsl(210, 50%, 60%)",
+        secret: "",
+        secretPreview: ""
+      }
+    ];
+
+    // Generate secrets for each service
+    const servicesWithSecrets = defaultServices.map(service => {
+      const secret = `sk_${randomBytes(32).toString('hex')}`;
+      const secretPreview = `${secret.substring(0, 10)}...${secret.substring(secret.length - 7)}`;
+      return { ...service, secret, secretPreview };
+    });
+
+    await db.insert(services).values(servicesWithSecrets);
   }
 
   // RBAC Model operations
