@@ -618,48 +618,128 @@ model:
 
 **Acceptance:** Global services visible in admin UI immediately after seeding
 
-**Current Implementation Status:**
-- ✅ User-specific services architecture implemented instead of global services
-- ✅ Each user owns their own isolated set of services (userId foreign key)
-- ✅ Auto-seeding: New users automatically receive 7 default services via `seedServices()`
-- ✅ Service CRUD: Users manage their own services through dashboard
-- ✅ Service count: Admin User Management page correctly displays per-user service count
-- ✅ RBAC integration: Users can assign RBAC models to their own services
-- ✅ OAuth flow: Uses user's own service credentials with RBAC data in JWT
+---
 
-**Note:** This task describes a global service catalog approach, but the current implementation uses user-specific services for better isolation, security, and flexibility. The "Services" count in Admin User Management represents the number of services each user owns (default: 7 auto-seeded services).
+## Task 13: Service Enablement for Users - Full Stack
+**What you'll see:** Admin can toggle services on/off for each user in User Management table
+
+**Changes:**
+1. **Schema**: Create `userServices` junction table (userId, serviceId, enabledAt)
+2. **Backend**: Create `GET /api/admin/users/:userId/services` - returns enabled services
+3. **Backend**: Create `POST /api/admin/users/:userId/services/:serviceId` - enable service
+4. **Backend**: Create `DELETE /api/admin/users/:userId/services/:serviceId` - disable service
+5. **Frontend**: Add expandable row in User Management table
+6. **Frontend**: Show toggles for each global service
+7. **Frontend**: When toggled → call enable/disable endpoint
+8. **Frontend**: Update count in table immediately (optimistic UI)
+9. **Test in browser**:
+   - Login as admin → expand user row
+   - See toggles for all 7 services (all OFF initially)
+   - Toggle service ON → see API call + count update
+   - Refresh page → toggle state persists
+
+**Table Change:** "Services" column now clickable, expands to show toggle switches
+
+**Acceptance:** Admin can enable/disable services per user, changes persist
 
 ---
 
-## Task 13-17: Not Applicable to Current Architecture
+## Task 14: Users See Only Enabled Services - Full Stack
+**What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
-**Note:** Tasks 13-17 were originally designed for a "global service catalog" architecture where:
-- Admins manage a single catalog of global services
-- Users are "enabled" for specific services via junction tables
-- Service enablement is controlled by admins
+**Changes:**
+1. **Backend**: Create `GET /api/services/enabled` endpoint
+2. **Backend**: Returns services from userServices junction for current user
+3. **Backend**: For admins: return all global services (admin override)
+4. **Frontend**: Update dashboard to fetch from `/api/services/enabled`
+5. **Frontend**: Show empty state if user has 0 enabled services
+6. **Frontend**: Message: "No services enabled. Contact admin to request access."
+7. **Test in browser**:
+   - Login as admin → enable 2 services for User A
+   - Login as User A → see only those 2 services
+   - Login as admin → enable 1 more service for User A
+   - User A refreshes → sees 3 services now
+   - Login as User B with 0 enabled services → see empty state
 
-**Current Implementation Uses User-Specific Services:**
-- Each user owns and manages their own services
-- Services are isolated per user (not global)
-- New users automatically receive 7 default services via `seedServices()`
-- Users have full CRUD control over their own services
-- Admin role management is already implemented (Task 5)
+**Dashboard Change:** Service cards now filtered by userServices assignments
 
-**What We Have Instead:**
-- ✅ Task 12: User-specific service management with auto-seeding (completed)
-- ✅ Task 5: Enhanced user management with role editing (admin promotion/demotion already implemented)
-- ✅ Service isolation: Each service has `userId` foreign key
-- ✅ Auto-seeding: `seedServices(userId)` called during registration
-- ✅ CRUD operations: Users manage their own services via dashboard
+**Acceptance:** Users see only their enabled services, admins see all
 
-**Alternative Architecture Decision:**
-The user-specific service model provides better:
-1. **Isolation**: Each user's services are completely separate
-2. **Flexibility**: Users can customize their own service configurations
-3. **Security**: Service secrets are user-specific
-4. **RBAC Integration**: Users assign RBAC models to their own services
+---
 
-Tasks 13-17 are superseded by the current user-specific service architecture implemented in Task 12.
+## Task 15: Role Management UI - Full Stack
+**What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
+
+**Changes:**
+1. **Backend**: Create `GET /api/admin/count` endpoint (returns number of admins)
+2. **Backend**: Create `PATCH /api/admin/users/:userId/role` endpoint
+3. **Backend**: Check admin count > 1 before allowing demotion
+4. **Backend**: Return 400 error: "Cannot demote last admin"
+5. **Frontend**: Add role dropdown in User Management table
+6. **Frontend**: Fetch admin count to determine if dropdown should be disabled
+7. **Frontend**: Show tooltip on disabled dropdown: "Cannot demote last admin"
+8. **Frontend**: On role change → show toast + refresh table
+9. **Test in browser**:
+   - With 1 admin → dropdown disabled for that admin
+   - Promote another user to admin → first admin's dropdown becomes enabled
+   - Demote second admin → works fine
+   - Try to demote last admin → see tooltip + disabled state
+
+**Table Change:** Role badge becomes interactive dropdown for admins
+
+**Acceptance:** Cannot remove last admin, role changes work for others
+
+---
+
+## Task 16: Migrate Existing Services to Global Catalog - Full Stack
+**What you'll see:** Old user-specific services become global, users keep access via userServices
+
+**Changes:**
+1. **Backend**: Create migration script `server/migrate-services.ts`
+2. **Backend**: Script logic:
+   - Copy distinct services from old `services` table to `globalServices`
+   - For each user's old services, create userServices entries
+   - Preserve encrypted secrets
+   - Deduplicate by name+url
+3. **Backend**: Add npm script: `"migrate": "tsx server/migrate-services.ts"`
+4. **Frontend**: Remove old service CRUD UI from dashboard
+5. **Frontend**: Add note: "Services are now managed globally by admins"
+6. **Test in browser**:
+   - Run migration: `npm run migrate`
+   - Login as existing user → see all their old services still work
+   - Check User Management → see services correctly assigned
+   - Check Service Catalog → see all unique services
+
+**Migration Steps:**
+1. Backup database
+2. Run `npm run migrate`
+3. Verify in UI
+4. Drop old `services` table
+5. Rename `globalServices` to `services`
+
+**Acceptance:** Existing users retain access to their services after migration
+
+---
+
+## Task 17: Service Auto-Enablement for New Users - Full Stack
+**What you'll see:** New users automatically get access to a default set of services
+
+**Changes:**
+1. **Backend**: Add config for default services (array of service IDs)
+2. **Backend**: After user registration, auto-enable default services
+3. **Backend**: Make this configurable (e.g., first 3 services alphabetically)
+4. **Frontend**: Show indicator in Service Catalog which services are "default enabled"
+5. **Frontend**: Add star icon or "Default" badge on default service cards
+6. **Frontend**: In User Management, show which services were auto-enabled vs manually enabled
+7. **Test in browser**:
+   - Register new user
+   - Login as that user → see 3 default services already enabled
+   - Login as admin → User Management shows those 3 services toggled ON
+   - Admin can still disable them manually
+
+**Config Location:** Environment variable or database setting
+
+**Acceptance:** New users immediately have access to default services without admin intervention
 
 ---
 
