@@ -164,7 +164,56 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 6: Global Services & Admin Service Manager - Full Stack
+## Task 6: Role-Based Access Control (RBAC) Configuration Page - Full Stack
+**What you'll see:** Admin page for configuring permissions and access control policies
+
+**Changes:**
+1. **Schema**: Create `permissions` table (id, name, description, resource, action, createdAt)
+2. **Schema**: Create `rolePermissions` junction table (roleId, permissionId, createdAt)
+3. **Backend**: Create `GET /api/admin/rbac/permissions` endpoint (returns all permissions)
+4. **Backend**: Create `POST /api/admin/rbac/permissions` endpoint (create new permission)
+5. **Backend**: Create `GET /api/admin/rbac/roles` endpoint (returns roles with their permissions)
+6. **Backend**: Create `PATCH /api/admin/rbac/roles/:role/permissions` endpoint (update role permissions)
+7. **Frontend**: Create RBAC page at `/admin/rbac` with permission management UI
+8. **Frontend**: Add "Access Control" link to admin navbar
+9. **Frontend**: Display two-panel layout: Roles on left, Permissions on right
+10. **Frontend**: Show permission matrix (roles vs permissions grid with checkboxes)
+11. **Frontend**: Allow admins to grant/revoke permissions per role
+12. **Frontend**: Add permission creation dialog for custom permissions
+13. **Test in browser**:
+    - Login as admin → see "Access Control" in navbar
+    - Click link → see RBAC configuration page
+    - View default permissions (e.g., "manage_users", "manage_services", "view_analytics")
+    - Toggle permissions for "user" role → see changes persist
+    - Create new permission → appears in matrix
+    - Regular user can't access page (redirected to dashboard)
+
+**Default Permissions:**
+- Admin role: All permissions by default
+- User role: Limited permissions (view own services, manage own profile)
+
+**Permission Matrix UI:**
+```
+           | manage_users | manage_services | view_analytics | ...
+-----------+--------------+-----------------+----------------+----
+Admin      |      ✓       |        ✓        |       ✓        | ...
+User       |      ✗       |        ✗        |       ✗        | ...
+```
+
+**UI Components:**
+- Role cards/list on left sidebar
+- Permission grid/table in main area
+- Add Permission dialog
+- Permission description tooltips
+- Real-time toggle switches for grant/revoke
+
+**UI Location:** New page at /admin/rbac with two-panel layout
+
+**Acceptance:** Admin can view and configure role-based permissions through intuitive UI
+
+---
+
+## Task 7: Global Services & Admin Service Manager - Full Stack
 **What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
@@ -186,7 +235,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 7: Service Enablement for Users - Full Stack
+## Task 8: Service Enablement for Users - Full Stack
 **What you'll see:** Admin can toggle services on/off for each user in User Management table
 
 **Changes:**
@@ -210,7 +259,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 8: Users See Only Enabled Services - Full Stack
+## Task 9: Users See Only Enabled Services - Full Stack
 **What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
@@ -233,7 +282,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 9: Role Management UI - Full Stack
+## Task 10: Role Management UI - Full Stack
 **What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
@@ -257,7 +306,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 10: Migrate Existing Services to Global Catalog - Full Stack
+## Task 11: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -287,7 +336,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 11: Service Auto-Enablement for New Users - Full Stack
+## Task 12: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
