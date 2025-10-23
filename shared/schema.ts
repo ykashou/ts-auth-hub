@@ -31,7 +31,7 @@ export const services = pgTable("services", {
   redirectUrl: text("redirect_url"), // Redirect URL after authentication (defaults to service URL)
   icon: text("icon").notNull().default("Globe"),
   color: text("color"),
-  secret: text("secret"), // Plaintext secret for JWT signing (encrypted at rest by database)
+  secret: text("secret"), // AES-256-GCM encrypted secret for JWT signing (encrypted at application layer)
   secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

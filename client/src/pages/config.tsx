@@ -590,7 +590,7 @@ export default function Config() {
               </div>
               <div className="bg-destructive/10 border border-destructive/30 p-3 rounded-lg">
                 <p className="text-sm text-destructive">
-                  <strong>Security Note:</strong> This secret is stored as a bcrypt hash (like passwords). 
+                  <strong>Security Note:</strong> This secret is encrypted using AES-256-GCM before storage. 
                   Once you close this dialog, it cannot be retrieved. Store it securely in your password manager or environment variables.
                 </p>
               </div>
