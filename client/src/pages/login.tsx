@@ -37,7 +37,8 @@ export default function LoginPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const redirect = urlParams.get('redirect_uri');
-    const service = urlParams.get('serviceId');
+    // Support both service_id (underscore) and serviceId (camelCase) for compatibility
+    const service = urlParams.get('service_id') || urlParams.get('serviceId');
     if (redirect) {
       setRedirectUri(decodeURIComponent(redirect));
     }

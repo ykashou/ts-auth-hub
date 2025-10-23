@@ -1,0 +1,89 @@
+# ===============================================
+# CURL REQUESTS FOR AUTHHUB DEBUGGING
+# ===============================================
+
+# Current Environment Configuration (Academia Vault side):
+# VITE_AUTH_HUB_SERVICE_ID=15d9f39b-af7d-44d4-bef4-cc2a71e29c7e
+# AUTH_HUB_SECRET=sk_3b20b57f2bab8db9cdc0eccee4389fa1fc0aaa52a2036b52
+# VITE_AUTH_HUB_URL=https://ts-auth-hub.replit.app
+
+# ===============================================
+# Request 1: Initial redirect to AuthHub (works correctly)
+# ===============================================
+# User is redirected to:
+https://ts-auth-hub.replit.app/login?redirect_uri=https%3A%2F%2F<APP_ORIGIN>&service_id=15d9f39b-af7d-44d4-bef4-cc2a71e29c7e
+
+# ===============================================
+# Request 2: AuthHub returns with token (works correctly)
+# ===============================================
+# AuthHub redirects back to:
+# https://<APP_ORIGIN>/?token=<JWT_TOKEN>&user_id=5892485d-6ed2-447a-abe5-0aafe78fff0c
+
+# Token payload (decoded without verification):
+# {
+#   "id": "5892485d-6ed2-447a-abe5-0aafe78fff0c",
+#   "email": null,
+#   "iat": 1761184919,
+#   "exp": 1761789719
+# }
+
+# ===============================================
+# Request 3: Academia Vault attempts to verify token (FAILS with 401)
+# ===============================================
+
+# This is the failing request:
+curl -X POST https://<APP_ORIGIN>/api/auth/widget \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<JWT_TOKEN_FROM_AUTHHUB>",
+    "service_id": "15d9f39b-af7d-44d4-bef4-cc2a71e29c7e"
+  }'
+
+# Response: 401
+# {
+#   "message": "Token verification failed: invalid signature"
+# }
+
+# ===============================================
+# VERIFICATION DETAILS
+# ===============================================
+
+# Academia Vault is trying to verify the JWT with:
+# jwt.verify(token, "sk_3b20b57f2bab8db9cdc0eccee4389fa1fc0aaa52a2036b52")
+
+# Token was signed by AuthHub with service_id: 15d9f39b-af7d-44d4-bef4-cc2a71e29c7e
+# Token payload contains user_id: 5892485d-6ed2-447a-abe5-0aafe78fff0c
+
+# ===============================================
+# QUESTIONS FOR AUTHHUB TEAM:
+# ===============================================
+
+# 1. When you receive the login request with service_id=15d9f39b-af7d-44d4-bef4-cc2a71e29c7e,
+#    what secret are you using to sign the JWT?
+
+# 2. Does service_id 15d9f39b-af7d-44d4-bef4-cc2a71e29c7e have the secret:
+#    sk_3b20b57f2bab8db9cdc0eccee4389fa1fc0aaa52a2036b52
+#    in your database?
+
+# 3. Can you verify that the token you're sending back was signed with
+#    the service-specific secret and not the global SESSION_SECRET?
+
+# ===============================================
+# TEST VERIFICATION (for AuthHub to run)
+# ===============================================
+
+# You can test if the token you generated verifies correctly:
+const jwt = require('jsonwebtoken');
+
+const token = "<JWT_TOKEN_YOU_SENT_BACK>";
+const secret = "sk_3b20b57f2bab8db9cdc0eccee4389fa1fc0aaa52a2036b52";
+
+try {
+  const decoded = jwt.verify(token, secret);
+  console.log("✅ Token verifies with provided secret");
+  console.log("Payload:", decoded);
+} catch (error) {
+  console.log("❌ Token does NOT verify with provided secret");
+  console.log("Error:", error.message);
+  console.log("This means you signed it with a different secret");
+}
