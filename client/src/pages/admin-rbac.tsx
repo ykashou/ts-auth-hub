@@ -253,7 +253,12 @@ export default function AdminRbac() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredModels.map((model) => (
-              <Card key={model.id} className="hover-elevate" data-testid={`card-model-${model.id}`}>
+              <Card 
+                key={model.id} 
+                className="hover-elevate active-elevate-2 cursor-pointer transition-all" 
+                data-testid={`card-model-${model.id}`}
+                onClick={() => setLocation(`/admin/rbac/${model.id}`)}
+              >
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex-1">
                     <CardTitle className="text-lg" data-testid={`text-model-name-${model.id}`}>
@@ -262,17 +267,31 @@ export default function AdminRbac() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" data-testid={`button-menu-${model.id}`}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        data-testid={`button-menu-${model.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditDialog(model)} data-testid={`menu-edit-${model.id}`}>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditDialog(model);
+                        }} 
+                        data-testid={`menu-edit-${model.id}`}
+                      >
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem 
-                        onClick={() => setDeleteConfirmId(model.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(model.id);
+                        }}
                         className="text-destructive"
                         data-testid={`menu-delete-${model.id}`}
                       >
@@ -286,18 +305,8 @@ export default function AdminRbac() {
                   <CardDescription className="mb-4" data-testid={`text-model-description-${model.id}`}>
                     {model.description}
                   </CardDescription>
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground">
-                      Created {format(new Date(model.createdAt), "MMM d, yyyy")}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLocation(`/admin/rbac/${model.id}`)}
-                      data-testid={`button-manage-${model.id}`}
-                    >
-                      Manage
-                    </Button>
+                  <div className="text-xs text-muted-foreground">
+                    Created {format(new Date(model.createdAt), "MMM d, yyyy")}
                   </div>
                 </CardContent>
               </Card>
