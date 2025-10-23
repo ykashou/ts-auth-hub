@@ -588,6 +588,136 @@ function handleAuthCallback() {
           </CardContent>
         </Card>
 
+        {/* Backend Token Verification - CRITICAL */}
+        <Card className="mb-6 border-primary/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-primary">
+              <Shield className="w-5 h-5" />
+              Backend Token Verification (Required)
+            </CardTitle>
+            <CardDescription>
+              <strong>IMPORTANT:</strong> External services cannot verify JWT tokens locally. 
+              You must call AuthHub's API to verify tokens.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-destructive/10 border border-destructive/30 p-3 rounded-lg">
+              <p className="text-sm text-destructive font-semibold mb-2">
+                ⚠️ Common Mistake
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Do NOT try to verify tokens locally using your service secret. JWT tokens are signed 
+                with AuthHub's private key, not your service secret. Your service secret is only for 
+                authenticating to AuthHub's API.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Step 1: Get Your Service Secret</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Register your service in AuthHub's Config page and copy your service secret (sk_...). 
+                Store it in your backend environment variables as <code className="bg-muted px-1 rounded">AUTH_HUB_SECRET</code>.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Step 2: Verify Tokens via AuthHub API</h4>
+              <div className="relative mt-2">
+                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                  <code>{`// Backend route (Node.js/Express example)
+app.post('/api/auth/widget', async (req, res) => {
+  const { token } = req.body;
+  
+  try {
+    // Call AuthHub to verify the token
+    const response = await fetch('${currentDomain}/api/auth/verify-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: token,                       // JWT from redirect
+        secret: process.env.AUTH_HUB_SECRET // Your service secret
+      })
+    });
+
+    const data = await response.json();
+    
+    if (data.valid) {
+      // Token is valid - create session for this user
+      const user = data.user;
+      req.session.userId = user.id;
+      req.session.email = user.email;
+      
+      res.json({ success: true, user });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});`}</code>
+                </pre>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2 right-2"
+                  onClick={() => copyToClipboard(`// Backend route (Node.js/Express example)
+app.post('/api/auth/widget', async (req, res) => {
+  const { token } = req.body;
+  
+  try {
+    // Call AuthHub to verify the token
+    const response = await fetch('${currentDomain}/api/auth/verify-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: token,                       // JWT from redirect
+        secret: process.env.AUTH_HUB_SECRET // Your service secret
+      })
+    });
+
+    const data = await response.json();
+    
+    if (data.valid) {
+      // Token is valid - create session for this user
+      const user = data.user;
+      req.session.userId = user.id;
+      req.session.email = user.email;
+      
+      res.json({ success: true, user });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});`, 'backend-verify')}
+                  data-testid="button-copy-backend-verify"
+                >
+                  {copiedId === 'backend-verify' ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Why This Approach?</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-4">
+                <li>JWT tokens are signed with AuthHub's private SESSION_SECRET</li>
+                <li>Your service secret (sk_*) proves your service is legitimate</li>
+                <li>AuthHub verifies both the token signature and your service secret</li>
+                <li>Returns user data if both are valid</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Configuration Options */}
         <Card className="mb-6">
           <CardHeader>
