@@ -6,6 +6,7 @@ import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, ins
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { seedServices } from "./seed";
+import { encryptSecret, decryptSecret } from "./crypto";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -39,7 +40,8 @@ async function generateAuthToken(userId: string, email: string | null, serviceId
     if (!service.secret) {
       throw new Error("Service has no secret configured");
     }
-    signingSecret = service.secret;
+    // Decrypt the service secret to use for JWT signing
+    signingSecret = decryptSecret(service.secret);
   }
   
   return jwt.sign(
@@ -289,13 +291,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Service has no secret configured" });
       }
 
-      if (secret !== service.secret) {
+      // Decrypt the service secret
+      const decryptedSecret = decryptSecret(service.secret);
+      
+      if (secret !== decryptedSecret) {
         return res.status(401).json({ error: "Invalid service secret" });
       }
 
       // Now verify the JWT token (should be signed with service secret)
       try {
-        const decoded = jwt.verify(token, service.secret) as any;
+        const decoded = jwt.verify(token, decryptedSecret) as any;
         
         // Get full user information
         const user = await storage.getUser(decoded.id);
@@ -398,6 +403,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate a unique secret for the service (for JWT signing and widget authentication)
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
       
+      // Encrypt the secret before storing
+      const encryptedSecret = encryptSecret(plaintextSecret);
+      
       // Create truncated preview for display (e.g., "sk_abc123...def789")
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
@@ -407,7 +415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const service = await storage.createService({
         ...validatedData,
         redirectUrl,
-        secret: plaintextSecret, // Store plaintext for JWT signing (encrypted at rest by database)
+        secret: encryptedSecret, // Store encrypted secret
         secretPreview,
         userId: req.user.id, // Associate service with authenticated user
       });
@@ -552,11 +560,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate a new plaintext secret
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
       
+      // Encrypt the secret before storing
+      const encryptedSecret = encryptSecret(plaintextSecret);
+      
       // Create truncated preview for display
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
-      // Update the service with the new secret and preview
-      await storage.updateService(req.params.id, req.user.id, { secret: plaintextSecret, secretPreview });
+      // Update the service with the new encrypted secret and preview
+      await storage.updateService(req.params.id, req.user.id, { secret: encryptedSecret, secretPreview });
       
       res.json({
         success: true,
@@ -592,8 +603,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Service has no secret configured" });
       }
 
-      // Verify the secret (direct comparison - secret is stored plaintext)
-      if (secret !== service.secret) {
+      // Decrypt and verify the secret
+      const decryptedSecret = decryptSecret(service.secret);
+      if (secret !== decryptedSecret) {
         return res.status(401).json({ error: "Invalid secret" });
       }
 

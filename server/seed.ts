@@ -1,10 +1,8 @@
 import { db } from "./db";
 import { services } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import bcrypt from "bcrypt";
 import crypto from "crypto";
-
-const SALT_ROUNDS = 10;
+import { encryptSecret } from "./crypto";
 
 interface DefaultService {
   name: string;
@@ -89,8 +87,8 @@ export async function seedServices(userId: string) {
       // Generate secret
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
       
-      // Hash the secret for secure storage
-      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
+      // Encrypt the secret for secure storage
+      const encryptedSecret = encryptSecret(plaintextSecret);
       
       // Create truncated preview for display
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
@@ -99,7 +97,7 @@ export async function seedServices(userId: string) {
       await db.insert(services).values({
         ...defaultService,
         userId,
-        hashedSecret,
+        secret: encryptedSecret,
         secretPreview,
         redirectUrl: defaultService.url,
       });
