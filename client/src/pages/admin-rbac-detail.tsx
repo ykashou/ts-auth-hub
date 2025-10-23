@@ -120,8 +120,8 @@ export default function AdminRbacDetail() {
     enabled: isAdmin && !!assignPermissionsRoleId,
   });
 
-  // Fetch all role-permission mappings for matrix view
-  // Key includes roles.length to force refetch when roles change
+  // Fetch all role-permission mappings for matrix view using the new batched endpoint
+  // Note: includes roles.length in queryKey to refetch when roles change, and waits for roles to load
   const { data: allRolePermissionMappings = [] } = useQuery<Array<{ roleId: string; permissions: Permission[] }>>({
     queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings", roles.length],
     queryFn: async () => {
@@ -130,24 +130,18 @@ export default function AdminRbacDetail() {
         throw new Error("No authentication token found");
       }
       
-      const mappings = await Promise.all(
-        roles.map(async (role) => {
-          const response = await fetch(`/api/admin/rbac/roles/${role.id}/permissions`, {
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch permissions for role ${role.id}: ${response.status}`);
-          }
-          
-          const permissions = await response.json();
-          return { roleId: role.id, permissions };
-        })
-      );
-      return mappings;
+      const response = await fetch(`/api/admin/rbac/models/${modelId}/role-permission-mappings`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch role-permission mappings: ${response.status}`);
+      }
+      
+      return await response.json();
     },
     enabled: isAdmin && !!modelId && roles.length > 0,
   });
@@ -340,7 +334,7 @@ export default function AdminRbacDetail() {
         return;
       }
 
-      const response = await fetch(`/api/admin/rbac/models/${modelId}/export?format=${format}`, {
+      const response = await fetch(`/api/admin/rbac/models/${modelId}/export?format=${format}&download=true`, {
         headers: {
           "Authorization": `Bearer ${token}`,
         },

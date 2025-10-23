@@ -918,7 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/rbac/models/:id/export", verifyToken, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { format = 'json' } = req.query;
+      const { format = 'json', download } = req.query;
 
       // Get model
       const model = await storage.getRbacModel(id);
@@ -963,17 +963,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
       };
 
-      // Return in requested format
-      if (format === 'yaml') {
-        // Simple YAML conversion (without external library)
-        const yamlStr = convertToYAML(exportData);
-        res.setHeader('Content-Type', 'application/x-yaml');
-        res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.yaml"`);
-        res.send(yamlStr);
+      // If download parameter is set, return as downloadable file
+      if (download === 'true') {
+        if (format === 'yaml') {
+          const yamlStr = convertToYAML(exportData);
+          res.setHeader('Content-Type', 'application/x-yaml');
+          res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.yaml"`);
+          res.send(yamlStr);
+        } else {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.json"`);
+          res.json(exportData);
+        }
       } else {
-        // JSON format (default)
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.json"`);
+        // Otherwise, return as regular JSON for display
         res.json(exportData);
       }
     } catch (error: any) {
