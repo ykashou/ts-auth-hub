@@ -33,12 +33,11 @@ export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Read redirect_uri and serviceId from URL parameters on mount
+  // Read redirect_uri and service_id from URL parameters on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const redirect = urlParams.get('redirect_uri');
-    // Support both service_id (underscore) and serviceId (camelCase) for compatibility
-    const service = urlParams.get('service_id') || urlParams.get('serviceId');
+    const service = urlParams.get('service_id');
     if (redirect) {
       setRedirectUri(decodeURIComponent(redirect));
     }

@@ -43,8 +43,8 @@ function loginWithAuthHub() {
   const serviceId = process.env.AUTHHUB_SERVICE_ID;
   const redirectUri = `${window.location.origin}/auth/callback`;
   
-  // ⚠️ CRITICAL: Both serviceId and redirect_uri MUST be included
-  const authUrl = `${process.env.AUTHHUB_URL}/login?serviceId=${serviceId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  // ⚠️ CRITICAL: Both service_id and redirect_uri MUST be included
+  const authUrl = `${process.env.AUTHHUB_URL}/login?service_id=${serviceId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   
   console.log('Redirecting to:', authUrl);
   window.location.href = authUrl;
@@ -53,12 +53,12 @@ function loginWithAuthHub() {
 
 **Generated URL Example:**
 ```
-https://authhub.example.com/login?serviceId=a1474ce0-6275-4b51-beaf-bbf61e913ea8&redirect_uri=https%3A%2F%2Facademia-vault.com%2Fauth%2Fcallback
+https://authhub.example.com/login?service_id=a1474ce0-6275-4b51-beaf-bbf61e913ea8&redirect_uri=https%3A%2F%2Facademia-vault.com%2Fauth%2Fcallback
 ```
 
 **✅ Checklist:**
-- [ ] `serviceId` parameter is present
-- [ ] `serviceId` matches the UUID from AuthHub config page
+- [ ] `service_id` parameter is present
+- [ ] `service_id` matches the UUID from AuthHub config page
 - [ ] `redirect_uri` is URL-encoded
 - [ ] `redirect_uri` matches your callback endpoint
 
@@ -75,7 +75,7 @@ https://authhub.example.com/login?serviceId=a1474ce0-6275-4b51-beaf-bbf61e913ea8
 ```typescript
 // AuthHub reads URL parameters
 const urlParams = new URLSearchParams(window.location.search);
-const serviceId = urlParams.get('serviceId');      // "a1474ce0-6275-4b51-beaf-bbf61e913ea8"
+const serviceId = urlParams.get('service_id');     // "a1474ce0-6275-4b51-beaf-bbf61e913ea8"
 const redirectUri = urlParams.get('redirect_uri'); // "https://academia-vault.com/auth/callback"
 ```
 
@@ -239,9 +239,9 @@ Result: ❌ Invalid signature
 
 ### Common Mistakes
 
-#### ❌ Mistake #1: Missing serviceId in AuthHub URL
+#### ❌ Mistake #1: Missing service_id in AuthHub URL
 ```javascript
-// WRONG - No serviceId parameter
+// WRONG - No service_id parameter
 window.location.href = `https://authhub.com/login?redirect_uri=${redirectUri}`;
 
 // Token gets signed with: AuthHub's SESSION_SECRET
@@ -250,8 +250,8 @@ window.location.href = `https://authhub.com/login?redirect_uri=${redirectUri}`;
 ```
 
 ```javascript
-// ✅ CORRECT - serviceId included
-window.location.href = `https://authhub.com/login?serviceId=${serviceId}&redirect_uri=${redirectUri}`;
+// ✅ CORRECT - service_id included
+window.location.href = `https://authhub.com/login?service_id=${serviceId}&redirect_uri=${redirectUri}`;
 
 // Token gets signed with: sk_a06fb8815... (your service secret)
 // You verify with: sk_a06fb8815... (your service secret)
@@ -286,8 +286,8 @@ console.log('AUTHHUB_SECRET:', process.env.AUTHHUB_SECRET);
 
 ### During Login Flow
 
-- [ ] AuthHub URL includes both `serviceId` and `redirect_uri` parameters
-- [ ] URL is properly formatted: `?serviceId=xxx&redirect_uri=yyy`
+- [ ] AuthHub URL includes both `service_id` and `redirect_uri` parameters
+- [ ] URL is properly formatted: `?service_id=xxx&redirect_uri=yyy`
 - [ ] redirect_uri is URL-encoded
 
 ### During Token Verification
@@ -410,7 +410,7 @@ If you're still experiencing signature verification failures after following thi
 2. **Check the AuthHub URL being generated:**
    ```javascript
    console.log('Full AuthHub URL:', authUrl);
-   // Should include: ?serviceId=a1474ce0-6275-4b51-beaf-bbf61e913ea8&redirect_uri=...
+   // Should include: ?service_id=a1474ce0-6275-4b51-beaf-bbf61e913ea8&redirect_uri=...
    ```
 
 3. **Decode the token (without verifying) to inspect payload:**
