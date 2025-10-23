@@ -16,6 +16,7 @@ type User = {
   email: string | null;
   role: "admin" | "user";
   createdAt: string;
+  servicesCount: number;
 };
 
 export default function AdminUsers() {
@@ -148,7 +149,7 @@ export default function AdminUsers() {
                           {format(new Date(user.createdAt), "MMM d, yyyy 'at' h:mm a")}
                         </TableCell>
                         <TableCell className="text-right" data-testid={`text-services-${user.id}`}>
-                          <span className="text-muted-foreground">0</span>
+                          <span className="text-muted-foreground">{user.servicesCount}</span>
                         </TableCell>
                       </TableRow>
                     ))}

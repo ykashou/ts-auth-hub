@@ -397,10 +397,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const users = await storage.getAllUsers();
       
-      // Remove passwords from response
-      const sanitizedUsers = users.map(({ password, ...user }) => user);
+      // Get service counts for each user
+      const usersWithServiceCounts = await Promise.all(
+        users.map(async (user) => {
+          const userServices = await storage.getAllServicesByUser(user.id);
+          const { password, ...sanitizedUser } = user;
+          return {
+            ...sanitizedUser,
+            servicesCount: userServices.length,
+          };
+        })
+      );
       
-      res.json(sanitizedUsers);
+      res.json(usersWithServiceCounts);
     } catch (error: any) {
       console.error("Get admin users error:", error);
       res.status(500).json({ error: "Failed to fetch users" });
