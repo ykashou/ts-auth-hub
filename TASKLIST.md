@@ -56,7 +56,39 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 3: Admin Menu in Navbar - Full Stack
+## Task 3: Differentiate Admin vs User Dashboard - Full Stack
+**What you'll see:** Admins see full dashboard, regular users see empty dashboard with removed sections
+
+**Changes:**
+1. **Frontend**: Add role-based conditional rendering to dashboard
+2. **Frontend**: For admin: Show all sections (services, config, API docs, widget)
+3. **Frontend**: For user: Show empty state with message
+4. **Frontend**: Hide services card grid for regular users
+5. **Frontend**: Hide config section for regular users
+6. **Frontend**: Hide API docs section for regular users
+7. **Frontend**: Hide widget section for regular users
+8. **Frontend**: Remove navigation links to hidden sections for users
+9. **Test in browser**:
+   - Login as admin → see full dashboard with all sections
+   - Login as regular user → see empty dashboard
+   - Regular user can't access /config, /api-docs, /widget (redirect to dashboard)
+
+**Empty State Message:**
+```
+"Welcome to AuthHub"
+"Your account is set up. Access to services is managed by your administrator."
+```
+
+**UI Changes:**
+- Dashboard page has conditional rendering based on `userRole`
+- Navigation links hidden for regular users
+- Protected routes redirect non-admins to dashboard
+
+**Acceptance:** Regular users see minimal empty dashboard, admins see everything
+
+---
+
+## Task 4: Admin Menu in Navbar - Full Stack
 **What you'll see:** Admins see "User Management" link, regular users don't
 
 **Changes:**
@@ -76,7 +108,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 4: View All Users Table - Full Stack
+## Task 5: View All Users Table - Full Stack
 **What you'll see:** Admin can see table of all users with their roles
 
 **Changes:**
@@ -99,7 +131,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 5: Global Services & Admin Service Manager - Full Stack
+## Task 6: Global Services & Admin Service Manager - Full Stack
 **What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
@@ -121,7 +153,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 6: Service Enablement for Users - Full Stack
+## Task 7: Service Enablement for Users - Full Stack
 **What you'll see:** Admin can toggle services on/off for each user in User Management table
 
 **Changes:**
@@ -145,7 +177,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 7: Users See Only Enabled Services - Full Stack
+## Task 8: Users See Only Enabled Services - Full Stack
 **What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
@@ -168,7 +200,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 8: Role Management UI - Full Stack
+## Task 9: Role Management UI - Full Stack
 **What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
@@ -192,7 +224,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 9: Migrate Existing Services to Global Catalog - Full Stack
+## Task 10: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -222,7 +254,7 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 10: Service Auto-Enablement for New Users - Full Stack
+## Task 11: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
