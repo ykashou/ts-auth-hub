@@ -172,21 +172,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role,
       });
 
-      // Auto-seed default services for new user
-      try {
-        await seedServices(user.id);
-      } catch (seedError) {
-        console.error("Failed to seed services for new user:", seedError);
-        // Continue even if seeding fails - user can create services manually
-      }
-
-      // If this is the first admin, seed default RBAC models
+      // If this is the first admin, seed default services and RBAC models
       if (role === 'admin') {
+        try {
+          await storage.seedDefaultServices();
+        } catch (seedError) {
+          console.error("Failed to seed default services:", seedError);
+        }
         try {
           await storage.seedDefaultRbacModels(user.id);
         } catch (seedError) {
           console.error("Failed to seed default RBAC models:", seedError);
-          // Continue even if seeding fails - admin can create models manually
         }
       }
 
