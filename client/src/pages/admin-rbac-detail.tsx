@@ -121,8 +121,9 @@ export default function AdminRbacDetail() {
   });
 
   // Fetch all role-permission mappings for matrix view
+  // Key includes roles.length to force refetch when roles change
   const { data: allRolePermissionMappings = [] } = useQuery<Array<{ roleId: string; permissions: Permission[] }>>({
-    queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"],
+    queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings", roles.length],
     queryFn: async () => {
       const token = localStorage.getItem("token");
       if (!token) {
@@ -183,6 +184,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Role created successfully" });
       setCreateRoleOpen(false);
       resetForm();
@@ -198,6 +201,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Role updated successfully" });
       setEditingRole(null);
       resetForm();
@@ -213,6 +218,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Role deleted successfully" });
       setDeleteRoleId(null);
     },
@@ -227,6 +234,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Permission created successfully" });
       setCreatePermissionOpen(false);
       resetForm();
@@ -242,6 +251,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Permission updated successfully" });
       setEditingPermission(null);
       resetForm();
@@ -257,6 +268,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Permission deleted successfully" });
       setDeletePermissionId(null);
     },
@@ -271,6 +284,8 @@ export default function AdminRbacDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/roles", assignPermissionsRoleId, "permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models", modelId, "export"] });
       toast({ title: "Success", description: "Role permissions updated successfully" });
       setAssignPermissionsRoleId(null);
       setSelectedPermissions(new Set());
