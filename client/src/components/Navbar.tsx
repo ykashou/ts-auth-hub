@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home } from "lucide-react";
 import { useLocation } from "wouter";
-import { clearToken } from "@/lib/auth";
+import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
+  const userRole = getUserRole();
+  const isAdmin = userRole === 'admin';
 
   const handleLogout = () => {
     clearToken();
@@ -18,12 +20,14 @@ export default function Navbar() {
   };
 
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home, testId: "button-dashboard" },
-    { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
-    { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
-    { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs" },
-    { path: "/widget-docs", label: "Widget", icon: Code2, testId: "button-widget-docs" },
+    { path: "/dashboard", label: "Dashboard", icon: Home, testId: "button-dashboard", adminOnly: false },
+    { path: "/services", label: "Services", icon: Boxes, testId: "button-services", adminOnly: true },
+    { path: "/config", label: "Config", icon: Settings2, testId: "button-config", adminOnly: true },
+    { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs", adminOnly: true },
+    { path: "/widget-docs", label: "Widget", icon: Code2, testId: "button-widget-docs", adminOnly: true },
   ];
+
+  const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <header className="bg-card border-b border-border sticky top-0 z-10">
@@ -39,7 +43,7 @@ export default function Navbar() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.path;
               return (

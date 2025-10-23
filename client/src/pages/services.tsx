@@ -6,20 +6,22 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, Loader2, Boxes } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 
 export default function Services() {
   const [, setLocation] = useLocation();
 
-  // Check authentication
+  // Check authentication and admin role
   useEffect(() => {
     if (!isAuthenticated()) {
       setLocation("/login");
+    } else if (getUserRole() !== 'admin') {
+      setLocation("/dashboard");
     }
   }, [setLocation]);
 
-  if (!isAuthenticated()) {
+  if (!isAuthenticated() || getUserRole() !== 'admin') {
     return null;
   }
 

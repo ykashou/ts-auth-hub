@@ -15,6 +15,7 @@ import { isAuthenticated, getUserRole } from "@/lib/auth";
 import { useLocation } from "wouter";
 import type { User, Service } from "@shared/schema";
 import Navbar from "@/components/Navbar";
+import { queryClient } from "@/lib/queryClient";
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,17 +34,31 @@ export default function DashboardPage() {
     return null;
   }
 
+  const userRole = getUserRole();
+  const isAdmin = userRole === 'admin';
+
+  // Clear admin-only query caches when user is not admin (security measure)
+  useEffect(() => {
+    if (!isAdmin) {
+      queryClient.removeQueries({ queryKey: ["/api/users"] });
+      queryClient.removeQueries({ queryKey: ["/api/services"] });
+    }
+  }, [isAdmin]);
+
   // Fetch current user's information
   const { data: currentUser } = useQuery<User>({
     queryKey: ["/api/me"],
   });
 
+  // Admin-only queries - only fetch if user is admin
   const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    enabled: isAdmin,
   });
 
   const { data: services = [], isLoading: servicesLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
+    enabled: isAdmin,
   });
 
   // Calculate metrics
@@ -83,19 +98,19 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Monitor user activity and system overview
+                {isAdmin ? 'Monitor user activity and system overview' : 'Your account dashboard'}
               </p>
             </div>
             <Badge 
-              variant={getUserRole() === 'admin' ? 'default' : 'secondary'}
+              variant={isAdmin ? 'default' : 'secondary'}
               className="text-sm px-3 py-1"
               data-testid="badge-user-role"
             >
-              {getUserRole() === 'admin' ? 'Admin' : 'User'}
+              {isAdmin ? 'Admin' : 'User'}
             </Badge>
           </div>
 
-          {/* Current User Account Info */}
+          {/* Current User Account Info - Always shown */}
           {currentUser && (
             <Card className="border-primary/50" data-testid="card-current-user">
               <CardHeader>
@@ -152,8 +167,26 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Key Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Empty State for Regular Users */}
+          {!isAdmin && (
+            <Card data-testid="card-user-empty-state">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle className="text-2xl">Welcome to AuthHub</CardTitle>
+                <CardDescription className="text-base mt-2">
+                  Your account is set up. Access to services is managed by your administrator.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+
+          {/* Admin-Only Content */}
+          {isAdmin && (
+            <>
+              {/* Key Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card data-testid="card-total-users">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -205,9 +238,9 @@ export default function DashboardPage() {
                 </p>
               </CardContent>
             </Card>
-          </div>
+              </div>
 
-          {/* Service Metrics & Quick Actions */}
+              {/* Service Metrics & Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Service Stats */}
             <Card data-testid="card-services">
@@ -282,9 +315,9 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+              </div>
 
-          {/* Recent Activity */}
+              {/* Recent Activity */}
           {users.length > 0 && (
             <Card data-testid="card-recent-activity">
               <CardHeader>
@@ -337,10 +370,10 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          )}
+              )}
 
-          {/* Users Table */}
-          <Card>
+              {/* Users Table */}
+              <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -448,7 +481,9 @@ export default function DashboardPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+              </Card>
+            </>
+          )}
         </div>
       </main>
     </div>

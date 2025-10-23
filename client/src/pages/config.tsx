@@ -16,7 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2, Copy, Check } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 
 // Popular icon options for services
@@ -36,14 +36,16 @@ export default function Config() {
   const [secretServiceName, setSecretServiceName] = useState<string>("");
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
 
-  // Check authentication
+  // Check authentication and admin role
   useEffect(() => {
     if (!isAuthenticated()) {
       setLocation("/login");
+    } else if (getUserRole() !== 'admin') {
+      setLocation("/dashboard");
     }
   }, [setLocation]);
 
-  if (!isAuthenticated()) {
+  if (!isAuthenticated() || getUserRole() !== 'admin') {
     return null;
   }
 
