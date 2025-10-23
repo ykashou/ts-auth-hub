@@ -22,6 +22,7 @@ export default function Navbar() {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: Home, testId: "button-dashboard", adminOnly: false },
     { path: "/admin/users", label: "User Management", icon: Users, testId: "button-user-management", adminOnly: true },
+    { path: "/admin/rbac", label: "RBAC Models", icon: Shield, testId: "button-rbac-models", adminOnly: true },
     { path: "/services", label: "Services", icon: Boxes, testId: "button-services", adminOnly: true },
     { path: "/config", label: "Config", icon: Settings2, testId: "button-config", adminOnly: true },
     { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs", adminOnly: true },
