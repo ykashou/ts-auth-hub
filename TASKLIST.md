@@ -1,338 +1,281 @@
-# User Management with Service Enablement - Implementation Plan
+# User Management with Service Enablement - Iterative Implementation Plan
 
-## Overview
-Transform AuthHub from a system where all users have equal access to a role-based system where:
-- Admins manage a global service catalog
-- Admins control which services each user can access
-- First registered user is auto-promoted to admin
-- Regular users only see services explicitly enabled for them
-
-## Architecture Changes
-
-### Current State
-- Services are user-specific (each user has their own services via `userId` foreign key)
-- No role-based access control
-- All users see all functionality
-
-### Target State
-- Services are global (managed by admins)
-- Users have roles: `admin` or `user`
-- Junction table `userServices` maps user access to services
-- Admins can enable/disable services for any user
-- Regular users only see their enabled services
+## Approach: Vertical Slices
+Each task implements a complete feature from database → backend → frontend → visible in UI.
+You can stop at any task and have a working (though incomplete) system.
 
 ---
 
-## Task Breakdown
+## Task 1: Add Role Field and Display in UI
+**Goal:** Users have roles, and you can see them in the UI
 
-### Task 1: Data Model Design & Documentation
-**Scope:** Define the complete target schema and migration strategy
+**Backend:**
+- Add `role` enum to shared/schema.ts: `pgEnum("user_role", ["admin", "user"])`
+- Add `role` field to users table with default `"user"`
+- Update insertUserSchema to include role
+- Run `npm run db:push` to apply schema
+- Update auth endpoints to return `role` in response payload
+- Update JWT token payload to include `role`
 
-**Deliverables:**
-- Document new `role` enum (`admin` | `user`) for users table
-- Document global services table (remove `userId` foreign key)
-- Document `userServices` junction table schema:
-  - `userId` (foreign key to users, CASCADE delete)
-  - `serviceId` (foreign key to services, CASCADE delete)
-  - `enabledAt` timestamp
-- Define migration rules:
-  - First user by `createdAt` becomes admin
-  - All existing user-specific services become global services
-  - Create userServices entries for each user's current services
-  - Preserve encrypted secrets during migration
-- Update replit.md with new architecture
+**Frontend:**
+- Update auth response types to include `role`
+- Store role in localStorage alongside token
+- Add role badge to dashboard header showing current user's role
+- Add `getUserRole()` helper in client/src/lib/auth.ts
 
-**Dependencies:** None
+**Test:**
+- Register new user → see "User" badge in dashboard
+- Manually update a user's role to "admin" in database → see "Admin" badge
 
-**Acceptance Criteria:**
-- [ ] Clear documentation of all schema changes
-- [ ] Migration strategy defined and documented
-- [ ] Edge cases identified (duplicate services, orphaned data)
+**Deliverable:** Role badge visible in dashboard for all users
 
 ---
 
-### Task 2: Database Schema Implementation
-**Scope:** Update shared/schema.ts with new data model
+## Task 2: Auto-Promote First User to Admin
+**Goal:** First registered user automatically becomes admin
 
-**Deliverables:**
-- Add `userRoleEnum` enum type (`admin`, `user`)
-- Add `role` field to `users` table (default: `user`)
-- Remove `userId` field from `services` table
-- Create `userServices` junction table with:
-  - Composite primary key or unique constraint on (userId, serviceId)
-  - `enabledAt` timestamp
-- Update all insert schemas and types
-- Update Zod validation schemas
+**Backend:**
+- In `POST /api/auth/register`: check if user count = 0 before creating user
+- If first user, set `role: "admin"` instead of default "user"
+- In `POST /api/auth/uuid-login`: same logic for UUID users
 
-**Dependencies:** Task 1
+**Frontend:**
+- Show success toast when promoted to admin
+- Badge automatically updates to "Admin"
 
-**Acceptance Criteria:**
-- [ ] TypeScript types are correct and compile
-- [ ] Zod schemas validate correctly
-- [ ] No breaking changes to existing valid data shapes
+**Test:**
+- Delete all users from database
+- Register new user → should see "Admin" badge
+- Register second user → should see "User" badge
+- UUID login as first user → should see "Admin" badge
 
----
-
-### Task 3: Storage Layer Updates
-**Scope:** Extend IStorage interface and DatabaseStorage implementation
-
-**Deliverables:**
-- Add role-aware user methods:
-  - `getUsersByRole(role: 'admin' | 'user')`
-  - `updateUserRole(userId: string, role: 'admin' | 'user')`
-  - `getAdminCount()` - for preventing last admin deletion
-- Update service methods (remove userId parameters):
-  - `getAllServices()` - global catalog
-  - `createService(data)` - no userId
-  - `updateService(id, data)`
-  - `deleteService(id)`
-- Add userServices methods:
-  - `enableServiceForUser(userId: string, serviceId: string)`
-  - `disableServiceForUser(userId: string, serviceId: string)`
-  - `getUserServices(userId: string)` - returns Service[]
-  - `getServiceUsers(serviceId: string)` - returns User[]
-  - `isServiceEnabledForUser(userId: string, serviceId: string)`
-
-**Dependencies:** Task 2
-
-**Acceptance Criteria:**
-- [ ] All methods properly typed
-- [ ] Database queries use correct JOIN logic for userServices
-- [ ] Error handling for missing records
+**Deliverable:** First user gets admin role automatically, visible immediately in UI
 
 ---
 
-### Task 4: Data Migration Script
-**Scope:** Create idempotent migration to transform existing data
+## Task 3: Admin-Only Navigation Guard
+**Goal:** Hide admin features from regular users
 
-**Deliverables:**
-- Create `server/migrate-to-rbac.ts` script:
-  1. Find earliest user by `createdAt`, set role to `admin`
-  2. Remove duplicate services (same name/url) keeping one
-  3. Remove `userId` from all services (make them global)
-  4. For each user, create userServices entries for their original services
-  5. Preserve all encrypted secrets and metadata
-- Add safety checks:
-  - Backup check (warn if no backup exists)
-  - Dry-run mode to preview changes
-  - Rollback instructions in comments
-- Add npm script: `"migrate:rbac": "tsx server/migrate-to-rbac.ts"`
+**Backend:**
+- Create `requireAdmin` middleware in server/routes.ts
+- Returns 403 if `req.user.role !== 'admin'`
 
-**Dependencies:** Task 3
+**Frontend:**
+- Update navbar to conditionally show "Admin" section
+- Only show to users with `role === 'admin'`
+- Add placeholder "User Management" link (goes nowhere yet)
 
-**Acceptance Criteria:**
-- [ ] Script is idempotent (safe to run multiple times)
-- [ ] No data loss - all services preserved
-- [ ] All encrypted secrets remain intact
-- [ ] First user correctly promoted to admin
-- [ ] Console output shows migration summary
+**Test:**
+- Login as admin → see "User Management" link in navbar
+- Login as regular user → link is hidden
+- Try to manually navigate to /admin/users as regular user → redirect to dashboard
+
+**Deliverable:** Admin-only links visible only to admins
 
 ---
 
-### Task 5: Authentication Routes Update
-**Scope:** Add auto-admin promotion and include role in auth responses
+## Task 4: Admin User Directory (Read-Only)
+**Goal:** Admins can see list of all users
 
-**Deliverables:**
-- Update `POST /api/auth/register`:
-  - After creating user, check if this is the first user (admin count = 0)
-  - If yes, promote to admin immediately
-  - Include `role` in response payload
-- Update `POST /api/auth/login`:
-  - Include `role` in response payload
-- Update `POST /api/auth/uuid-login`:
-  - Check if new UUID user is first user
-  - Auto-promote to admin if first
-  - Include `role` in response payload
-- Update JWT payload to include `role` field
-- Remove old service seeding logic (services are now global, not user-specific)
+**Backend:**
+- Create `GET /api/admin/users` endpoint
+- Protected with `requireAdmin` middleware
+- Returns all users with id, email, role, createdAt
 
-**Dependencies:** Task 4 (migration must run first)
-
-**Acceptance Criteria:**
-- [ ] First registered user gets `role: 'admin'`
-- [ ] Subsequent users get `role: 'user'`
-- [ ] JWT tokens include role claim
-- [ ] UUID authentication still takes precedence (no flow changes)
-- [ ] Response payloads include role field
-
----
-
-### Task 6: RBAC Middleware
-**Scope:** Create server-side authorization guards
-
-**Deliverables:**
-- Create `requireAdmin` middleware in server/routes.ts:
-  - Checks `req.user.role === 'admin'`
-  - Returns 403 if not admin
-  - Works with existing `verifyToken` middleware
-- Create `requireAuth` middleware (already exists as `verifyToken`, may need renaming)
-- Ensure UUID authentication passes through correctly
-
-**Dependencies:** Task 5
-
-**Acceptance Criteria:**
-- [ ] Middleware correctly identifies admin vs user
-- [ ] 403 errors return clear messages
-- [ ] UUID-based auth works with middleware
-- [ ] Middleware can be chained easily
-
----
-
-### Task 7: Admin API Endpoints
-**Scope:** Create protected endpoints for user/service management
-
-**Deliverables:**
-- `GET /api/admin/users` - List all users with roles and service counts
-- `GET /api/admin/users/:userId/services` - Get services for specific user
-- `POST /api/admin/users/:userId/services/:serviceId` - Enable service for user
-- `DELETE /api/admin/users/:userId/services/:serviceId` - Disable service for user
-- `PATCH /api/admin/users/:userId/role` - Update user role (with last-admin check)
-- `GET /api/admin/services` - Get global service catalog (same as existing GET /api/services)
-- All endpoints protected with `requireAdmin` middleware
-- Last admin protection: prevent role change/deletion if only one admin exists
-
-**Dependencies:** Task 6
-
-**Acceptance Criteria:**
-- [ ] All endpoints require admin role
-- [ ] Cannot remove admin role from last admin
-- [ ] Service enable/disable updates userServices table
-- [ ] Proper error messages for unauthorized access
-- [ ] All mutations invalidate relevant caches
-
----
-
-### Task 8: Frontend Data Layer Updates
-**Scope:** Update TanStack Query hooks for new endpoints
-
-**Deliverables:**
-- Create `client/src/lib/admin-queries.ts`:
-  - `useUsers()` - fetches all users
-  - `useUserServices(userId)` - fetches services for user
-  - `useEnableService(userId, serviceId)` - mutation
-  - `useDisableService(userId, serviceId)` - mutation
-  - `useUpdateUserRole(userId)` - mutation
-- Update `client/src/lib/auth.ts`:
-  - Store and retrieve user role from auth response
-  - Add `getUserRole()` helper
-- Update `client/src/pages/dashboard.tsx`:
-  - Fetch only user's enabled services (not all services)
-  - For admins: decide if they see all services or only enabled ones
-- Add role-based navigation guards:
-  - Hide admin links for non-admin users
-
-**Dependencies:** Task 7
-
-**Acceptance Criteria:**
-- [ ] All queries properly typed with Service/User types
-- [ ] Mutations invalidate correct query keys
-- [ ] Loading and error states handled
-- [ ] Role is persisted and accessible on frontend
-- [ ] Cache invalidation works correctly
-
----
-
-### Task 9: User Management Page (Admin UI)
-**Scope:** Build admin-only user management interface
-
-**Deliverables:**
-- Create `client/src/pages/user-management.tsx`:
-  - Table showing all users (email/UUID, role, created date)
-  - For each user, show list of enabled services
-  - Toggle switches to enable/disable services per user
-  - Role badge (Admin/User)
-  - Cannot change role of last admin (disable the control)
-- Add to navbar (admin-only):
-  - "User Management" link only visible to admins
-- Use data-testid attributes:
-  - `table-users`
-  - `row-user-{userId}`
-  - `badge-role-{userId}`
-  - `toggle-service-{userId}-{serviceId}`
-  - `button-role-change-{userId}`
+**Frontend:**
+- Create `client/src/pages/user-management.tsx`
+- Table showing all users with their roles
 - Add route in App.tsx: `/admin/users`
+- Use data-testid: `table-users`, `row-user-{userId}`, `badge-role-{userId}`
 
-**Dependencies:** Task 8
+**Test:**
+- Login as admin → navigate to /admin/users → see table of all users
+- Login as regular user → try to access /admin/users → get 403 error
+- Register new users → they appear in the table immediately
 
-**Acceptance Criteria:**
-- [ ] Page only accessible to admins (redirect others)
-- [ ] Shows all users with their current service access
-- [ ] Can enable/disable services via toggle
-- [ ] Visual feedback during mutations
-- [ ] Cannot modify last admin's role
-- [ ] All interactive elements have data-testid
-- [ ] Mobile responsive layout
+**Deliverable:** Admin can view all users in a table (no editing yet)
 
 ---
 
-### Task 10: Dashboard Updates & Final Integration
-**Scope:** Update dashboard to respect service enablement and verify entire system
+## Task 5: Create Global Services Table
+**Goal:** Services are global, not user-specific
 
-**Deliverables:**
-- Update `client/src/pages/dashboard.tsx`:
-  - Regular users: fetch and display only enabled services via `GET /api/services/enabled`
-  - Admins: fetch all services OR enabled services (make a UX decision)
-  - Update service cards to not show "edit/delete" for regular users
-  - Admins can still manage global service catalog
-- Update metrics if needed (user counts by role, etc.)
-- Create `GET /api/services/enabled` endpoint:
-  - Returns services from userServices junction for current user
-- Manual QA checklist:
-  - [ ] First user registration → becomes admin
-  - [ ] Second user registration → becomes regular user
-  - [ ] Admin can see User Management page
-  - [ ] Regular user cannot access User Management
-  - [ ] Admin can enable/disable services for users
-  - [ ] User sees only enabled services on dashboard
-  - [ ] Cannot remove admin role from last admin
-  - [ ] UUID login still works (precedence maintained)
-  - [ ] Service secrets remain encrypted
-  - [ ] Existing services migrated correctly
+**Backend:**
+- Create NEW table `global_services` in schema (don't modify existing services yet)
+- Schema: id, name, description, url, redirectUrl, icon, color, secret, secretPreview, createdAt
+- Create `GET /api/admin/global-services` endpoint (admin-only)
+- Create `POST /api/admin/global-services` endpoint (admin-only)
+- Seed 7 default global services when first admin registers
 
-**Dependencies:** Task 9
+**Frontend:**
+- Create simple admin page at `/admin/services` showing global services
+- List view only (no create UI yet)
+- Add link in admin navbar
 
-**Acceptance Criteria:**
-- [ ] Regular users only see enabled services
-- [ ] Admins can manage everything
-- [ ] No regressions in existing auth flows
-- [ ] All manual QA items pass
-- [ ] Documentation updated (replit.md)
+**Test:**
+- Login as admin → see 7 seeded global services
+- Regular users can't access /admin/services
+
+**Deliverable:** Global services table exists and is visible to admins
 
 ---
 
-## Migration Checklist
+## Task 6: User-Service Assignments (Backend + Basic UI)
+**Goal:** Track which users have access to which services
 
-Before running migration script:
-- [ ] Backup database
-- [ ] Review migration script dry-run output
-- [ ] Confirm first user to be promoted to admin
-- [ ] Stop all workflows
+**Backend:**
+- Create `userServices` junction table: userId, serviceId, enabledAt
+- Create endpoints:
+  - `GET /api/admin/users/:userId/services` - list enabled services for user
+  - `POST /api/admin/users/:userId/services/:serviceId` - enable service
+  - `DELETE /api/admin/users/:userId/services/:serviceId` - disable service
+- All protected with `requireAdmin`
 
-After migration:
-- [ ] Verify admin user exists
-- [ ] Verify all services are global
-- [ ] Verify userServices entries created
-- [ ] Test login/registration flows
-- [ ] Test service enablement
-- [ ] Run `npm run db:push` to sync schema if needed
+**Frontend:**
+- In User Management table, add column showing count of enabled services
+- Click count → expand row to show which services are enabled
+- Simple list view only (no toggles yet)
 
----
+**Test:**
+- Manually enable services for users via API
+- See enabled service count update in User Management table
+- Expand row → see list of enabled services
 
-## Key Design Decisions
-
-1. **Global vs User-Specific Services:** Services become global resources managed by admins
-2. **Auto-Admin Promotion:** First user (by registration time) automatically becomes admin
-3. **Service Access Model:** Explicit opt-in via userServices junction table
-4. **Admin Dashboard Access:** Admins can either see all services or only enabled ones (decide in Task 10)
-5. **Last Admin Protection:** System must always have at least one admin user
-6. **UUID Auth Precedence:** No changes to auth flow priority (UUID first, then email/password)
+**Deliverable:** Can track and view service assignments per user
 
 ---
 
-## Rollback Plan
+## Task 7: Service Toggle UI (Full Admin Controls)
+**Goal:** Admins can enable/disable services for users with toggle switches
 
-If migration fails:
-1. Restore database from backup
-2. Revert schema changes in shared/schema.ts
-3. Run `npm run db:push --force` to sync to old schema
-4. Review migration errors and fix before retry
+**Frontend:**
+- In User Management page, add toggle switches for each global service
+- When toggled ON → call `POST /api/admin/users/:userId/services/:serviceId`
+- When toggled OFF → call `DELETE /api/admin/users/:userId/services/:serviceId`
+- Show loading state during toggle
+- Optimistic UI updates
+- data-testid: `toggle-service-{userId}-{serviceId}`
+
+**Backend:**
+- No changes needed (endpoints exist from Task 6)
+
+**Test:**
+- Login as admin → go to User Management
+- Toggle service ON for user → see it reflect immediately
+- Toggle service OFF → see it update
+- Refresh page → toggles persist correctly
+
+**Deliverable:** Admins can enable/disable services for any user via UI
+
+---
+
+## Task 8: User Dashboard Shows Only Enabled Services
+**Goal:** Regular users only see services enabled for them
+
+**Backend:**
+- Create `GET /api/services/enabled` endpoint
+- Returns services from userServices junction for authenticated user
+- Admins: return all global services (or also filter by userServices - decide)
+
+**Frontend:**
+- Update dashboard.tsx to fetch from `/api/services/enabled` instead of `/api/services`
+- Show message if user has 0 enabled services
+- Admins see all services (or only enabled - UX decision)
+
+**Test:**
+- Login as regular user with 2 enabled services → see only those 2
+- Admin enables another service → user refreshes → sees 3 services
+- Login as admin → sees all services (or enabled services)
+- Login as user with 0 enabled services → see empty state message
+
+**Deliverable:** Users see only services enabled for them
+
+---
+
+## Task 9: Prevent Removing Last Admin
+**Goal:** System always has at least one admin
+
+**Backend:**
+- Create `GET /api/admin/count` endpoint → returns admin count
+- Update `PATCH /api/admin/users/:userId/role` endpoint (create if doesn't exist)
+- Before changing admin → user, check if admin count = 1
+- Return 400 error: "Cannot remove last admin"
+
+**Frontend:**
+- Add role change button in User Management table
+- Fetch admin count before allowing role change
+- If user is last admin, disable the button with tooltip: "Cannot remove last admin"
+- data-testid: `button-role-change-{userId}`
+
+**Test:**
+- With only 1 admin → button is disabled
+- Create second admin → first admin's button becomes enabled
+- Try to demote second admin → works fine
+- Try to demote last admin via API → get 400 error
+
+**Deliverable:** Cannot remove admin role from last admin
+
+---
+
+## Task 10: Cleanup and Migration from Old Services
+**Goal:** Migrate existing user-specific services to new system
+
+**Backend:**
+- Create `server/migrate-to-global-services.ts` script:
+  1. Get all distinct services from old `services` table
+  2. Create global_services entries (deduplicate by name+url)
+  3. For each user's old services, create userServices assignments
+  4. Preserve encrypted secrets
+- Add npm script: `"migrate:services": "tsx server/migrate-to-global-services.ts"`
+
+**Frontend:**
+- Remove references to old user-specific services
+- Update all service queries to use global services + userServices
+- Remove old service creation/edit UI from dashboard (admins manage globally now)
+
+**Migration Steps:**
+1. Backup database
+2. Run `npm run migrate:services`
+3. Verify users can still access their services
+4. Drop old `services` table after verification
+5. Rename `global_services` to `services`
+
+**Test:**
+- Run migration with test data
+- All users retain access to their original services
+- No data loss
+- Encrypted secrets still work
+
+**Deliverable:** Complete migration from user-specific to global services with user-level enablement
+
+---
+
+## Testing Checklist (After Each Task)
+
+After completing each task, verify:
+- [ ] Backend changes applied (`npm run db:push` if schema changed)
+- [ ] Frontend compiles without TypeScript errors
+- [ ] Workflow restarts successfully
+- [ ] Manual testing passes for that task's deliverable
+- [ ] No console errors in browser
+- [ ] Previous tasks still work (no regression)
+
+---
+
+## Rollback Strategy
+
+Each task is independent. If a task fails:
+1. Revert the code changes for that task only
+2. Run `npm run db:push --force` if schema changed
+3. Previous tasks remain functional
+4. Fix the issue and retry
+
+---
+
+## Key Benefits of This Approach
+
+1. **See progress immediately** - Each task shows something in the UI
+2. **Test as you go** - Catch issues early
+3. **Safe to stop** - Can pause at any task
+4. **Easy debugging** - Small changes = easy to find issues
+5. **No big bang** - No "build backend for weeks then build frontend"
