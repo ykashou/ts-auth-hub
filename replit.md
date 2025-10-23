@@ -4,37 +4,14 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
-- ✅ Completed Tasks 1-8: User roles, admin dashboard, user management with advanced features, RBAC model creation, roles & permissions CRUD, and comprehensive RBAC visualization (Permission Matrix, Tree View, JSON/YAML export)
-- ✅ Fixed syntax highlighting issues by using simple pre/code blocks instead of react-syntax-highlighter
-- ✅ **Task 9 Completed: Service-Model Assignment** - Full implementation allowing admins to assign RBAC models to services
-  - Added serviceRbacModels junction table with CASCADE delete constraints
-  - Implemented 4 storage methods and 4 API endpoints for assignment operations
-  - Added RBAC model selector to service edit dialog with proper state tracking
-  - Implemented RBAC model badges on service cards (Shield icon + model name)
-  - Added "Services Using This Model" section on RBAC detail page
-  - Comprehensive cache invalidation using refetchType: 'active' and refetchOnMount: 'always'
-  - Successfully tested complete assignment/removal flow with real-time UI updates
-- ✅ **Task 10 Completed: User-Role Assignment** - Full implementation allowing admins to assign users to roles within services
-  - Added userServiceRoles junction table with unique constraint on (userId, serviceId, roleId) using Drizzle's uniqueIndex
-  - Implemented 6 storage methods: assignUserToServiceRole, removeUserFromServiceRole, getUserServiceRoles, getServiceUserRoles, getRoleUserAssignments, getAllUserServiceRoles
-  - Created 5 API endpoints with comprehensive validation:
-    - GET /api/admin/user-service-roles (global assignments list)
-    - POST /api/admin/user-service-roles (with RBAC model integrity validation and duplicate error handling)
-    - DELETE /api/admin/user-service-roles/:id
-    - GET /api/admin/users/:userId/service-roles
-    - GET /api/admin/services/:serviceId/user-roles
-  - Backend validation ensures service has RBAC model assigned and role belongs to that model
-  - Duplicate assignments return 409 status with descriptive error instead of 500
-  - Created dedicated admin-role-assignments.tsx page at /admin/role-assignments with:
-    - Stats cards showing total users, services, and assignments
-    - Search bar with real-time filtering across user emails, service names, and role names/descriptions
-    - Three-filter system: Filter by User, Filter by Service, Filter by Role
-    - Assignment cards displaying user email, service name, and actual role name with description (not just IDs)
-    - Create assignment dialog with cascading dropdowns (service selection loads available roles from its RBAC model)
-    - Delete assignment functionality with confirmation
-  - Comprehensive cache invalidation strategy on all mutations
-  - Role assignments enriched with user, service, and role details for optimal UX
-  - Registered route and added navbar link for admin access
+- ✅ **Task 10 Completed: User-Role Assignment** - Full RBAC implementation allowing admins to assign users to roles within services
+  - Added userServiceRoles junction table with unique composite constraint on (userId, serviceId, roleId)
+  - Created 5 API endpoints with RBAC model integrity validation and 409 duplicate error handling
+  - Built dedicated /admin/role-assignments page with stats, search, filters, and enriched role displays
+  - Fixed authentication issues in ServiceRbacBadge and roleQueriesResults queries
+  - Added RBAC Model column with badges to Config page services table
+  - E2E Playwright tests passed validating complete flow
+  - **Future optimizations**: Consider batching service RBAC model fetches; include RBAC dependencies in query keys
 
 ## User Preferences
 - Professional, trustworthy aesthetic
@@ -43,38 +20,35 @@ AuthHub is a centralized authentication service designed to be the single source
 - Centered layouts for authentication flows
 
 ## System Architecture
-
 ### UI/UX Decisions
 AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme, utilizing a cohesive mystical blue color scheme (light mode: HSL 248° 100% 28%; dark mode: HSL 230° 75% 62%). It employs the Poppins font family and a consistent 0.8rem border radius for all components, emphasizing a clean, card-based layout with minimal shadows. The UI includes a unified navigation system across all authenticated pages.
 
 ### Technical Implementations & Feature Specifications
-1.  **User Authentication**: Supports anonymous UUID-based authentication with auto-registration, allowing users to instantly generate IDs without email/password, alongside traditional email/password registration and login. Uses JWT for session management and bcrypt for password hashing. **Role System**: First registered user automatically receives "admin" role; all subsequent users receive "user" role. Role is encoded in JWT and used for access control.
-2.  **User-Specific Service Management**: Each user has their own isolated set of service configurations. Services are automatically seeded when a user has 0 services (on registration or login) with 7 default services (Git Garden, Iron Path, PurpleGreen, BTCPay Dashboard, Quest Armory, Git Healthz, Academia Vault). Users can perform CRUD operations on their own services. Cards include customizable icons (Lucide) and colors, linking to external SaaS products. Each service is automatically assigned a unique secret (sk_* format) for JWT signing and widget authentication. **Security Model**: Secrets are encrypted using AES-256-GCM before storage and displayed only once during creation/rotation with a copy-to-clipboard warning dialog. After the dialog closes, secrets cannot be retrieved. The config UI shows "Configured" or "Not Configured" status instead of actual secrets. Secret rotation generates a new secret and immediately invalidates the old one. Encryption keys are derived from SESSION_SECRET or ENCRYPTION_KEY environment variable. **Data Isolation**: Services are filtered by userId - each user only sees and manages their own services.
-3.  **Admin Dashboard**: Provides a comprehensive overview with key metrics (Total Users, Authenticated, Anonymous, Recent Registrations), service management, quick actions, recent activity logs, and a searchable user directory. **Role-Based Access**: Regular users see an empty state with welcome message; admin-only sections (services, config, API docs, widget docs) are hidden from regular users with route protection redirecting to dashboard.
-4.  **User Management (Admin)**: Dedicated admin page at `/admin/users` accessible via navbar link (visible to admins only). **Advanced Features**: Sortable columns (UUID, Email, Role, Created, Services) with visual indicators (ArrowUpDown/ArrowUp/ArrowDown icons); role filtering dropdown (All/Admin/User); search functionality (filters by UUID, email, or role); bulk selection limited to current page only with select-all checkbox; per-row action menu (Edit, Delete); Edit User dialog for updating email and role; Delete confirmation dialogs with service cascade warnings; pagination (10/25/50/100 rows per page); bulk actions toolbar (Delete Selected with partial failure handling, Export CSV). **Security**: Backend protected by `requireAdmin` middleware (`PATCH /DELETE /api/admin/users/:id` endpoints); last admin cannot be deleted or demoted; bulk delete shows separate success/error toasts for partial failures; selections clear on filter/search/sort changes to prevent confusion about which users are selected.
-5.  **RBAC Model Management (Admin)**: Hierarchical role-based access control system where admins create custom RBAC models (conceptual permission frameworks) that define roles and permissions for external services. **RBAC Models Page** (`/admin/rbac`): Card-based grid displaying all RBAC models with create/edit/delete functionality; each card shows model name, description, creation date, and "Manage" button for accessing detail page. **RBAC Model Detail Page** (`/admin/rbac/:modelId`): Three-tab interface for comprehensive role and permission management. **Roles Tab**: Create, edit, and delete roles within a model; each role card displays name, description, and action buttons (Assign Permissions, Edit, Delete); assign permissions dialog shows checkboxes for all available permissions with pre-selection of currently assigned permissions. **Permissions Tab**: Create, edit, and delete permissions within a model; each permission card displays name and description; permissions can be assigned to multiple roles. **Visualization Tab**: Interactive visualization of RBAC model with 4 view types: (1) Permission Matrix - table showing roles as columns and permissions as rows with check/X icons for assignments; (2) Tree View - hierarchical collapsible structure showing roles with their assigned permissions; (3) JSON View - formatted JSON export; (4) YAML View - formatted YAML export. Includes search/filter functionality and export buttons using fetch + blob download for authenticated exports. Real-time updates via comprehensive cache invalidation strategy: all mutations (role/permission create/update/delete and permission assignments) invalidate role-permission mappings and export caches to ensure instant visualization refresh without page reloads. **Default Seeding**: First admin registration automatically seeds 3 comprehensive RBAC models: (1) Content Management System - 6 roles, 14 permissions; (2) Analytics Platform - 6 roles, 15 permissions; (3) E-Commerce Platform - 7 roles, 23 permissions. Each model demonstrates realistic enterprise permission structures. **Service-Model Assignment**: Admins can assign RBAC models to services via the Config page edit dialog. Service cards on the Services page display assigned RBAC model badges (Shield icon + model name). RBAC model detail pages show "Services Using This Model" section listing all services using that model. Assignment/removal triggers comprehensive cache invalidation with refetchType: 'active' and refetchOnMount: 'always' for immediate UI synchronization across all views. **Database Schema**: `rbac_models` table (id, name, description, createdBy, createdAt); `roles` table (id, rbacModelId, name, description, createdAt) with CASCADE delete on model deletion; `permissions` table (id, rbacModelId, name, description, createdAt) with CASCADE delete; `role_permissions` junction table (roleId, permissionId) for many-to-many relationships with CASCADE delete on both role and permission deletion; `serviceRbacModels` junction table (serviceId, rbacModelId, assignedAt) with unique constraint ensuring one model per service and CASCADE delete on both sides. **Security**: All RBAC endpoints protected by `requireAdmin` middleware; regular users cannot access RBAC management pages.
-6.  **Dual Integration Patterns**: AuthHub supports two authentication integration methods for external applications:
-    *   **Popup Widget Flow**: JavaScript SDK with popup-based authentication and secure PostMessage communication for seamless SPA integration
-    *   **OAuth Redirect Flow**: Standard redirect-based authentication pattern (similar to Google/GitHub OAuth) where external services pass both `redirect_uri` AND `service_id` parameters to AuthHub auth pages (/login, /register, /widget-login). **Critical Architecture**: When `service_id` is provided, AuthHub signs the JWT with that **service's secret** instead of its internal SESSION_SECRET. This allows external services to verify tokens locally using `jwt.verify(token, theirServiceSecret)` without calling back to AuthHub. After successful authentication, users are redirected back to the external service with `token` and `user_id` URL parameters. This pattern works on all devices and bypasses popup blocker issues.
+1.  **User Authentication**: Supports anonymous UUID-based authentication with auto-registration, and traditional email/password registration and login. Uses JWT for session management and bcrypt for password hashing. The first registered user receives "admin" role; subsequent users receive "user" role.
+2.  **User-Specific Service Management**: Each user has an isolated set of service configurations, with 7 default services automatically seeded. Users can perform CRUD operations on their services, which include customizable icons and colors, linking to external SaaS products. Each service is assigned a unique, encrypted secret (`sk_*` format) for JWT signing and widget authentication, displayed only once during creation/rotation. Secrets are encrypted using AES-256-GCM, with keys derived from `SESSION_SECRET` or `ENCRYPTION_KEY`. Services are filtered by `userId` to ensure data isolation.
+3.  **Admin Dashboard**: Provides an overview with key metrics, service management, quick actions, recent activity logs, and a searchable user directory. Admin-only sections are hidden from regular users.
+4.  **User Management (Admin)**: A dedicated admin page (`/admin/users`) allows administrators to manage users with features like sortable columns, role filtering, search, bulk selection, edit/delete user functionalities, and pagination. Backend protection ensures only admins can access and modify user data, with safeguards like preventing the deletion or demotion of the last admin.
+5.  **RBAC Model Management (Admin)**: Admins can create custom RBAC models defining roles and permissions for external services.
+    *   **RBAC Models Page**: Card-based grid for creating, editing, and deleting RBAC models.
+    *   **RBAC Model Detail Page**: Three-tab interface for managing roles and permissions within a model. Roles can be assigned permissions.
+    *   **Visualization Tab**: Provides interactive views (Permission Matrix, Tree View, JSON, YAML) of the RBAC model, with search, filter, and export functionalities.
+    *   **Default Seeding**: Initial admin registration seeds 3 comprehensive RBAC models: Content Management System, Analytics Platform, and E-Commerce Platform.
+    *   **Service-Model Assignment**: Admins can assign RBAC models to services. Service cards display assigned RBAC model badges, and model detail pages list services using them.
+    *   **Database Schema**: Dedicated tables for `rbac_models`, `roles`, `permissions`, `role_permissions` (junction), and `serviceRbacModels` (junction), all with appropriate CASCADE delete constraints. All RBAC endpoints are protected by `requireAdmin` middleware.
+6.  **Dual Integration Patterns**: AuthHub supports two integration methods for external applications:
+    *   **Popup Widget Flow**: A JavaScript SDK with popup-based authentication using PostMessage communication.
+    *   **OAuth Redirect Flow**: A standard redirect-based authentication where external services pass `redirect_uri` and `service_id`. AuthHub signs the JWT with the specific service's secret, allowing external services to verify tokens locally. Users are redirected back with `token` and `user_id` parameters.
 7.  **API Documentation**: Comprehensive, copy-to-clipboard API documentation for SaaS integration, secured by API key authentication.
 
 ### System Design Choices
-AuthHub follows a client-server architecture. The frontend is built with React, TypeScript, Tailwind CSS, Shadcn UI, Wouter, and TanStack Query. The backend uses Express.js and Node.js. PostgreSQL is the chosen database, managed with Drizzle ORM. Shared types and Zod schemas ensure data consistency and validation across the stack.
+AuthHub follows a client-server architecture. The frontend uses React, TypeScript, Tailwind CSS, Shadcn UI, Wouter, and TanStack Query. The backend uses Express.js and Node.js. PostgreSQL is the database, managed with Drizzle ORM. Shared types and Zod schemas ensure data consistency.
 
-**Data Models**:
-*   `Users`: `id` (UUID), `email` (nullable), `password` (nullable), `role` (admin/user), `createdAt`. Email and password are nullable to support anonymous users.
-*   `API Keys`: `id` (UUID), `name`, `key`, `createdAt`.
-*   `Services`: `id` (UUID), `userId` (foreign key to Users, CASCADE delete), `name`, `description`, `url`, `redirectUrl` (optional redirect URL after auth), `icon` (Lucide), `color` (optional), `secret` (AES-256-GCM encrypted auto-generated sk_* secret for JWT signing and widget authentication, nullable), `secretPreview` (truncated preview like "sk_abc...xyz"), `createdAt`. Each service belongs to a specific user.
-*   `RBAC Models`: `id` (UUID), `name`, `description`, `createdBy` (foreign key to Users, CASCADE delete), `createdAt`. Admin-only permission frameworks.
-*   `Roles`: `id` (UUID), `rbacModelId` (foreign key to RBAC Models, CASCADE delete), `name`, `description`, `createdAt`.
-*   `Permissions`: `id` (UUID), `rbacModelId` (foreign key to RBAC Models, CASCADE delete), `name`, `description`, `createdAt`.
-*   `Role Permissions`: Junction table with `roleId` and `permissionId` (both CASCADE delete).
-*   `Service RBAC Models`: Junction table linking services to RBAC models with `serviceId` (CASCADE delete), `rbacModelId` (CASCADE delete), and `assignedAt`. Unique constraint ensures one RBAC model per service.
+**Data Models**: Includes `Users`, `API Keys`, `Services`, `RBAC Models`, `Roles`, `Permissions`, `Role Permissions`, and `Service RBAC Models`. All models are designed with appropriate UUIDs, foreign keys, and CASCADE delete relationships to maintain data integrity and support the outlined features.
 
 ## External Dependencies
 *   **Database**: PostgreSQL
 *   **ORM**: Drizzle ORM
-*   **Authentication Libraries**: bcrypt (for password hashing), JWT (for session tokens)
+*   **Authentication Libraries**: `bcrypt`, `jsonwebtoken` (JWT)
 *   **UI Frameworks/Libraries**: React, TypeScript, Tailwind CSS, Shadcn UI, Lucide icons
 *   **Routing**: Wouter
 *   **State Management/Data Fetching**: TanStack Query
