@@ -4,6 +4,15 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
+- ✅ **Task 11 Completed: OAuth Flow RBAC Integration** - JWT tokens now include role and permission data for seamless external service integration
+  - Enhanced `generateAuthToken()` to include RBAC data (rbacRole, permissions, rbacModel) when service_id is provided
+  - Created `getUserPermissionsForService()` helper to fetch user's role and permissions for a specific service
+  - Updated all auth endpoints (login, register, uuid-login) to support service_id parameter
+  - Added GET `/api/services/:serviceId/verify-token` endpoint for external services to verify JWT tokens
+  - Comprehensive documentation added to API Docs page with OAuth redirect flow, token structure, and permission checking examples
+  - Extended Widget Docs page with RBAC integration examples for both backend (Express.js middleware) and frontend (React hooks)
+  - JWT tokens signed with service secret when service_id provided, enabling local token verification by external services
+  - Edge cases handled: Users without role assignments receive null RBAC data instead of errors
 - ✅ **Task 10 Completed: User-Role Assignment** - Full RBAC implementation allowing admins to assign users to roles within services
   - Added userServiceRoles junction table with unique composite constraint on (userId, serviceId, roleId)
   - Created 5 API endpoints with RBAC model integrity validation and 409 duplicate error handling
@@ -35,10 +44,21 @@ AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme, uti
     *   **Default Seeding**: Initial admin registration seeds 3 comprehensive RBAC models: Content Management System, Analytics Platform, and E-Commerce Platform.
     *   **Service-Model Assignment**: Admins can assign RBAC models to services. Service cards display assigned RBAC model badges, and model detail pages list services using them.
     *   **Database Schema**: Dedicated tables for `rbac_models`, `roles`, `permissions`, `role_permissions` (junction), and `serviceRbacModels` (junction), all with appropriate CASCADE delete constraints. All RBAC endpoints are protected by `requireAdmin` middleware.
-6.  **Dual Integration Patterns**: AuthHub supports two integration methods for external applications:
+6.  **Dual Integration Patterns with RBAC**: AuthHub supports two integration methods for external applications:
     *   **Popup Widget Flow**: A JavaScript SDK with popup-based authentication using PostMessage communication.
-    *   **OAuth Redirect Flow**: A standard redirect-based authentication where external services pass `redirect_uri` and `service_id`. AuthHub signs the JWT with the specific service's secret, allowing external services to verify tokens locally. Users are redirected back with `token` and `user_id` parameters.
-7.  **API Documentation**: Comprehensive, copy-to-clipboard API documentation for SaaS integration, secured by API key authentication.
+    *   **OAuth Redirect Flow with RBAC**: A standard redirect-based authentication where external services pass `redirect_uri` and `service_id`. When `service_id` is provided:
+        - AuthHub signs the JWT with the specific service's secret (instead of SESSION_SECRET)
+        - JWT token includes RBAC data: user's role, permissions array, and RBAC model information
+        - External services can verify tokens locally using their service secret
+        - Users without role assignments receive null RBAC fields instead of errors
+        - Token verification endpoint (`GET /api/services/:serviceId/verify-token`) available for external services
+    *   **User Service Role Assignment**: Admins assign users to roles within specific services via the Role Assignments admin page, enabling granular permission control per external application.
+7.  **API Documentation**: Comprehensive, copy-to-clipboard API documentation for SaaS integration, including:
+    *   OAuth redirect flow with step-by-step examples
+    *   JWT token structure with RBAC fields
+    *   Token verification endpoint usage
+    *   Permission checking examples for both Express.js backend and React frontend
+    *   Setup instructions for RBAC integration
 
 ### System Design Choices
 AuthHub follows a client-server architecture. The frontend uses React, TypeScript, Tailwind CSS, Shadcn UI, Wouter, and TanStack Query. The backend uses Express.js and Node.js. PostgreSQL is the database, managed with Drizzle ORM. Shared types and Zod schemas ensure data consistency.
