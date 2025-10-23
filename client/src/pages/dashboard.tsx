@@ -11,7 +11,7 @@ import {
   Calendar, Activity
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getUserRole } from "@/lib/auth";
 import { useLocation } from "wouter";
 import type { User, Service } from "@shared/schema";
 import Navbar from "@/components/Navbar";
@@ -86,6 +86,13 @@ export default function DashboardPage() {
                 Monitor user activity and system overview
               </p>
             </div>
+            <Badge 
+              variant={getUserRole() === 'admin' ? 'default' : 'secondary'}
+              className="text-sm px-3 py-1"
+              data-testid="badge-user-role"
+            >
+              {getUserRole() === 'admin' ? 'Admin' : 'User'}
+            </Badge>
           </div>
 
           {/* Current User Account Info */}

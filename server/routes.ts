@@ -15,6 +15,7 @@ declare global {
       user?: {
         id: string;
         email: string | null;
+        role: "admin" | "user";
       };
     }
   }
@@ -28,7 +29,7 @@ const JWT_SECRET = process.env.SESSION_SECRET;
 const SALT_ROUNDS = 10;
 
 // Helper function to generate JWT with appropriate secret
-async function generateAuthToken(userId: string, email: string | null, serviceId?: string): Promise<string> {
+async function generateAuthToken(userId: string, email: string | null, role: "admin" | "user", serviceId?: string): Promise<string> {
   let signingSecret = JWT_SECRET;
   
   // If serviceId is provided, sign with service's secret instead of SESSION_SECRET
@@ -45,7 +46,7 @@ async function generateAuthToken(userId: string, email: string | null, serviceId
   }
   
   return jwt.sign(
-    { id: userId, email: email },
+    { id: userId, email: email, role: role },
     signingSecret,
     { expiresIn: "7d" }
   );
@@ -118,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email, serviceId);
+      const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
 
       // Return user info (without password) and token
       res.status(201).json({
@@ -126,6 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -165,7 +167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email, serviceId);
+      const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
 
       // Return user info (without password) and token
       res.json({
@@ -173,6 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -219,7 +222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email || null, serviceId);
+      const token = await generateAuthToken(user.id, user.email || null, user.role, serviceId);
 
       // Return user info (without password) and token
       res.json({
@@ -227,6 +230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });

@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Shield, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { setToken } from "@/lib/auth";
+import { setToken, setUserRole } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 
@@ -74,6 +74,7 @@ export default function RegisterPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
+        setUserRole(data.user.role);
       }
       setAuthToken(data.token);
       setGeneratedUuid(data.user.id);

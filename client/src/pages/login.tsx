@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Shield, Mail, KeyRound, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { setToken } from "@/lib/auth";
+import { setToken, setUserRole } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const emailLoginSchema = z.object({
@@ -85,6 +85,7 @@ export default function LoginPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
+        setUserRole(data.user.role);
         // Clear all cached data when logging in to prevent showing previous user's data
         queryClient.clear();
       }
@@ -115,6 +116,7 @@ export default function LoginPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
+        setUserRole(data.user.role);
         // Clear all cached data when logging in to prevent showing previous user's data
         queryClient.clear();
       }
@@ -147,6 +149,7 @@ export default function LoginPage() {
       // Only set token in localStorage if staying on AuthHub (not redirecting away)
       if (!redirectUri) {
         setToken(data.token);
+        setUserRole(data.user.role);
         // Clear all cached data when logging in to prevent showing previous user's data
         queryClient.clear();
       }
