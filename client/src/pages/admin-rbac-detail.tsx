@@ -27,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -91,6 +91,7 @@ export default function AdminRbacDetail() {
   // Visualization state
   const [viewType, setViewType] = useState<"matrix" | "tree" | "json" | "yaml">("matrix");
   const [searchFilter, setSearchFilter] = useState("");
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
 
   // Redirect non-admins
   if (!isAdmin || !modelId) {
@@ -265,6 +266,17 @@ export default function AdminRbacDetail() {
     permission.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
     permission.description.toLowerCase().includes(searchFilter.toLowerCase())
   );
+
+  // Toggle role expansion in tree view
+  const toggleRoleExpansion = (roleId: string) => {
+    const newExpanded = new Set(expandedRoles);
+    if (newExpanded.has(roleId)) {
+      newExpanded.delete(roleId);
+    } else {
+      newExpanded.add(roleId);
+    }
+    setExpandedRoles(newExpanded);
+  };
 
   const handleCreateRole = () => {
     if (!formName.trim() || !formDescription.trim()) {
@@ -636,9 +648,79 @@ export default function AdminRbacDetail() {
                 </Card>
               )}
               {viewType === "tree" && (
-                <div className="text-muted-foreground text-center py-12">
-                  Tree View (Coming next)
-                </div>
+                <Card>
+                  <CardContent className="p-6">
+                    {filteredRoles.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">
+                        {searchFilter ? "No matching roles found" : "Create roles to view the tree structure"}
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {/* Model Root */}
+                        <div className="font-bold text-lg mb-4 flex items-center gap-2" data-testid="tree-model-name">
+                          <Shield className="h-5 w-5 text-primary" />
+                          {model?.name}
+                        </div>
+
+                        {/* Roles and their permissions */}
+                        {filteredRoles.map(role => {
+                          const rolePermissions = allRolePermissionMappings.find(m => m.roleId === role.id)?.permissions || [];
+                          const isExpanded = expandedRoles.has(role.id);
+
+                          return (
+                            <div key={role.id} className="ml-6" data-testid={`tree-role-${role.id}`}>
+                              {/* Role */}
+                              <div
+                                className="flex items-center gap-2 p-3 rounded-md hover-elevate active-elevate-2 cursor-pointer"
+                                onClick={() => toggleRoleExpansion(role.id)}
+                                data-testid={`tree-role-toggle-${role.id}`}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" data-testid={`tree-chevron-down-${role.id}`} />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" data-testid={`tree-chevron-right-${role.id}`} />
+                                )}
+                                <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <div className="flex-1">
+                                  <div className="font-semibold" data-testid={`tree-role-name-${role.id}`}>{role.name}</div>
+                                  <div className="text-sm text-muted-foreground">{role.description}</div>
+                                </div>
+                                <Badge variant="secondary" data-testid={`tree-role-count-${role.id}`}>
+                                  {rolePermissions.length} {rolePermissions.length === 1 ? "permission" : "permissions"}
+                                </Badge>
+                              </div>
+
+                              {/* Permissions under this role */}
+                              {isExpanded && (
+                                <div className="ml-6 mt-2 space-y-1" data-testid={`tree-permissions-${role.id}`}>
+                                  {rolePermissions.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-2">
+                                      No permissions assigned
+                                    </div>
+                                  ) : (
+                                    rolePermissions.map(permission => (
+                                      <div
+                                        key={permission.id}
+                                        className="flex items-center gap-2 p-2 rounded-md text-sm"
+                                        data-testid={`tree-permission-${permission.id}`}
+                                      >
+                                        <Key className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                        <div className="flex-1">
+                                          <div className="font-medium">{permission.name}</div>
+                                          <div className="text-xs text-muted-foreground">{permission.description}</div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
               {viewType === "json" && (
                 <div className="text-muted-foreground text-center py-12">
