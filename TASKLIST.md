@@ -598,60 +598,36 @@ model:
 
 ---
 
-## Task 12: User-Specific Service Management with Auto-Seeding - Full Stack
-**What you'll see:** Each user has their own isolated set of services with CRUD capabilities, and new users automatically receive 7 default services
+## Task 12: Global Services & Admin Service Manager - Full Stack
+**What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
-1. **Schema**: Services table includes `userId` foreign key for user-specific service isolation
-2. **Backend**: Create `seedServices(userId)` function that auto-generates 7 default services for a user
-3. **Backend**: Service endpoints filter by `userId` to ensure data isolation:
-   - `GET /api/services` returns only current user's services
-   - `POST /api/services` creates service for current user
-   - `PATCH /api/services/:id` updates only user's own services
-   - `DELETE /api/services/:id` deletes only user's own services
-4. **Backend**: Auto-invoke `seedServices(userId)` during user registration (both email/password and UUID-based)
-5. **Backend**: Service secrets encrypted with AES-256-GCM using ENCRYPTION_KEY/SESSION_SECRET
-6. **Backend**: Secrets displayed only once during creation/rotation in `sk_*` format
-7. **Frontend**: Dashboard displays user's services in card grid
-8. **Frontend**: Users can create, edit, and delete their own services via service configuration page
-9. **Frontend**: Service cards show customizable icons, colors, and RBAC model badges (if assigned)
-10. **Frontend**: Admin User Management page shows per-user service count via `servicesCount` field
-11. **Test in browser**:
-   - Register new user → automatically get 7 default services (Git Garden, Iron Path, etc.)
-   - Dashboard displays all 7 services in card grid
-   - Create new custom service → appears in user's service list
-   - Edit service (name, URL, icon, color, RBAC model) → changes persist
-   - Delete service → removed from user's service list
-   - Login as admin → User Management table shows "7" in Services column for new users
-   - Each user's services are isolated (User A cannot see User B's services)
+1. **Schema**: Create `globalServices` table (id, name, description, url, icon, color, secret, createdAt)
+2. **Backend**: Create `POST /api/admin/global-services` endpoint
+3. **Backend**: Create `GET /api/admin/global-services` endpoint
+4. **Backend**: Seed 7 default services when first admin registers
+5. **Frontend**: Create "Service Catalog" page at /admin/services
+6. **Frontend**: Display services in card grid (same style as dashboard)
+7. **Frontend**: Add "Service Catalog" link to admin navbar
+8. **Test in browser**:
+   - Login as admin → click "Service Catalog"
+   - See 7 seeded services in grid
+   - Regular user can't access page
 
-**Default Seeded Services:**
-1. Git Garden (version control)
-2. Iron Path (issue tracking)
-3. PurpleGreen (project management)
-4. Xeon Studio (design tools)
-5. BTCPay Dashboard (payment processing)
-6. Quest Network (team communication)
-7. Code Vault (code repository)
+**UI Location:** New page at /admin/services with service cards
 
-**Service Isolation Pattern:**
-- Each service belongs to exactly one user (`userId` foreign key)
-- All service queries filter by authenticated user's ID
-- Admin can see service counts but not service details across all users
-- RBAC model assignments work within user's own services
-- OAuth flow uses user's own service credentials
+**Acceptance:** Global services visible in admin UI immediately after seeding
 
-**UI Locations:**
-- User dashboard: Service card grid (user's own services)
-- Service configuration page: CRUD operations for user's services
-- Admin User Management page: Service count column per user
+**Current Implementation Status:**
+- ✅ User-specific services architecture implemented instead of global services
+- ✅ Each user owns their own isolated set of services (userId foreign key)
+- ✅ Auto-seeding: New users automatically receive 7 default services via `seedServices()`
+- ✅ Service CRUD: Users manage their own services through dashboard
+- ✅ Service count: Admin User Management page correctly displays per-user service count
+- ✅ RBAC integration: Users can assign RBAC models to their own services
+- ✅ OAuth flow: Uses user's own service credentials with RBAC data in JWT
 
-**Acceptance:** 
-- New users receive 7 default services automatically
-- Users can manage (CRUD) their own services independently
-- Service data is isolated per user with no cross-user access
-- Admin can view service counts per user
-- Service secrets are securely encrypted and displayed only once
+**Note:** This task describes a global service catalog approach, but the current implementation uses user-specific services for better isolation, security, and flexibility. The "Services" count in Admin User Management represents the number of services each user owns (default: 7 auto-seeded services).
 
 ---
 
