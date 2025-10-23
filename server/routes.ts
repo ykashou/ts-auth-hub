@@ -89,7 +89,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const validatedData = insertUserSchema.parse(req.body);
+      const { serviceId, ...userData } = req.body;
+      const validatedData = insertUserSchema.parse(userData);
       
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(validatedData.email);
@@ -114,12 +115,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { id: user.id, email: user.email },
-        JWT_SECRET,
-        { expiresIn: "7d" }
-      );
+      // Generate JWT token (with service secret if serviceId provided)
+      const token = await generateAuthToken(user.id, user.email, serviceId);
 
       // Return user info (without password) and token
       res.status(201).json({
@@ -139,7 +136,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Login user with email/password
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const validatedData = loginSchema.parse(req.body);
+      const { serviceId, ...credentials } = req.body;
+      const validatedData = loginSchema.parse(credentials);
 
       // Find user by email
       const user = await storage.getUserByEmail(validatedData.email);
@@ -164,12 +162,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails
       }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { id: user.id, email: user.email },
-        JWT_SECRET,
-        { expiresIn: "7d" }
-      );
+      // Generate JWT token (with service secret if serviceId provided)
+      const token = await generateAuthToken(user.id, user.email, serviceId);
 
       // Return user info (without password) and token
       res.json({
@@ -191,7 +185,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // If no UUID provided: generate new UUID and auto-register
   app.post("/api/auth/uuid-login", async (req, res) => {
     try {
-      const validatedData = uuidLoginSchema.parse(req.body);
+      const { serviceId, ...uuidData } = req.body;
+      const validatedData = uuidLoginSchema.parse(uuidData);
       let user;
       let isNewUser = false;
 
@@ -221,12 +216,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { id: user.id, email: user.email || null },
-        JWT_SECRET,
-        { expiresIn: "7d" }
-      );
+      // Generate JWT token (with service secret if serviceId provided)
+      const token = await generateAuthToken(user.id, user.email || null, serviceId);
 
       // Return user info (without password) and token
       res.json({

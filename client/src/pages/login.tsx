@@ -29,15 +29,20 @@ type UuidLoginForm = z.infer<typeof uuidLoginSchema>;
 export default function LoginPage() {
   const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("uuid");
   const [redirectUri, setRedirectUri] = useState<string | null>(null);
+  const [serviceId, setServiceId] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Read redirect_uri from URL parameters on mount
+  // Read redirect_uri and serviceId from URL parameters on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const redirect = urlParams.get('redirect_uri');
+    const service = urlParams.get('serviceId');
     if (redirect) {
       setRedirectUri(decodeURIComponent(redirect));
+    }
+    if (service) {
+      setServiceId(service);
     }
   }, []);
 
@@ -70,7 +75,10 @@ export default function LoginPage() {
 
   const emailLoginMutation = useMutation({
     mutationFn: async (data: EmailLoginForm) => {
-      const response = await apiRequest("POST", "/api/auth/login", data);
+      const response = await apiRequest("POST", "/api/auth/login", {
+        ...data,
+        serviceId: serviceId || undefined,
+      });
       return response;
     },
     onSuccess: (data) => {
@@ -98,7 +106,8 @@ export default function LoginPage() {
   const uuidLoginMutation = useMutation({
     mutationFn: async (data: UuidLoginForm) => {
       const response = await apiRequest("POST", "/api/auth/uuid-login", { 
-        uuid: data.accountId || undefined 
+        uuid: data.accountId || undefined,
+        serviceId: serviceId || undefined,
       });
       return response;
     },
@@ -129,7 +138,9 @@ export default function LoginPage() {
   const generateNewUuidMutation = useMutation({
     mutationFn: async () => {
       // Call without UUID to auto-generate
-      const response = await apiRequest("POST", "/api/auth/uuid-login", {});
+      const response = await apiRequest("POST", "/api/auth/uuid-login", {
+        serviceId: serviceId || undefined,
+      });
       return response;
     },
     onSuccess: (data) => {
