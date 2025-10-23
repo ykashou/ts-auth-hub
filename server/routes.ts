@@ -859,6 +859,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== Role Routes ====================
+
+  // Get all roles for a model (admin only)
+  app.get("/api/admin/rbac/models/:modelId/roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const roles = await storage.getRolesByModel(modelId);
+      res.json(roles);
+    } catch (error: any) {
+      console.error("Get roles error:", error);
+      res.status(500).json({ error: "Failed to fetch roles" });
+    }
+  });
+
+  // Create role (admin only)
+  app.post("/api/admin/rbac/models/:modelId/roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { name, description } = req.body;
+
+      if (!name || !description) {
+        return res.status(400).json({ error: "Name and description are required" });
+      }
+
+      const role = await storage.createRole({
+        rbacModelId: modelId,
+        name,
+        description,
+      });
+
+      res.status(201).json(role);
+    } catch (error: any) {
+      console.error("Create role error:", error);
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update role (admin only)
+  app.patch("/api/admin/rbac/roles/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      const existingRole = await storage.getRole(id);
+      if (!existingRole) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updatedRole = await storage.updateRole(id, updates);
+      res.json(updatedRole);
+    } catch (error: any) {
+      console.error("Update role error:", error);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Delete role (admin only)
+  app.delete("/api/admin/rbac/roles/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const role = await storage.getRole(id);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+
+      await storage.deleteRole(id);
+      res.json({ success: true, message: "Role deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete role error:", error);
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // ==================== Permission Routes ====================
+
+  // Get all permissions for a model (admin only)
+  app.get("/api/admin/rbac/models/:modelId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const permissions = await storage.getPermissionsByModel(modelId);
+      res.json(permissions);
+    } catch (error: any) {
+      console.error("Get permissions error:", error);
+      res.status(500).json({ error: "Failed to fetch permissions" });
+    }
+  });
+
+  // Create permission (admin only)
+  app.post("/api/admin/rbac/models/:modelId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { name, description } = req.body;
+
+      if (!name || !description) {
+        return res.status(400).json({ error: "Name and description are required" });
+      }
+
+      const permission = await storage.createPermission({
+        rbacModelId: modelId,
+        name,
+        description,
+      });
+
+      res.status(201).json(permission);
+    } catch (error: any) {
+      console.error("Create permission error:", error);
+      res.status(500).json({ error: "Failed to create permission" });
+    }
+  });
+
+  // Update permission (admin only)
+  app.patch("/api/admin/rbac/permissions/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      const existingPermission = await storage.getPermission(id);
+      if (!existingPermission) {
+        return res.status(404).json({ error: "Permission not found" });
+      }
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updatedPermission = await storage.updatePermission(id, updates);
+      res.json(updatedPermission);
+    } catch (error: any) {
+      console.error("Update permission error:", error);
+      res.status(500).json({ error: "Failed to update permission" });
+    }
+  });
+
+  // Delete permission (admin only)
+  app.delete("/api/admin/rbac/permissions/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const permission = await storage.getPermission(id);
+      if (!permission) {
+        return res.status(404).json({ error: "Permission not found" });
+      }
+
+      await storage.deletePermission(id);
+      res.json({ success: true, message: "Permission deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete permission error:", error);
+      res.status(500).json({ error: "Failed to delete permission" });
+    }
+  });
+
+  // ==================== Role-Permission Assignment Routes ====================
+
+  // Get permissions for a role (admin only)
+  app.get("/api/admin/rbac/roles/:roleId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { roleId } = req.params;
+      const permissions = await storage.getPermissionsForRole(roleId);
+      res.json(permissions);
+    } catch (error: any) {
+      console.error("Get role permissions error:", error);
+      res.status(500).json({ error: "Failed to fetch role permissions" });
+    }
+  });
+
+  // Set permissions for a role (admin only)
+  app.put("/api/admin/rbac/roles/:roleId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { roleId } = req.params;
+      const { permissionIds } = req.body;
+
+      if (!Array.isArray(permissionIds)) {
+        return res.status(400).json({ error: "permissionIds must be an array" });
+      }
+
+      await storage.setRolePermissions(roleId, permissionIds);
+      res.json({ success: true, message: "Role permissions updated successfully" });
+    } catch (error: any) {
+      console.error("Set role permissions error:", error);
+      res.status(500).json({ error: "Failed to update role permissions" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
