@@ -552,187 +552,39 @@ model:
 ---
 
 ## Task 11: OAuth Flow RBAC Integration - Full Stack
-**What you'll see:** External services receive user permissions and role data when authenticating via OAuth redirect flow
+**What you'll see:** External services receive user role and permissions in JWT tokens during OAuth redirect flow
 
 **Changes:**
-1. **Backend**: Enhance JWT token generation to include RBAC data when service_id is provided
-2. **Backend**: Add `permissions` array to JWT payload (user's permissions for that service based on assigned role)
-3. **Backend**: Add `role` object to JWT payload (user's role details including name, description, roleId)
-4. **Backend**: Add `rbacModel` object to JWT payload (the RBAC model assigned to the service)
-5. **Backend**: Create helper function `getUserPermissionsForService(userId, serviceId)` that:
-   - Checks if service has an assigned RBAC model
-   - Gets user's role assignment in that service (from userServiceRoles)
-   - Fetches all permissions for that role (from rolePermissions)
-   - Returns enriched permission array with permission details
-6. **Backend**: Update `/login`, `/register`, and `/widget-login` OAuth redirect logic to:
-   - Check if `service_id` query parameter exists
-   - If yes, fetch user's role and permissions for that service
-   - Include in JWT payload: `{ userId, email, role: {...}, permissions: [...], rbacModel: {...} }`
-   - Sign token with service's secret (existing behavior)
-   - Redirect with enriched token
-7. **Backend**: Handle users with no role assigned (return empty permissions array and null role)
-8. **Backend**: Create `GET /api/services/:serviceId/verify-token` endpoint for external services to verify and decode tokens
-9. **Frontend**: Update API documentation page to show new token structure with RBAC fields
-10. **Frontend**: Add code examples showing how external services can decode and use permissions
-11. **Frontend**: Document the token payload structure:
-    ```json
-    {
-      "userId": "uuid",
-      "email": "user@example.com",
-      "role": {
-        "id": "role-uuid",
-        "name": "Editor",
-        "description": "Can create and edit content"
-      },
-      "permissions": [
-        {
-          "id": "perm-uuid",
-          "name": "create:content",
-          "description": "Create new content"
-        },
-        {
-          "id": "perm-uuid",
-          "name": "read:content",
-          "description": "View content"
-        }
-      ],
-      "rbacModel": {
-        "id": "model-uuid",
-        "name": "Content Management System"
-      }
-    }
-    ```
-12. **Test in browser**:
-    - Ensure a service has an RBAC model assigned (e.g., "Git Garden" → "Content Management System")
-    - Ensure a user has a role assigned in that service (e.g., Alice → "Editor" in Git Garden)
-    - Test OAuth redirect flow:
-      - Navigate to `/login?service_id=<git-garden-id>&redirect_uri=https://example.com/callback`
-      - Login as Alice
-      - Get redirected to callback URL with token
-      - Decode JWT token (use jwt.io or backend verification endpoint)
-      - Verify token includes:
-        - userId, email
-        - role: { id, name: "Editor", description }
-        - permissions: [{ id, name: "create:content", ... }, { id, name: "read:content", ... }]
-        - rbacModel: { id, name: "Content Management System" }
-    - Test user with no role assigned:
-      - Assign Bob to same service but no role
-      - OAuth flow returns token with empty permissions array and null role
-    - Test service with no RBAC model:
-      - OAuth flow returns token with empty permissions, null role, null rbacModel
-    - Verify external service can use permissions to control access:
-      - If permissions include "create:content" → allow creating
-      - If permissions don't include "delete:content" → deny deleting
+1. **Backend**: Create `getUserPermissionsForService(userId, serviceId)` helper that fetches user's role and permissions for a service
+2. **Backend**: Update `/login`, `/register`, `/widget-login` OAuth logic to include RBAC data in JWT when `service_id` is present:
+   - Add `role` object: `{ id, name, description }`
+   - Add `permissions` array: `[{ id, name, description }, ...]`
+   - Add `rbacModel` object: `{ id, name, description }`
+3. **Backend**: Handle edge cases: no role assigned (empty permissions), no RBAC model (null values)
+4. **Backend**: Create `GET /api/services/:serviceId/verify-token` endpoint for external token verification
+5. **Frontend**: Update API docs page with new token structure and code examples showing how external services decode/use permissions
 
-**OAuth Token Enhancement Example:**
-
-Before (Task 11):
+**Token Structure:**
 ```json
 {
-  "userId": "abc-123",
-  "email": "alice@example.com",
-  "iat": 1234567890,
-  "exp": 1234571490
-}
-```
-
-After (Task 11):
-```json
-{
-  "userId": "abc-123",
-  "email": "alice@example.com",
-  "role": {
-    "id": "role-uuid-456",
-    "name": "Editor",
-    "description": "Can create and edit content but not delete"
-  },
+  "userId": "uuid",
+  "email": "user@example.com",
+  "role": { "id": "...", "name": "Editor", "description": "..." },
   "permissions": [
-    {
-      "id": "perm-uuid-1",
-      "name": "create:content",
-      "description": "Create new content"
-    },
-    {
-      "id": "perm-uuid-2",
-      "name": "read:content",
-      "description": "View existing content"
-    },
-    {
-      "id": "perm-uuid-3",
-      "name": "update:content",
-      "description": "Edit existing content"
-    }
+    { "id": "...", "name": "create:content", "description": "..." },
+    { "id": "...", "name": "read:content", "description": "..." }
   ],
-  "rbacModel": {
-    "id": "model-uuid-789",
-    "name": "Content Management System",
-    "description": "RBAC model for CMS applications"
-  },
-  "iat": 1234567890,
-  "exp": 1234571490
+  "rbacModel": { "id": "...", "name": "Content Management System" }
 }
 ```
 
-**External Service Integration Example:**
-```javascript
-// External service decodes the JWT token
-const jwt = require('jsonwebtoken');
-const token = req.query.token;
-const decoded = jwt.verify(token, SERVICE_SECRET);
+**Test:**
+- OAuth flow with assigned role → token includes role + permissions
+- OAuth flow without role → token has empty permissions array
+- OAuth flow without RBAC model → token has null values
+- External service can decode token and enforce permissions
 
-// Check if user has permission to create content
-const canCreate = decoded.permissions?.some(p => p.name === 'create:content');
-if (canCreate) {
-  // Allow user to create content
-} else {
-  // Show read-only view
-}
-
-// Check user's role
-if (decoded.role?.name === 'Editor') {
-  // Show editor-specific features
-} else if (decoded.role?.name === 'Viewer') {
-  // Show viewer-specific features
-}
-```
-
-**Backend Helper Function:**
-```typescript
-async getUserPermissionsForService(userId: string, serviceId: string) {
-  // 1. Get service's RBAC model
-  const serviceRbac = await storage.getServiceRbacModel(serviceId);
-  if (!serviceRbac) return { role: null, permissions: [], rbacModel: null };
-  
-  // 2. Get user's role in this service
-  const userRole = await storage.getUserServiceRole(userId, serviceId);
-  if (!userRole) return { role: null, permissions: [], rbacModel: serviceRbac };
-  
-  // 3. Get role details
-  const role = await storage.getRole(userRole.roleId);
-  
-  // 4. Get all permissions for this role
-  const permissions = await storage.getRolePermissions(userRole.roleId);
-  
-  return { role, permissions, rbacModel: serviceRbac };
-}
-```
-
-**UI Components:**
-- Updated API documentation page showing new token structure
-- Code examples for external services to decode and use permissions
-- Token verification endpoint documentation
-- Security notes about token validation
-
-**UI Location:** 
-- API Documentation page (/api-docs)
-- Updated OAuth redirect flow documentation
-
-**Acceptance:** 
-- External services receive user's role and permissions in JWT token during OAuth flow
-- Token includes complete RBAC context (role details, permission list, RBAC model info)
-- External services can enforce access control based on permissions without calling back to AuthHub
-- Proper handling of edge cases (no role assigned, no RBAC model, empty permissions)
-- Documentation clearly explains how to decode and use the enriched tokens
+**Acceptance:** External services receive complete RBAC context in JWT tokens, enabling local permission enforcement without callbacks to AuthHub
 
 ---
 
@@ -782,7 +634,7 @@ async getUserPermissionsForService(userId: string, serviceId: string) {
 
 ---
 
-## Task 12: Users See Only Enabled Services - Full Stack
+## Task 14: Users See Only Enabled Services - Full Stack
 **What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
@@ -805,7 +657,7 @@ async getUserPermissionsForService(userId: string, serviceId: string) {
 
 ---
 
-## Task 13: Role Management UI - Full Stack
+## Task 15: Role Management UI - Full Stack
 **What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
@@ -829,7 +681,7 @@ async getUserPermissionsForService(userId: string, serviceId: string) {
 
 ---
 
-## Task 14: Migrate Existing Services to Global Catalog - Full Stack
+## Task 16: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -859,7 +711,7 @@ async getUserPermissionsForService(userId: string, serviceId: string) {
 
 ---
 
-## Task 15: Service Auto-Enablement for New Users - Full Stack
+## Task 17: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
