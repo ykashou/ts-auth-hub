@@ -1,7 +1,7 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, rbacModels, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel } from "@shared/schema";
+import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -36,6 +36,26 @@ export interface IStorage {
   getAllRbacModels(): Promise<RbacModel[]>;
   updateRbacModel(id: string, updates: Partial<RbacModel>): Promise<RbacModel>;
   deleteRbacModel(id: string): Promise<void>;
+
+  // Role operations
+  createRole(role: InsertRole & { rbacModelId: string }): Promise<Role>;
+  getRole(id: string): Promise<Role | undefined>;
+  getRolesByModel(rbacModelId: string): Promise<Role[]>;
+  updateRole(id: string, updates: Partial<Role>): Promise<Role>;
+  deleteRole(id: string): Promise<void>;
+
+  // Permission operations
+  createPermission(permission: InsertPermission & { rbacModelId: string }): Promise<Permission>;
+  getPermission(id: string): Promise<Permission | undefined>;
+  getPermissionsByModel(rbacModelId: string): Promise<Permission[]>;
+  updatePermission(id: string, updates: Partial<Permission>): Promise<Permission>;
+  deletePermission(id: string): Promise<void>;
+
+  // Role-Permission operations
+  assignPermissionToRole(roleId: string, permissionId: string): Promise<void>;
+  removePermissionFromRole(roleId: string, permissionId: string): Promise<void>;
+  getPermissionsForRole(roleId: string): Promise<Permission[]>;
+  setRolePermissions(roleId: string, permissionIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -198,6 +218,123 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRbacModel(id: string): Promise<void> {
     await db.delete(rbacModels).where(eq(rbacModels.id, id));
+  }
+
+  // Role operations
+  async createRole(insertRole: InsertRole & { rbacModelId: string }): Promise<Role> {
+    const [role] = await db
+      .insert(roles)
+      .values(insertRole)
+      .returning();
+    return role;
+  }
+
+  async getRole(id: string): Promise<Role | undefined> {
+    const [role] = await db
+      .select()
+      .from(roles)
+      .where(eq(roles.id, id));
+    return role || undefined;
+  }
+
+  async getRolesByModel(rbacModelId: string): Promise<Role[]> {
+    return await db
+      .select()
+      .from(roles)
+      .where(eq(roles.rbacModelId, rbacModelId));
+  }
+
+  async updateRole(id: string, updates: Partial<Role>): Promise<Role> {
+    const [role] = await db
+      .update(roles)
+      .set(updates)
+      .where(eq(roles.id, id))
+      .returning();
+    return role;
+  }
+
+  async deleteRole(id: string): Promise<void> {
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+
+  // Permission operations
+  async createPermission(insertPermission: InsertPermission & { rbacModelId: string }): Promise<Permission> {
+    const [permission] = await db
+      .insert(permissions)
+      .values(insertPermission)
+      .returning();
+    return permission;
+  }
+
+  async getPermission(id: string): Promise<Permission | undefined> {
+    const [permission] = await db
+      .select()
+      .from(permissions)
+      .where(eq(permissions.id, id));
+    return permission || undefined;
+  }
+
+  async getPermissionsByModel(rbacModelId: string): Promise<Permission[]> {
+    return await db
+      .select()
+      .from(permissions)
+      .where(eq(permissions.rbacModelId, rbacModelId));
+  }
+
+  async updatePermission(id: string, updates: Partial<Permission>): Promise<Permission> {
+    const [permission] = await db
+      .update(permissions)
+      .set(updates)
+      .where(eq(permissions.id, id))
+      .returning();
+    return permission;
+  }
+
+  async deletePermission(id: string): Promise<void> {
+    await db.delete(permissions).where(eq(permissions.id, id));
+  }
+
+  // Role-Permission operations
+  async assignPermissionToRole(roleId: string, permissionId: string): Promise<void> {
+    await db
+      .insert(rolePermissions)
+      .values({ roleId, permissionId })
+      .onConflictDoNothing();
+  }
+
+  async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
+    await db
+      .delete(rolePermissions)
+      .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)));
+  }
+
+  async getPermissionsForRole(roleId: string): Promise<Permission[]> {
+    const rolePerms = await db
+      .select()
+      .from(rolePermissions)
+      .where(eq(rolePermissions.roleId, roleId));
+    
+    if (rolePerms.length === 0) {
+      return [];
+    }
+
+    const permissionIds = rolePerms.map(rp => rp.permissionId);
+    return await db
+      .select()
+      .from(permissions)
+      .where(inArray(permissions.id, permissionIds));
+  }
+
+  async setRolePermissions(roleId: string, permissionIds: string[]): Promise<void> {
+    // Delete all existing permissions for this role
+    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+    
+    // Add new permissions
+    if (permissionIds.length > 0) {
+      await db
+        .insert(rolePermissions)
+        .values(permissionIds.map(permissionId => ({ roleId, permissionId })));
+    }
   }
 }
 
