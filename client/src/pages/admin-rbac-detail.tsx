@@ -121,29 +121,9 @@ export default function AdminRbacDetail() {
   });
 
   // Fetch all role-permission mappings for matrix view using the new batched endpoint
-  // Note: includes roles.length in queryKey to refetch when roles change, and waits for roles to load
-  const { data: allRolePermissionMappings = [] } = useQuery<Array<{ roleId: string; permissions: Permission[] }>>({
-    queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings", roles.length],
-    queryFn: async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-      
-      const response = await fetch(`/api/admin/rbac/models/${modelId}/role-permission-mappings`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch role-permission mappings: ${response.status}`);
-      }
-      
-      return await response.json();
-    },
-    enabled: isAdmin && !!modelId && roles.length > 0,
+  const { data: allRolePermissionMappings = [], isLoading: mappingsLoading } = useQuery<Array<{ roleId: string; permissions: Permission[] }>>({
+    queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"],
+    enabled: isAdmin && !!modelId && !rolesLoading && roles.length > 0,
   });
 
   // Fetch export data for JSON/YAML views
