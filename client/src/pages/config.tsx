@@ -373,198 +373,198 @@ export default function Config() {
       <Navbar />
 
       <main className="container mx-auto px-6 py-8">
-        <div className="mb-6">
-          <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Service
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
-                <DialogDescription>
-                  Configure a service card to display on the services page
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Service Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="My SaaS App"
-                            {...field}
-                            data-testid="input-service-name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Brief description of the service"
-                            {...field}
-                            data-testid="input-service-description"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Service URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com"
-                            {...field}
-                            data-testid="input-service-url"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="redirectUrl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Redirect URL (Optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com/dashboard (defaults to Service URL)"
-                            {...field}
-                            data-testid="input-redirect-url"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="icon"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Icon</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-service-icon">
-                              <SelectValue placeholder="Select an icon" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {ICON_OPTIONS.map((iconName) => {
-                              const Icon = getIcon(iconName);
-                              return (
-                                <SelectItem key={iconName} value={iconName}>
-                                  <div className="flex items-center gap-2">
-                                    <Icon className="w-4 h-4" />
-                                    <span>{iconName}</span>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="color"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Color (Optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="#FF5733 or hsl(9, 75%, 61%)"
-                            {...field}
-                            data-testid="input-service-color"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* RBAC Model Selector - shown for both create and edit */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      RBAC Model (Optional)
-                    </label>
-                    <Select 
-                      value={selectedRbacModelId || "none"} 
-                      onValueChange={(value) => setSelectedRbacModelId(value === "none" ? "" : value)}
-                    >
-                      <SelectTrigger data-testid="select-rbac-model">
-                        <SelectValue placeholder="No RBAC model assigned" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" data-testid="option-no-rbac">
-                          None
-                        </SelectItem>
-                        {rbacModels.map((model) => (
-                          <SelectItem key={model.id} value={model.id} data-testid={`option-rbac-${model.id}`}>
-                            {model.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">
-                      Assign an RBAC model to define roles and permissions for this service
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleDialogClose(false)}
-                      data-testid="button-cancel"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={createMutation.isPending || updateMutation.isPending}
-                      data-testid="button-submit-service"
-                    >
-                      {(createMutation.isPending || updateMutation.isPending) && (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      )}
-                      {editingService ? "Update" : "Create"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
         <Card>
-          <CardHeader>
-            <CardTitle>Configured Services</CardTitle>
-            <CardDescription>
-              Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>Configured Services</CardTitle>
+              <CardDescription>
+                Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
+              </CardDescription>
+            </div>
+            <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Service
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
+                  <DialogDescription>
+                    Configure a service card to display on the services page
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="My SaaS App"
+                              {...field}
+                              data-testid="input-service-name"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Brief description of the service"
+                              {...field}
+                              data-testid="input-service-description"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com"
+                              {...field}
+                              data-testid="input-service-url"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="redirectUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Redirect URL (Optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/dashboard (defaults to Service URL)"
+                              {...field}
+                              data-testid="input-redirect-url"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="icon"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Icon</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-service-icon">
+                                <SelectValue placeholder="Select an icon" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {ICON_OPTIONS.map((iconName) => {
+                                const Icon = getIcon(iconName);
+                                return (
+                                  <SelectItem key={iconName} value={iconName}>
+                                    <div className="flex items-center gap-2">
+                                      <Icon className="w-4 h-4" />
+                                      <span>{iconName}</span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="color"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Color (Optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="#FF5733 or hsl(9, 75%, 61%)"
+                              {...field}
+                              data-testid="input-service-color"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {/* RBAC Model Selector - shown for both create and edit */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        RBAC Model (Optional)
+                      </label>
+                      <Select 
+                        value={selectedRbacModelId || "none"} 
+                        onValueChange={(value) => setSelectedRbacModelId(value === "none" ? "" : value)}
+                      >
+                        <SelectTrigger data-testid="select-rbac-model">
+                          <SelectValue placeholder="No RBAC model assigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" data-testid="option-no-rbac">
+                            None
+                          </SelectItem>
+                          {rbacModels.map((model) => (
+                            <SelectItem key={model.id} value={model.id} data-testid={`option-rbac-${model.id}`}>
+                              {model.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        Assign an RBAC model to define roles and permissions for this service
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleDialogClose(false)}
+                        data-testid="button-cancel"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={createMutation.isPending || updateMutation.isPending}
+                        data-testid="button-submit-service"
+                      >
+                        {(createMutation.isPending || updateMutation.isPending) && (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        )}
+                        {editingService ? "Update" : "Create"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent>
             {isLoading ? (
