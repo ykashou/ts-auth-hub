@@ -258,7 +258,83 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 8: Service-Model & User-Role Assignment - Full Stack
+## Task 8: RBAC Visualization - Permission Matrix & Tree View - Full Stack
+**What you'll see:** Elegant visual representations of RBAC models with an interactive permission matrix and hierarchical tree view
+
+**Changes:**
+1. **Frontend**: Add visualization tab to RBAC model detail page (third tab after Roles and Permissions)
+2. **Frontend**: Create Permission Matrix component showing roles × permissions grid
+3. **Frontend**: Matrix displays checkboxes for each role-permission intersection (read-only visualization)
+4. **Frontend**: Add hover tooltips showing permission details and role descriptions
+5. **Frontend**: Color-code matrix cells: granted (green), denied (red/gray), inherited (blue)
+6. **Frontend**: Add row/column headers with expand/collapse for better readability
+7. **Frontend**: Create Hierarchical Tree View component showing RBAC model structure
+8. **Frontend**: Tree shows model → roles → assigned permissions in expandable nodes
+9. **Frontend**: Display role count and permission count as badges on tree nodes
+10. **Frontend**: Add visual indicators for permission inheritance and conflicts
+11. **Frontend**: Implement search/filter functionality to highlight specific roles or permissions
+12. **Frontend**: Add export functionality (download matrix as CSV or PNG)
+13. **Frontend**: Add toggle between matrix view and tree view
+14. **Frontend**: Responsive design for both desktop and mobile viewing
+15. **Test in browser**:
+    - Navigate to RBAC model detail → click "Visualization" tab
+    - See permission matrix with all roles as rows and permissions as columns
+    - Hover over cells → see tooltips with details
+    - See checkmarks (✓) for granted permissions, empty for denied
+    - Toggle to tree view → see hierarchical structure:
+      ```
+      📋 Content Management Model
+      ├── 👤 Owner (3 permissions)
+      │   ├── ✓ edit_data
+      │   ├── ✓ view_data
+      │   └── ✓ delete_data
+      ├── 👤 Manager (2 permissions)
+      │   ├── ✓ edit_data
+      │   └── ✓ view_data
+      └── 👤 Viewer (1 permission)
+          └── ✓ view_data
+      ```
+    - Use search bar → type "edit" → highlights all roles with edit permissions
+    - Click export → downloads permission matrix as CSV
+    - Works on mobile with horizontal scrolling for large matrices
+
+**Permission Matrix Visual Example:**
+```
+┌─────────────┬────────────┬────────────┬──────────────┐
+│   Role      │ edit_data  │ view_data  │ delete_data  │
+├─────────────┼────────────┼────────────┼──────────────┤
+│ Owner       │     ✓      │     ✓      │      ✓       │
+├─────────────┼────────────┼────────────┼──────────────┤
+│ Manager     │     ✓      │     ✓      │      ✗       │
+├─────────────┼────────────┼────────────┼──────────────┤
+│ Viewer      │     ✗      │     ✓      │      ✗       │
+└─────────────┴────────────┴────────────┴──────────────┘
+```
+
+**Tree View Visual Example:**
+- Collapsible/expandable nodes
+- Icons for model (📋), roles (👤), permissions (🔑)
+- Count badges showing number of permissions per role
+- Indentation showing hierarchy
+- Different colors for different permission levels
+
+**UI Components:**
+- Visualization tab in model detail page
+- Permission matrix table with interactive cells
+- Tree view with expandable nodes
+- View toggle (matrix/tree switch)
+- Search/filter bar
+- Export button (CSV/PNG options)
+- Hover tooltips
+- Legend explaining colors and icons
+
+**UI Location:** New "Visualization" tab in /admin/rbac/:id detail page
+
+**Acceptance:** Admin can visualize complete RBAC model structure through both matrix and tree representations, making it easy to understand role-permission relationships at a glance
+
+---
+
+## Task 9: Service-Model & User-Role Assignment - Full Stack
 **What you'll see:** Admin can assign RBAC models to services and assign users to roles within each service
 
 **Changes:**
@@ -310,7 +386,7 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 9: Global Services & Admin Service Manager - Full Stack
+## Task 10: Global Services & Admin Service Manager - Full Stack
 **What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
@@ -332,7 +408,7 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 10: Service Enablement for Users - Full Stack
+## Task 11: Service Enablement for Users - Full Stack
 **What you'll see:** Admin can toggle services on/off for each user in User Management table
 
 **Changes:**
@@ -356,7 +432,7 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 11: Users See Only Enabled Services - Full Stack
+## Task 12: Users See Only Enabled Services - Full Stack
 **What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
@@ -379,7 +455,7 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 12: Role Management UI - Full Stack
+## Task 13: Role Management UI - Full Stack
 **What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
@@ -403,7 +479,7 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 13: Migrate Existing Services to Global Catalog - Full Stack
+## Task 14: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -433,7 +509,7 @@ Viewer     |     ✗     |     ✓     |      ✗
 
 ---
 
-## Task 14: Service Auto-Enablement for New Users - Full Stack
+## Task 15: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
