@@ -598,324 +598,148 @@ model:
 
 ---
 
-## Task 12: User Services Dashboard - Full Stack
-**What you'll see:** Regular users see their own services in a card grid on their dashboard (currently they see nothing)
-
-**Current State:**
-- Users have 7 auto-seeded services (created during registration)
-- Regular users currently see empty state: "Welcome to AuthHub. Your account is set up..."
-- Services exist in database but are not displayed to users
-- Only admins can see/manage services via /services and /config pages
+## Task 12: Global Services & Admin Service Manager - Full Stack
+**What you'll see:** Admin page showing all global services in a card grid
 
 **Changes:**
-1. **Backend**: Create `GET /api/my-services` endpoint (returns current user's services filtered by userId)
-2. **Frontend**: Update dashboard page to show user's services for both admins and regular users
-3. **Frontend**: Create service card grid component showing service name, description, icon, and color
-4. **Frontend**: Display all 7 auto-seeded services in the grid
-5. **Frontend**: Add "Launch Service" button to each card that opens service URL in new tab
-6. **Frontend**: Show RBAC role badge on services where user has assigned role
-7. **Frontend**: Remove empty state for regular users, replace with service grid
-8. **Frontend**: Keep admin-specific metrics/tables but add service grid for admins too
+1. **Schema**: Create `globalServices` table (id, name, description, url, icon, color, secret, createdAt)
+2. **Backend**: Create `POST /api/admin/global-services` endpoint
+3. **Backend**: Create `GET /api/admin/global-services` endpoint
+4. **Backend**: Seed 7 default services when first admin registers
+5. **Frontend**: Create "Service Catalog" page at /admin/services
+6. **Frontend**: Display services in card grid (same style as dashboard)
+7. **Frontend**: Add "Service Catalog" link to admin navbar
+8. **Test in browser**:
+   - Login as admin → click "Service Catalog"
+   - See 7 seeded services in grid
+   - Regular user can't access page
+
+**UI Location:** New page at /admin/services with service cards
+
+**Acceptance:** Global services visible in admin UI immediately after seeding
+
+---
+
+## Task 13: Service Enablement for Users - Full Stack
+**What you'll see:** Admin can toggle services on/off for each user in User Management table
+
+**Changes:**
+1. **Schema**: Create `userServices` junction table (userId, serviceId, enabledAt)
+2. **Backend**: Create `GET /api/admin/users/:userId/services` - returns enabled services
+3. **Backend**: Create `POST /api/admin/users/:userId/services/:serviceId` - enable service
+4. **Backend**: Create `DELETE /api/admin/users/:userId/services/:serviceId` - disable service
+5. **Frontend**: Add expandable row in User Management table
+6. **Frontend**: Show toggles for each global service
+7. **Frontend**: When toggled → call enable/disable endpoint
+8. **Frontend**: Update count in table immediately (optimistic UI)
 9. **Test in browser**:
-   - Login as regular user → see 7 services displayed in card grid
-   - Click "Launch Service" → opens service URL in new tab
-   - Services show icon, color, name, description
-   - If user has RBAC role assigned to service → badge shows role name
-   - Login as admin → see both admin metrics AND service grid
-   - Regular users finally have a functional dashboard showing their services
+   - Login as admin → expand user row
+   - See toggles for all 7 services (all OFF initially)
+   - Toggle service ON → see API call + count update
+   - Refresh page → toggle state persists
 
-**Service Card Display:**
-- Icon (customizable per service)
-- Service name (e.g., "Git Garden", "Iron Path")
-- Description
-- Color-coded border/background
-- "Launch Service" button
-- RBAC role badge (if user has role assigned to that service)
+**Table Change:** "Services" column now clickable, expands to show toggle switches
 
-**UI Location:** Dashboard page (`/dashboard`) - replaces empty state for users, adds to admin dashboard
-
-**Acceptance:** Regular users can see and launch their 7 auto-seeded services; admins see both metrics and their services
+**Acceptance:** Admin can enable/disable services per user, changes persist
 
 ---
 
-## Task 13: Service Access Control & Status - Full Stack
-**What you'll see:** Admin can enable/disable user access to specific services; disabled services appear grayed out
+## Task 14: Users See Only Enabled Services - Full Stack
+**What you'll see:** Regular user dashboard shows only services enabled for them by admin
 
 **Changes:**
-1. **Schema**: Add `enabled` boolean field to `services` table (default: true)
-2. **Backend**: Update service endpoints to respect enabled status
-3. **Backend**: Filter disabled services from user's service list unless admin
-4. **Backend**: Create `PATCH /api/admin/users/:userId/services/:serviceId/toggle` endpoint
-5. **Frontend**: In User Management page, add "Services" expandable section per user
-6. **Frontend**: Show grid of user's services with enable/disable toggle switches
-7. **Frontend**: Disabled services appear grayed out in user's dashboard
-8. **Frontend**: Add bulk enable/disable actions (enable all, disable all)
-9. **Frontend**: Show service count as "X enabled / Y total" in user table
-10. **Test in browser**:
-    - Admin goes to User Management
-    - Expands user row → sees "Services" section with 7 services
-    - Toggle switch next to each service (green = enabled, gray = disabled)
-    - Disable "Git Garden" for user → switch turns gray
-    - Login as that user → "Git Garden" appears grayed/disabled in dashboard
-    - Disabled service shows "Access Disabled" instead of "Launch Service" button
-    - Admin can bulk disable all services for a user
-    - Service count shows "6 enabled / 7 total"
-
-**UI Components:**
-- Service toggle switches in User Management expandable rows
-- Disabled state styling for service cards (grayed out, no launch button)
-- Bulk action buttons (Enable All, Disable All)
-- Service count indicator showing enabled/total
-
-**UI Locations:**
-- User Management page (expandable service controls per user)
-- User dashboard (disabled services appear grayed out)
-
-**Acceptance:** Admin can control which services each user can access; users see only enabled services as launchable
-
----
-
-## Task 14: Enhanced Service Experience with Filtering & Search - Full Stack
-**What you'll see:** Users can search/filter their services; admins can manage service details
-
-**Changes:**
-1. **Frontend**: Add search bar above user's service grid
-2. **Frontend**: Filter services by name or description
-3. **Frontend**: Add category/tag filtering (group by type: Git, Analytics, Commerce, etc.)
-4. **Frontend**: Add sort options (alphabetical, recently added, most used)
-5. **Frontend**: Show empty state when search returns no results
-6. **Frontend**: Add service usage count (track launches) - display on cards
-7. **Backend**: Create `POST /api/my-services/:serviceId/track-launch` endpoint
-8. **Backend**: Add `launchCount` field to services table
-9. **Frontend**: Increment launch count each time user clicks "Launch Service"
-10. **Frontend**: Display "Launched X times" on service cards
-11. **Test in browser**:
-    - User sees search bar above service grid
-    - Type "Git" → only "Git Garden" shown
-    - Clear search → all services shown
-    - Sort by "Most Used" → services ordered by launch count
-    - Click "Launch Service" multiple times → launch count increments
-    - Service card shows "Launched 5 times"
-
-**UI Components:**
-- Search bar with filter icon
-- Sort dropdown (Name, Recently Added, Most Used)
-- Category filter chips/badges
-- Launch count badge on service cards
-- Empty search results state
-
-**UI Location:** User dashboard service grid section
-
-**Acceptance:** Users can easily find and track usage of their services; enhanced discoverability
-
----
-
-## Task 15: Service Widget Integration with User Context - Full Stack
-**What you'll see:** Widget authentication flow includes user's service list and role data
-
-**Changes:**
-1. **Backend**: Update widget-login endpoint to return user's enabled services in response
-2. **Backend**: Include RBAC role information for each service in widget response
-3. **Frontend**: Update Widget Docs page with service list integration examples
-4. **Frontend**: Show code examples for accessing user's service list from widget token
-5. **Frontend**: Document how to check if user has access to specific service
-6. **Frontend**: Add example of rendering service list in external app using widget data
+1. **Backend**: Create `GET /api/services/enabled` endpoint
+2. **Backend**: Returns services from userServices junction for current user
+3. **Backend**: For admins: return all global services (admin override)
+4. **Frontend**: Update dashboard to fetch from `/api/services/enabled`
+5. **Frontend**: Show empty state if user has 0 enabled services
+6. **Frontend**: Message: "No services enabled. Contact admin to request access."
 7. **Test in browser**:
-    - External app opens widget authentication
-    - User logs in via widget
-    - Widget postMessage response includes:
-      ```json
-      {
-        "token": "...",
-        "user": { "id": "...", "email": "..." },
-        "services": [
-          { "id": "...", "name": "Git Garden", "role": "Editor", "enabled": true },
-          { "id": "...", "name": "Iron Path", "role": "Admin", "enabled": true }
-        ]
-      }
-      ```
-    - External app can check if user has access to specific service
-    - Widget Docs page shows complete integration examples
-    - External app can render user's service list
+   - Login as admin → enable 2 services for User A
+   - Login as User A → see only those 2 services
+   - Login as admin → enable 1 more service for User A
+   - User A refreshes → sees 3 services now
+   - Login as User B with 0 enabled services → see empty state
 
-**Widget Response Structure:**
-```json
-{
-  "token": "jwt-token-here",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "role": "user"
-  },
-  "services": [
-    {
-      "id": "service-uuid",
-      "name": "Git Garden",
-      "description": "...",
-      "url": "https://gitgarden.example.com",
-      "rbacRole": "Editor",
-      "permissions": ["create:content", "read:content"],
-      "enabled": true
-    }
-  ]
-}
-```
+**Dashboard Change:** Service cards now filtered by userServices assignments
 
-**UI Location:** Widget Docs page with updated integration examples
-
-**Acceptance:** External apps receive user's service context via widget, enabling service-aware UIs
+**Acceptance:** Users see only their enabled services, admins see all
 
 ---
 
-## Task 16: Service Access Logs - Full Stack
-**What you'll see:** Admin can view detailed logs of when users access services
+## Task 15: Role Management UI - Full Stack
+**What you'll see:** Admin can promote users to admin or demote to regular user via dropdown
 
 **Changes:**
-1. **Schema**: Create `service_access_logs` table (id, userId, serviceId, action, timestamp, metadata)
-2. **Backend**: Log service launches, widget authentications, OAuth redirects
-3. **Backend**: Create `GET /api/admin/access-logs` endpoint (paginated, filterable)
-4. **Backend**: Create `GET /api/admin/services/:serviceId/access-logs` endpoint
-5. **Backend**: Create `GET /api/admin/users/:userId/access-logs` endpoint
-6. **Frontend**: Create Access Logs page at `/admin/access-logs`
-7. **Frontend**: Add "Access Logs" link to admin navbar (under Service Management)
-8. **Frontend**: Display logs in table with: timestamp, user, service, action, details
-9. **Frontend**: Add filters: date range, user, service, action type
-10. **Frontend**: Add pagination and export to CSV functionality
-11. **Frontend**: In User Management, add "Access Logs" tab showing user's service access history
-12. **Frontend**: In Service config/detail, add "Access Logs" tab showing service access history
-13. **Test in browser**:
-    - User launches service → log entry created
-    - Admin goes to Access Logs page → sees all service access events
-    - Filter by user → see only that user's access events
-    - Filter by service → see only that service's access events
-    - Filter by date range → see events within timeframe
-    - Export to CSV → download complete log file
-    - User Management → expand user → "Access Logs" tab shows user history
-    - Service detail → "Access Logs" tab shows service history
+1. **Backend**: Create `GET /api/admin/count` endpoint (returns number of admins)
+2. **Backend**: Create `PATCH /api/admin/users/:userId/role` endpoint
+3. **Backend**: Check admin count > 1 before allowing demotion
+4. **Backend**: Return 400 error: "Cannot demote last admin"
+5. **Frontend**: Add role dropdown in User Management table
+6. **Frontend**: Fetch admin count to determine if dropdown should be disabled
+7. **Frontend**: Show tooltip on disabled dropdown: "Cannot demote last admin"
+8. **Frontend**: On role change → show toast + refresh table
+9. **Test in browser**:
+   - With 1 admin → dropdown disabled for that admin
+   - Promote another user to admin → first admin's dropdown becomes enabled
+   - Demote second admin → works fine
+   - Try to demote last admin → see tooltip + disabled state
 
-**Log Entry Structure:**
-- Timestamp (date + time)
-- User (email or UUID)
-- Service (name)
-- Action (Launch, Widget Auth, OAuth Redirect)
-- Metadata (IP address, user agent, success/failure)
+**Table Change:** Role badge becomes interactive dropdown for admins
 
-**UI Components:**
-- Access logs table with sortable columns
-- Date range picker
-- User/Service/Action filters
-- Export to CSV button
-- Pagination controls
-
-**UI Locations:**
-- New page: `/admin/access-logs`
-- User Management page (Access Logs tab per user)
-- Service detail page (Access Logs tab)
-
-**Acceptance:** Admin has complete audit trail of all service access activity with filtering and export
+**Acceptance:** Cannot remove last admin, role changes work for others
 
 ---
 
-## Task 17: Service Analytics Dashboard - Full Stack
-**What you'll see:** Admin sees visual analytics of service usage with charts and metrics
+## Task 16: Migrate Existing Services to Global Catalog - Full Stack
+**What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
-1. **Backend**: Create `GET /api/admin/analytics/overview` endpoint (aggregate metrics)
-2. **Backend**: Create `GET /api/admin/analytics/services` endpoint (per-service stats)
-3. **Backend**: Create `GET /api/admin/analytics/users` endpoint (per-user stats)
-4. **Backend**: Calculate metrics: total launches, unique users, daily/weekly/monthly trends
-5. **Frontend**: Create Analytics page at `/admin/analytics`
-6. **Frontend**: Add "Analytics" link to admin navbar (under Service Management)
-7. **Frontend**: Display key metrics cards: total launches (all time), active users (last 30 days), most used service
-8. **Frontend**: Add line chart showing service launches over time (daily, weekly, monthly views)
-9. **Frontend**: Add bar chart showing launches per service
-10. **Frontend**: Add pie chart showing user distribution across services
-11. **Frontend**: Add "Top Users" table showing most active users by launch count
-12. **Frontend**: Add "Top Services" table showing most launched services
-13. **Frontend**: Add date range selector (Last 7 days, Last 30 days, Last 90 days, Custom)
-14. **Frontend**: Add real-time refresh option (auto-update every 30 seconds)
-15. **Test in browser**:
-    - Admin navigates to Analytics page
-    - See key metrics: "1,234 total launches", "45 active users", "Git Garden most popular"
-    - View line chart showing launch trends over last 30 days
-    - Toggle to weekly/monthly view → chart updates
-    - See bar chart ranking services by launch count
-    - See pie chart showing user distribution
-    - Top Users table shows users ranked by activity
-    - Top Services table shows services ranked by launches
-    - Change date range to "Last 7 days" → all charts update
-    - Enable auto-refresh → metrics update every 30 seconds
+1. **Backend**: Create migration script `server/migrate-services.ts`
+2. **Backend**: Script logic:
+   - Copy distinct services from old `services` table to `globalServices`
+   - For each user's old services, create userServices entries
+   - Preserve encrypted secrets
+   - Deduplicate by name+url
+3. **Backend**: Add npm script: `"migrate": "tsx server/migrate-services.ts"`
+4. **Frontend**: Remove old service CRUD UI from dashboard
+5. **Frontend**: Add note: "Services are now managed globally by admins"
+6. **Test in browser**:
+   - Run migration: `npm run migrate`
+   - Login as existing user → see all their old services still work
+   - Check User Management → see services correctly assigned
+   - Check Service Catalog → see all unique services
 
-**Analytics Metrics:**
-- Total Launches (all time)
-- Active Users (unique users who launched services in date range)
-- Most Popular Service (highest launch count)
-- Launch Trends (time series data)
-- Service Distribution (launches per service)
-- User Activity (launches per user)
+**Migration Steps:**
+1. Backup database
+2. Run `npm run migrate`
+3. Verify in UI
+4. Drop old `services` table
+5. Rename `globalServices` to `services`
 
-**UI Components:**
-- Metrics cards (4-6 key metrics)
-- Line chart (Recharts) showing trends over time
-- Bar chart showing service rankings
-- Pie chart showing distribution
-- Top Users/Services tables
-- Date range selector
-- Auto-refresh toggle
-
-**UI Location:** New page at `/admin/analytics` with comprehensive dashboard
-
-**Acceptance:** Admin has visual insights into service usage patterns, trends, and user behavior
+**Acceptance:** Existing users retain access to their services after migration
 
 ---
 
-## Task 18: User Profile & Settings Page - Full Stack
-**What you'll see:** Users can view/edit their profile and manage account settings
+## Task 17: Service Auto-Enablement for New Users - Full Stack
+**What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
-1. **Backend**: Create `GET /api/me` endpoint (get current user details) - already exists
-2. **Backend**: Create `PATCH /api/me` endpoint (update email, password)
-3. **Backend**: Create `POST /api/me/export` endpoint (export all user data as JSON)
-4. **Backend**: Create `DELETE /api/me` endpoint (delete account and all data)
-5. **Frontend**: Create Profile page at `/profile`
-6. **Frontend**: Add "Profile" link to user dropdown in navbar (next to Logout)
-7. **Frontend**: Display user information: UUID, email, role, created date
-8. **Frontend**: Add "Edit Profile" section with form for updating email
-9. **Frontend**: Add "Change Password" section with form (current + new password)
-10. **Frontend**: Add "Export Data" section with button to download user data (GDPR compliance)
-11. **Frontend**: Add "Delete Account" section with confirmation dialog and final warning
-12. **Frontend**: Show service count and RBAC role assignments summary
-13. **Frontend**: Add "Security" section showing recent login activity (if logged)
-14. **Test in browser**:
-    - User clicks Profile in navbar → navigates to `/profile`
-    - See account details: UUID, email, role badge, account age
-    - Edit email → save → email updated, toast confirmation
-    - Change password → enter current + new → save → password updated
-    - Click "Export Data" → downloads JSON file with all user data
-    - See "Delete Account" button → click → confirmation dialog appears
-    - Confirm deletion → account deleted, redirected to login
-    - Profile shows "You have 7 services" and lists RBAC role assignments
-    - Anonymous users see warning about UUID-only accounts
+1. **Backend**: Add config for default services (array of service IDs)
+2. **Backend**: After user registration, auto-enable default services
+3. **Backend**: Make this configurable (e.g., first 3 services alphabetically)
+4. **Frontend**: Show indicator in Service Catalog which services are "default enabled"
+5. **Frontend**: Add star icon or "Default" badge on default service cards
+6. **Frontend**: In User Management, show which services were auto-enabled vs manually enabled
+7. **Test in browser**:
+   - Register new user
+   - Login as that user → see 3 default services already enabled
+   - Login as admin → User Management shows those 3 services toggled ON
+   - Admin can still disable them manually
 
-**Profile Sections:**
-1. Account Overview (UUID, email, role, created date)
-2. Edit Profile (update email)
-3. Security (change password, view recent activity)
-4. Services Summary (count + RBAC roles)
-5. Data Export (download JSON)
-6. Account Deletion (with confirmation)
+**Config Location:** Environment variable or database setting
 
-**UI Components:**
-- Profile information cards
-- Edit forms with validation
-- Password change form with current password verification
-- Export button with download functionality
-- Delete account button with multi-step confirmation
-- Service summary cards
-
-**UI Location:** New page at `/profile` accessible from navbar dropdown
-
-**Acceptance:** Users can manage their profile, update credentials, export data, and delete account if needed
+**Acceptance:** New users immediately have access to default services without admin intervention
 
 ---
 
