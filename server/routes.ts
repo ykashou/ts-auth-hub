@@ -794,7 +794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create RBAC model (admin only)
   app.post("/api/admin/rbac/models", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.id;
       const { name, description } = req.body;
 
       // Validate input
