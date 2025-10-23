@@ -416,6 +416,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update user (admin only)
+  app.patch("/api/admin/users/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { email, role } = req.body;
+
+      // Get current user
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // If changing role from admin to user, check if this is the last admin
+      if (user.role === 'admin' && role === 'user') {
+        const adminCount = await storage.getAdminCount();
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: "Cannot demote the last admin" });
+        }
+      }
+
+      // Prepare updates
+      const updates: Partial<User> = {};
+      if (email !== undefined) updates.email = email;
+      if (role !== undefined) updates.role = role;
+
+      // Update user
+      const updatedUser = await storage.updateUser(id, updates);
+      const { password, ...sanitizedUser } = updatedUser;
+
+      res.json(sanitizedUser);
+    } catch (error: any) {
+      console.error("Update user error:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete("/api/admin/users/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Get user to check if it's an admin
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // If user is admin, check if this is the last admin
+      if (user.role === 'admin') {
+        const adminCount = await storage.getAdminCount();
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: "Cannot delete the last admin" });
+        }
+      }
+
+      // Delete user (CASCADE will delete associated services)
+      await storage.deleteUser(id);
+
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
   // Get user by ID
   app.get("/api/users/:id", verifyApiKey, async (req, res) => {
     try {

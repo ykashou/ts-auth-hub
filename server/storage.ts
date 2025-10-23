@@ -13,6 +13,9 @@ export interface IStorage {
   createUserWithUuid(uuid: string, role?: "admin" | "user"): Promise<User>;
   getAllUsers(): Promise<User[]>;
   getUserCount(): Promise<number>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+  getAdminCount(): Promise<number>;
 
   // API Key operations
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
@@ -55,6 +58,25 @@ export class DatabaseStorage implements IStorage {
   async getUserCount(): Promise<number> {
     const allUsers = await db.select().from(users);
     return allUsers.length;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getAdminCount(): Promise<number> {
+    const allUsers = await db.select().from(users);
+    const adminUsers = allUsers.filter(user => user.role === 'admin');
+    return adminUsers.length;
   }
 
   async createAnonymousUser(role?: "admin" | "user"): Promise<User> {
