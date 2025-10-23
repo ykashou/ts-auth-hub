@@ -290,6 +290,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
+      // If this is the first admin, seed default RBAC models
+      if (user.role === 'admin' && isNewUser) {
+        try {
+          await storage.seedDefaultRbacModels(user.id);
+        } catch (seedError) {
+          console.error("Failed to seed default RBAC models:", seedError);
+          // Continue even if seeding fails - admin can create models manually
+        }
+      }
+
       // Generate JWT token (with service secret if serviceId provided)
       const token = await generateAuthToken(user.id, user.email || null, user.role, serviceId);
 
