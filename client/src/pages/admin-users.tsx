@@ -46,6 +46,7 @@ import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import Navbar from "@/components/Navbar";
 
 type User = {
   id: string;
@@ -149,11 +150,14 @@ export default function AdminUsers() {
       setSortField(field);
       setSortDirection("asc");
     }
+    // Clear selections when sort changes to avoid confusion
+    setSelectedUsers(new Set());
   };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedUsers(new Set(filteredAndSortedUsers.map(u => u.id)));
+      // Only select users on the current page
+      setSelectedUsers(new Set(paginatedUsers.map(u => u.id)));
     } else {
       setSelectedUsers(new Set());
     }
@@ -188,10 +192,42 @@ export default function AdminUsers() {
     deleteUserMutation.mutate(userId);
   };
 
-  const handleBulkDelete = () => {
-    selectedUsers.forEach(userId => {
-      deleteUserMutation.mutate(userId);
-    });
+  const handleBulkDelete = async () => {
+    const userIds = Array.from(selectedUsers);
+    let succeeded = 0;
+    let failed = 0;
+    let lastError = "";
+
+    for (const userId of userIds) {
+      try {
+        await apiRequest("DELETE", `/api/admin/users/${userId}`);
+        succeeded++;
+      } catch (error: any) {
+        failed++;
+        lastError = error.message || "Unknown error";
+      }
+    }
+
+    // Refresh the user list
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    
+    // Show appropriate toasts
+    if (succeeded > 0) {
+      toast({
+        title: "Success",
+        description: `Deleted ${succeeded} user${succeeded > 1 ? 's' : ''}`,
+      });
+    }
+    
+    if (failed > 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to delete ${failed} user${failed > 1 ? 's' : ''}: ${lastError}`,
+      });
+    }
+
+    setSelectedUsers(new Set());
     setBulkDeleteConfirm(false);
   };
 
@@ -275,8 +311,10 @@ export default function AdminUsers() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-2">
@@ -295,7 +333,10 @@ export default function AdminUsers() {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Select value={roleFilter} onValueChange={(value: any) => setRoleFilter(value)}>
+                <Select value={roleFilter} onValueChange={(value: any) => {
+                  setRoleFilter(value);
+                  setSelectedUsers(new Set()); // Clear selections when filter changes
+                }}>
                   <SelectTrigger className="w-[140px]" data-testid="select-role-filter">
                     <SelectValue placeholder="Filter by role" />
                   </SelectTrigger>
@@ -311,7 +352,10 @@ export default function AdminUsers() {
                     type="text"
                     placeholder="Search users..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSelectedUsers(new Set()); // Clear selections when search changes
+                    }}
                     className="pl-9 w-[250px]"
                     data-testid="input-search-users"
                   />
@@ -365,7 +409,7 @@ export default function AdminUsers() {
                       <TableRow>
                         <TableHead className="w-[50px]">
                           <Checkbox
-                            checked={selectedUsers.size === paginatedUsers.length && paginatedUsers.length > 0}
+                            checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUsers.has(u.id))}
                             onCheckedChange={handleSelectAll}
                             data-testid="checkbox-select-all"
                           />
@@ -560,6 +604,7 @@ export default function AdminUsers() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       {/* Edit User Dialog */}
@@ -656,6 +701,6 @@ export default function AdminUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
