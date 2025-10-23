@@ -11,6 +11,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import { Plus, Trash2, ShieldCheck, User as UserIcon, Box, Search } from "lucide-react";
 import type { User, Service, Role, UserServiceRole } from "@shared/schema";
+import Navbar from "@/components/Navbar";
 
 // Extended types for joined data
 interface UserServiceRoleWithDetails extends UserServiceRole {
@@ -249,7 +250,9 @@ export default function AdminRoleAssignments() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <>
+      <Navbar />
+      <div className="container mx-auto p-6 space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -556,5 +559,6 @@ export default function AdminRoleAssignments() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }
