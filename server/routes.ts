@@ -28,11 +28,12 @@ if (!process.env.SESSION_SECRET) {
 const JWT_SECRET = process.env.SESSION_SECRET;
 const SALT_ROUNDS = 10;
 
-// Helper function to generate JWT with appropriate secret
+// Helper function to generate JWT with appropriate secret and RBAC data
 async function generateAuthToken(userId: string, email: string | null, role: "admin" | "user", serviceId?: string): Promise<string> {
   let signingSecret = JWT_SECRET;
+  let payload: any = { id: userId, email: email, role: role };
   
-  // If serviceId is provided, sign with service's secret instead of SESSION_SECRET
+  // If serviceId is provided, sign with service's secret and include RBAC data
   if (serviceId) {
     const service = await storage.getServiceById(serviceId);
     if (!service) {
@@ -43,10 +44,18 @@ async function generateAuthToken(userId: string, email: string | null, role: "ad
     }
     // Decrypt the service secret to use for JWT signing
     signingSecret = decryptSecret(service.secret);
+    
+    // Get RBAC permissions for this user-service combination
+    const rbacData = await storage.getUserPermissionsForService(userId, serviceId);
+    
+    // Add RBAC data to payload
+    payload.rbacRole = rbacData.role;
+    payload.permissions = rbacData.permissions;
+    payload.rbacModel = rbacData.rbacModel;
   }
   
   return jwt.sign(
-    { id: userId, email: email, role: role },
+    payload,
     signingSecret,
     { expiresIn: "7d" }
   );
