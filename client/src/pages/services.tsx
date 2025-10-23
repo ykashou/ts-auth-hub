@@ -1,13 +1,19 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { type Service } from "@shared/schema";
+import { type Service, type RbacModel } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Loader2, Boxes } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink, Loader2, Boxes, Shield } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+
+// Extended service type with RBAC model
+type ServiceWithRbacModel = Service & {
+  rbacModel: RbacModel | null;
+};
 
 export default function Services() {
   const [, setLocation] = useLocation();
@@ -25,8 +31,8 @@ export default function Services() {
     return null;
   }
 
-  // Fetch all services
-  const { data: services = [], isLoading } = useQuery<Service[]>({
+  // Fetch all services (with RBAC models)
+  const { data: services = [], isLoading } = useQuery<ServiceWithRbacModel[]>({
     queryKey: ["/api/services"],
   });
 
@@ -97,6 +103,12 @@ export default function Services() {
                       </Button>
                     </div>
                     <CardTitle className="text-lg mt-3">{service.name}</CardTitle>
+                    {service.rbacModel && (
+                      <Badge variant="secondary" className="mt-2 gap-1" data-testid={`badge-rbac-${service.id}`}>
+                        <Shield className="w-3 h-3" />
+                        {service.rbacModel.name}
+                      </Badge>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <CardDescription className="text-sm leading-relaxed">

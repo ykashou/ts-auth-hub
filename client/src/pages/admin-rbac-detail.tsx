@@ -27,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download, Check, X, ChevronDown, ChevronRight, Box, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -41,6 +41,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+type Service = {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  url: string;
+  redirectUrl: string | null;
+  icon: string;
+  color: string | null;
+  secret: string | null;
+  secretPreview: string | null;
+  createdAt: string;
+};
 
 type Role = {
   id: string;
@@ -120,6 +134,13 @@ export default function AdminRbacDetail() {
   const { data: rolePermissions = [] } = useQuery<Permission[]>({
     queryKey: ["/api/admin/rbac/roles", assignPermissionsRoleId, "permissions"],
     enabled: isAdmin && !!assignPermissionsRoleId,
+  });
+
+  // Fetch services using this RBAC model
+  const { data: servicesUsingModel = [] } = useQuery<Service[]>({
+    queryKey: ["/api/admin/rbac/models", modelId, "services"],
+    enabled: isAdmin && !!modelId,
+    refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data
   });
 
   // Fetch all role-permission mappings for matrix view using the new batched endpoint
@@ -461,6 +482,56 @@ export default function AdminRbacDetail() {
             </div>
           </div>
         </div>
+
+        {/* Services Using This Model Section */}
+        {servicesUsingModel.length > 0 && (
+          <Card className="mb-6" data-testid="card-services-using-model">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Box className="w-5 h-5 text-primary" />
+                <CardTitle>Services Using This Model</CardTitle>
+              </div>
+              <CardDescription>
+                {servicesUsingModel.length} {servicesUsingModel.length === 1 ? 'service is' : 'services are'} using this RBAC model
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {servicesUsingModel.map((service) => (
+                  <div
+                    key={service.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover-elevate"
+                    data-testid={`service-item-${service.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate" data-testid={`service-name-${service.id}`}>
+                        {service.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {service.description}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      data-testid={`button-visit-service-${service.id}`}
+                    >
+                      <a
+                        href={service.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 max-w-2xl">

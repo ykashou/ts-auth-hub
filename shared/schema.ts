@@ -76,6 +76,14 @@ export const rolePermissions = pgTable("role_permissions", {
   permissionId: varchar("permission_id").notNull().references(() => permissions.id, { onDelete: "cascade" }),
 });
 
+// Service-RbacModel junction table - links services to their assigned RBAC models
+// Each service can have one RBAC model assigned
+export const serviceRbacModels = pgTable("service_rbac_models", {
+  serviceId: varchar("service_id").notNull().references(() => services.id, { onDelete: "cascade" }).unique(),
+  rbacModelId: varchar("rbac_model_id").notNull().references(() => rbacModels.id, { onDelete: "cascade" }),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -138,6 +146,10 @@ export const insertPermissionSchema = createInsertSchema(permissions).omit({
 
 export const insertRolePermissionSchema = createInsertSchema(rolePermissions);
 
+export const insertServiceRbacModelSchema = createInsertSchema(serviceRbacModels).omit({
+  assignedAt: true, // Auto-generated timestamp
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -164,5 +176,7 @@ export type InsertPermission = z.infer<typeof insertPermissionSchema>;
 export type Permission = typeof permissions.$inferSelect;
 export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
 export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertServiceRbacModel = z.infer<typeof insertServiceRbacModelSchema>;
+export type ServiceRbacModel = typeof serviceRbacModels.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;

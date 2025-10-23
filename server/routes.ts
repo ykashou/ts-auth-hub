@@ -635,7 +635,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Getting services for user:", req.user.id);
       const services = await storage.getAllServicesByUser(req.user.id);
       console.log("Found services:", services.length);
-      res.json(services);
+      
+      // Fetch RBAC model for each service
+      const servicesWithRbacModels = await Promise.all(
+        services.map(async (service) => {
+          const rbacModel = await storage.getRbacModelForService(service.id);
+          return {
+            ...service,
+            rbacModel: rbacModel || null,
+          };
+        })
+      );
+      
+      res.json(servicesWithRbacModels);
     } catch (error: any) {
       console.error("Get services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
@@ -813,6 +825,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Verify secret error:", error);
       res.status(500).json({ error: "Failed to verify secret" });
+    }
+  });
+
+  // ==================== Service-RBAC Model Assignment Routes ====================
+  
+  // Assign RBAC model to a service
+  app.post("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+      const { rbacModelId } = req.body;
+
+      if (!rbacModelId) {
+        return res.status(400).json({ error: "rbacModelId is required" });
+      }
+
+      // Verify the service belongs to the user
+      const service = await storage.getService(serviceId, req.user!.id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Verify the RBAC model exists
+      const model = await storage.getRbacModel(rbacModelId);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      await storage.assignRbacModelToService(serviceId, rbacModelId);
+
+      res.json({
+        success: true,
+        message: "RBAC model assigned to service successfully",
+      });
+    } catch (error: any) {
+      console.error("Assign RBAC model to service error:", error);
+      res.status(500).json({ error: "Failed to assign RBAC model to service" });
+    }
+  });
+
+  // Remove RBAC model from a service
+  app.delete("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+
+      // Verify the service belongs to the user
+      const service = await storage.getService(serviceId, req.user!.id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      await storage.removeRbacModelFromService(serviceId);
+
+      res.json({
+        success: true,
+        message: "RBAC model removed from service successfully",
+      });
+    } catch (error: any) {
+      console.error("Remove RBAC model from service error:", error);
+      res.status(500).json({ error: "Failed to remove RBAC model from service" });
+    }
+  });
+
+  // Get RBAC model for a service
+  app.get("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+
+      // Verify the service belongs to the user
+      const service = await storage.getService(serviceId, req.user!.id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const model = await storage.getRbacModelForService(serviceId);
+
+      res.json(model || null);
+    } catch (error: any) {
+      console.error("Get RBAC model for service error:", error);
+      res.status(500).json({ error: "Failed to fetch RBAC model for service" });
+    }
+  });
+
+  // Get all services using a specific RBAC model (admin only)
+  app.get("/api/admin/rbac/models/:id/services", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: modelId } = req.params;
+
+      // Verify the RBAC model exists
+      const model = await storage.getRbacModel(modelId);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      const services = await storage.getServicesForRbacModel(modelId);
+
+      res.json(services);
+    } catch (error: any) {
+      console.error("Get services for RBAC model error:", error);
+      res.status(500).json({ error: "Failed to fetch services for RBAC model" });
     }
   });
 

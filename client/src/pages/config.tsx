@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertServiceSchema, type Service, type InsertService } from "@shared/schema";
+import { insertServiceSchema, type Service, type InsertService, type RbacModel } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,6 +35,8 @@ export default function Config() {
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [secretServiceName, setSecretServiceName] = useState<string>("");
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
+  const [selectedRbacModelId, setSelectedRbacModelId] = useState<string>("");
+  const [previousRbacModelId, setPreviousRbacModelId] = useState<string>("");
 
   // Check authentication and admin role
   useEffect(() => {
@@ -53,6 +55,11 @@ export default function Config() {
   // Fetch all services with secrets (admin endpoint)
   const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services/admin"],
+  });
+
+  // Fetch all RBAC models (admin endpoint)
+  const { data: rbacModels = [] } = useQuery<RbacModel[]>({
+    queryKey: ["/api/admin/rbac/models"],
   });
 
   // Sort services alphabetically by name
@@ -109,14 +116,41 @@ export default function Config() {
     mutationFn: async ({ id, data }: { id: string; data: InsertService }) => {
       return await apiRequest("PATCH", `/api/services/${id}`, data);
     },
-    onSuccess: () => {
+    onSuccess: async (_, { id }) => {
+      // Update RBAC model assignment if changed
+      if (editingService) {
+        await updateRbacModelAssignment(id);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      
+      // Invalidate RBAC model queries - both general list and specific model services
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models"] });
+      
+      // Explicitly invalidate the services query for the previous model (if any)
+      if (previousRbacModelId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/admin/rbac/models", previousRbacModelId, "services"],
+          refetchType: 'active' // Only refetch if query is currently active
+        });
+      }
+      
+      // Explicitly invalidate the services query for the new model (if any)
+      if (selectedRbacModelId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/admin/rbac/models", selectedRbacModelId, "services"],
+          refetchType: 'active' // Only refetch if query is currently active
+        });
+      }
+      
       toast({
         title: "Service updated",
         description: "The service has been updated successfully",
       });
       setEditingService(null);
+      setSelectedRbacModelId("");
+      setPreviousRbacModelId("");
       form.reset();
     },
     onError: (error: any) => {
@@ -127,6 +161,27 @@ export default function Config() {
       });
     },
   });
+
+  // Helper function to update RBAC model assignment
+  const updateRbacModelAssignment = async (serviceId: string) => {
+    try {
+      if (selectedRbacModelId) {
+        // Assign the selected RBAC model
+        await apiRequest("POST", `/api/services/${serviceId}/rbac-model`, { rbacModelId: selectedRbacModelId });
+      } else {
+        // Remove the RBAC model assignment
+        await apiRequest("DELETE", `/api/services/${serviceId}/rbac-model`);
+      }
+    } catch (error: any) {
+      console.error("Failed to update RBAC model assignment:", error);
+      // Show a toast for RBAC model assignment failure
+      toast({
+        title: "RBAC model assignment failed",
+        description: error.message || "Failed to update RBAC model assignment",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Delete service mutation
   const deleteMutation = useMutation({
@@ -164,7 +219,7 @@ export default function Config() {
     }
   };
 
-  const handleEdit = (service: Service) => {
+  const handleEdit = async (service: Service) => {
     setEditingService(service);
     form.reset({
       name: service.name,
@@ -174,6 +229,18 @@ export default function Config() {
       icon: service.icon,
       color: service.color || "",
     });
+
+    // Fetch the RBAC model for this service
+    try {
+      const rbacModel = await apiRequest("GET", `/api/services/${service.id}/rbac-model`);
+      const modelId = rbacModel?.id || "";
+      setSelectedRbacModelId(modelId);
+      setPreviousRbacModelId(modelId); // Track the original model ID
+    } catch (error) {
+      console.error("Failed to fetch RBAC model for service:", error);
+      setSelectedRbacModelId("");
+      setPreviousRbacModelId("");
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -186,6 +253,8 @@ export default function Config() {
     if (!open) {
       setIsAddDialogOpen(false);
       setEditingService(null);
+      setSelectedRbacModelId("");
+      setPreviousRbacModelId("");
       form.reset();
     }
   };
@@ -392,6 +461,35 @@ export default function Config() {
                       </FormItem>
                     )}
                   />
+                  
+                  {/* RBAC Model Selector - shown for both create and edit */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      RBAC Model (Optional)
+                    </label>
+                    <Select 
+                      value={selectedRbacModelId || "none"} 
+                      onValueChange={(value) => setSelectedRbacModelId(value === "none" ? "" : value)}
+                    >
+                      <SelectTrigger data-testid="select-rbac-model">
+                        <SelectValue placeholder="No RBAC model assigned" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" data-testid="option-no-rbac">
+                          None
+                        </SelectItem>
+                        {rbacModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id} data-testid={`option-rbac-${model.id}`}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground">
+                      Assign an RBAC model to define roles and permissions for this service
+                    </p>
+                  </div>
+
                   <div className="flex justify-end gap-2 pt-4">
                     <Button
                       type="button"

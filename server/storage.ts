@@ -1,5 +1,5 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission } from "@shared/schema";
+import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -61,6 +61,12 @@ export interface IStorage {
   // RBAC Seeding
   seedDefaultRbacModels(userId: string): Promise<void>;
   getRbacModelCount(): Promise<number>;
+
+  // Service-RBAC Model Assignment operations
+  assignRbacModelToService(serviceId: string, rbacModelId: string): Promise<void>;
+  removeRbacModelFromService(serviceId: string): Promise<void>;
+  getRbacModelForService(serviceId: string): Promise<RbacModel | undefined>;
+  getServicesForRbacModel(rbacModelId: string): Promise<Service[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -706,6 +712,58 @@ export class DatabaseStorage implements IStorage {
     ]);
 
     console.log("✅ Successfully seeded 3 comprehensive RBAC models with realistic role hierarchies and permissions");
+  }
+
+  // Service-RBAC Model Assignment operations
+  async assignRbacModelToService(serviceId: string, rbacModelId: string): Promise<void> {
+    // First check if the service already has a model assigned
+    const existing = await db
+      .select()
+      .from(serviceRbacModels)
+      .where(eq(serviceRbacModels.serviceId, serviceId));
+
+    if (existing.length > 0) {
+      // Update the existing assignment
+      await db
+        .update(serviceRbacModels)
+        .set({ rbacModelId })
+        .where(eq(serviceRbacModels.serviceId, serviceId));
+    } else {
+      // Insert new assignment
+      await db
+        .insert(serviceRbacModels)
+        .values({ serviceId, rbacModelId });
+    }
+  }
+
+  async removeRbacModelFromService(serviceId: string): Promise<void> {
+    await db
+      .delete(serviceRbacModels)
+      .where(eq(serviceRbacModels.serviceId, serviceId));
+  }
+
+  async getRbacModelForService(serviceId: string): Promise<RbacModel | undefined> {
+    const [assignment] = await db
+      .select({
+        model: rbacModels
+      })
+      .from(serviceRbacModels)
+      .innerJoin(rbacModels, eq(serviceRbacModels.rbacModelId, rbacModels.id))
+      .where(eq(serviceRbacModels.serviceId, serviceId));
+
+    return assignment?.model;
+  }
+
+  async getServicesForRbacModel(rbacModelId: string): Promise<Service[]> {
+    const assignments = await db
+      .select({
+        service: services
+      })
+      .from(serviceRbacModels)
+      .innerJoin(services, eq(serviceRbacModels.serviceId, services.id))
+      .where(eq(serviceRbacModels.rbacModelId, rbacModelId));
+
+    return assignments.map(a => a.service);
   }
 }
 
