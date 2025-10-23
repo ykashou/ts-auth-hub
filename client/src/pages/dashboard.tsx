@@ -33,6 +33,11 @@ export default function DashboardPage() {
     return null;
   }
 
+  // Fetch current user's information
+  const { data: currentUser } = useQuery<User>({
+    queryKey: ["/api/me"],
+  });
+
   const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
@@ -82,6 +87,63 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
+
+          {/* Current User Account Info */}
+          {currentUser && (
+            <Card className="border-primary/50" data-testid="card-current-user">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-primary" />
+                  Your Account
+                </CardTitle>
+                <CardDescription>
+                  {currentUser.email ? 'Your account information' : '⚠️ Save your UUID - this is your only way to log back in!'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">User ID (UUID)</p>
+                  <div className="flex items-center gap-2">
+                    <code 
+                      className="flex-1 text-sm font-mono bg-muted p-2 rounded border select-all" 
+                      data-testid="text-current-user-id"
+                    >
+                      {currentUser.id}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(currentUser.id, 'current-user')}
+                      data-testid="button-copy-current-user-id"
+                    >
+                      {copiedId === 'current-user' ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                {currentUser.email && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">Email</p>
+                    <p className="text-sm" data-testid="text-current-user-email">{currentUser.email}</p>
+                  </div>
+                )}
+                {!currentUser.email && (
+                  <div className="bg-destructive/10 border border-destructive/30 p-3 rounded-lg">
+                    <p className="text-xs text-destructive font-semibold">
+                      ⚠️ Anonymous Account - Important!
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You are logged in with a UUID-only account. Copy and save your UUID above - you'll need it to log back in. 
+                      There is no password recovery for anonymous accounts.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -327,6 +327,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User Management Routes
 
+  // Get current authenticated user's information
+  app.get("/api/me", verifyToken, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const user = await storage.getUser(req.user.id);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Don't send password hash
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      console.error("Get current user error:", error);
+      res.status(500).json({ error: "Failed to fetch user information" });
+    }
+  });
+
   // Get all users (admin)
   app.get("/api/users", verifyToken, async (req, res) => {
     try {
