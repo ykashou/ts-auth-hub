@@ -14,7 +14,27 @@ AuthHub is a centralized authentication service designed to be the single source
   - Added "Services Using This Model" section on RBAC detail page
   - Comprehensive cache invalidation using refetchType: 'active' and refetchOnMount: 'always'
   - Successfully tested complete assignment/removal flow with real-time UI updates
-- ⏳ Task 10: User-Role Assignment (assigning users to roles within services) - Next milestone
+- ✅ **Task 10 Completed: User-Role Assignment** - Full implementation allowing admins to assign users to roles within services
+  - Added userServiceRoles junction table with unique constraint on (userId, serviceId, roleId) using Drizzle's uniqueIndex
+  - Implemented 6 storage methods: assignUserToServiceRole, removeUserFromServiceRole, getUserServiceRoles, getServiceUserRoles, getRoleUserAssignments, getAllUserServiceRoles
+  - Created 5 API endpoints with comprehensive validation:
+    - GET /api/admin/user-service-roles (global assignments list)
+    - POST /api/admin/user-service-roles (with RBAC model integrity validation and duplicate error handling)
+    - DELETE /api/admin/user-service-roles/:id
+    - GET /api/admin/users/:userId/service-roles
+    - GET /api/admin/services/:serviceId/user-roles
+  - Backend validation ensures service has RBAC model assigned and role belongs to that model
+  - Duplicate assignments return 409 status with descriptive error instead of 500
+  - Created dedicated admin-role-assignments.tsx page at /admin/role-assignments with:
+    - Stats cards showing total users, services, and assignments
+    - Search bar with real-time filtering across user emails, service names, and role names/descriptions
+    - Three-filter system: Filter by User, Filter by Service, Filter by Role
+    - Assignment cards displaying user email, service name, and actual role name with description (not just IDs)
+    - Create assignment dialog with cascading dropdowns (service selection loads available roles from its RBAC model)
+    - Delete assignment functionality with confirmation
+  - Comprehensive cache invalidation strategy on all mutations
+  - Role assignments enriched with user, service, and role details for optimal UX
+  - Registered route and added navbar link for admin access
 
 ## User Preferences
 - Professional, trustworthy aesthetic

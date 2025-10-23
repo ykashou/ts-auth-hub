@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
-import { Plus, Trash2, ShieldCheck, User as UserIcon, Box } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, User as UserIcon, Box, Search } from "lucide-react";
 import type { User, Service, Role, UserServiceRole } from "@shared/schema";
 
 // Extended types for joined data
@@ -27,6 +28,8 @@ export default function AdminRoleAssignments() {
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
   const [filterUserId, setFilterUserId] = useState<string>("all");
   const [filterServiceId, setFilterServiceId] = useState<string>("all");
+  const [filterRoleId, setFilterRoleId] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Check authentication and admin role
   useEffect(() => {
@@ -67,6 +70,25 @@ export default function AdminRoleAssignments() {
     enabled: !!serviceRbacModel?.id,
   });
 
+  // Fetch all roles from all RBAC models for enrichment and filtering
+  const roleQueriesResults = useQuery({
+    queryKey: ["/api/admin/rbac/all-roles"],
+    queryFn: async () => {
+      const allRoles: Role[] = [];
+      for (const model of rbacModels) {
+        const response = await fetch(`/api/admin/rbac/models/${model.id}/roles`);
+        if (response.ok) {
+          const roles = await response.json();
+          allRoles.push(...roles);
+        }
+      }
+      return allRoles;
+    },
+    enabled: rbacModels.length > 0,
+  });
+
+  const allRoles = roleQueriesResults.data || [];
+
   // Fetch all user service roles (always fetch)
   const { data: globalAssignments = [] } = useQuery<UserServiceRole[]>({
     queryKey: ["/api/admin/user-service-roles"],
@@ -93,16 +115,40 @@ export default function AdminRoleAssignments() {
     : globalAssignments;
 
   // Enrich assignments with user, service, and role details
-  const enrichedAssignments: UserServiceRoleWithDetails[] = allAssignments.map(assignment => {
+  let enrichedAssignments: UserServiceRoleWithDetails[] = allAssignments.map(assignment => {
     const user = users.find(u => u.id === assignment.userId);
     const service = services.find(s => s.id === assignment.serviceId);
-    // We need to fetch the role separately - for now just include the IDs
+    const role = allRoles.find(r => r.id === assignment.roleId);
     return {
       ...assignment,
       user,
       service,
+      role,
     };
   });
+
+  // Apply role filter
+  if (filterRoleId !== "all") {
+    enrichedAssignments = enrichedAssignments.filter(a => a.roleId === filterRoleId);
+  }
+
+  // Apply search filter
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    enrichedAssignments = enrichedAssignments.filter(assignment => {
+      const userEmail = assignment.user?.email?.toLowerCase() || "";
+      const userId = assignment.userId.toLowerCase();
+      const serviceName = assignment.service?.name?.toLowerCase() || "";
+      const roleName = assignment.role?.name?.toLowerCase() || "";
+      const roleDescription = assignment.role?.description?.toLowerCase() || "";
+      
+      return userEmail.includes(query) || 
+             userId.includes(query) ||
+             serviceName.includes(query) ||
+             roleName.includes(query) ||
+             roleDescription.includes(query);
+    });
+  }
 
   // Mutation to assign user to role
   const assignMutation = useMutation({
@@ -255,15 +301,35 @@ export default function AdminRoleAssignments() {
         </Card>
       </div>
 
+      {/* Search Bar */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Search</CardTitle>
+          <CardDescription>Search across users, services, and roles</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by user email, service name, or role name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-search"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter role assignments by user or service</CardDescription>
+          <CardDescription>Filter role assignments by user, service, or role</CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-4">
-          <div className="flex-1">
-            <label className="text-sm font-medium mb-2 block">Filter by User</label>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Filter by User</label>
             <Select value={filterUserId} onValueChange={setFilterUserId}>
               <SelectTrigger data-testid="select-filter-user">
                 <SelectValue placeholder="All Users" />
@@ -279,8 +345,8 @@ export default function AdminRoleAssignments() {
             </Select>
           </div>
 
-          <div className="flex-1">
-            <label className="text-sm font-medium mb-2 block">Filter by Service</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Filter by Service</label>
             <Select 
               value={filterServiceId} 
               onValueChange={setFilterServiceId}
@@ -299,19 +365,40 @@ export default function AdminRoleAssignments() {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Filter by Role</label>
+            <Select value={filterRoleId} onValueChange={setFilterRoleId}>
+              <SelectTrigger data-testid="select-filter-role">
+                <SelectValue placeholder="All Roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {allRoles.map((role) => (
+                  <SelectItem key={role.id} value={role.id} data-testid={`option-role-${role.id}`}>
+                    {role.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
       {/* Assignments Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Assignments</CardTitle>
+          <CardTitle>Active Assignments ({enrichedAssignments.length})</CardTitle>
           <CardDescription>
-            {filterUserId !== "all" 
+            {searchQuery.trim() 
+              ? `Showing ${enrichedAssignments.length} assignments matching "${searchQuery}"`
+              : filterUserId !== "all" 
               ? `Showing assignments for ${users.find(u => u.id === filterUserId)?.email || "selected user"}`
               : filterServiceId !== "all"
               ? `Showing assignments for ${services.find(s => s.id === filterServiceId)?.name || "selected service"}`
-              : "Select a user or service to view assignments"}
+              : filterRoleId !== "all"
+              ? `Showing assignments for role: ${allRoles.find(r => r.id === filterRoleId)?.name || "selected role"}`
+              : `Showing all ${enrichedAssignments.length} assignments`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -343,10 +430,15 @@ export default function AdminRoleAssignments() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <ShieldCheck className="w-4 h-4" />
-                      <span data-testid={`assignment-role-${assignment.id}`}>
-                        Role ID: {assignment.roleId}
+                      <ShieldCheck className="w-4 h-4 text-primary" />
+                      <span className="font-medium" data-testid={`assignment-role-${assignment.id}`}>
+                        {assignment.role?.name || assignment.roleId}
                       </span>
+                      {assignment.role?.description && (
+                        <span className="text-xs text-muted-foreground">
+                          - {assignment.role.description}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <Button
