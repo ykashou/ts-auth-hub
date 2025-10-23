@@ -761,6 +761,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== RBAC Model Routes ====================
+  
+  // Get all RBAC models (admin only)
+  app.get("/api/admin/rbac/models", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const models = await storage.getAllRbacModels();
+      res.json(models);
+    } catch (error: any) {
+      console.error("Get RBAC models error:", error);
+      res.status(500).json({ error: "Failed to fetch RBAC models" });
+    }
+  });
+
+  // Get single RBAC model (admin only)
+  app.get("/api/admin/rbac/models/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getRbacModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      res.json(model);
+    } catch (error: any) {
+      console.error("Get RBAC model error:", error);
+      res.status(500).json({ error: "Failed to fetch RBAC model" });
+    }
+  });
+
+  // Create RBAC model (admin only)
+  app.post("/api/admin/rbac/models", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { name, description } = req.body;
+
+      // Validate input
+      if (!name || !description) {
+        return res.status(400).json({ error: "Name and description are required" });
+      }
+
+      const model = await storage.createRbacModel({
+        name,
+        description,
+        createdBy: userId,
+      });
+
+      res.status(201).json(model);
+    } catch (error: any) {
+      console.error("Create RBAC model error:", error);
+      res.status(500).json({ error: "Failed to create RBAC model" });
+    }
+  });
+
+  // Update RBAC model (admin only)
+  app.patch("/api/admin/rbac/models/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      // Check if model exists
+      const existingModel = await storage.getRbacModel(id);
+      if (!existingModel) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      // Prepare updates
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updatedModel = await storage.updateRbacModel(id, updates);
+      res.json(updatedModel);
+    } catch (error: any) {
+      console.error("Update RBAC model error:", error);
+      res.status(500).json({ error: "Failed to update RBAC model" });
+    }
+  });
+
+  // Delete RBAC model (admin only)
+  app.delete("/api/admin/rbac/models/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if model exists
+      const model = await storage.getRbacModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      await storage.deleteRbacModel(id);
+      res.json({ success: true, message: "RBAC model deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete RBAC model error:", error);
+      res.status(500).json({ error: "Failed to delete RBAC model" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
