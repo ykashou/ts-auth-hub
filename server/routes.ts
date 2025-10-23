@@ -101,13 +101,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User with this email already exists" });
       }
 
+      // Check if this is the first user - if so, promote to admin
+      const userCount = await storage.getUserCount();
+      const role = userCount === 0 ? "admin" : "user";
+
       // Hash password
       const hashedPassword = await bcrypt.hash(validatedData.password, SALT_ROUNDS);
 
-      // Create user
+      // Create user with appropriate role
       const user = await storage.createUser({
         email: validatedData.email,
         password: hashedPassword,
+        role: role,
       });
 
       // Auto-seed default services for new user
@@ -201,12 +206,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // If UUID doesn't exist, auto-register it
         if (!user) {
-          user = await storage.createUserWithUuid(validatedData.uuid);
+          // Check if this is the first user - if so, promote to admin
+          const userCount = await storage.getUserCount();
+          const role = userCount === 0 ? "admin" : "user";
+          user = await storage.createUserWithUuid(validatedData.uuid, role);
           isNewUser = true;
         }
       } else {
         // No UUID provided - generate new anonymous user
-        user = await storage.createAnonymousUser();
+        // Check if this is the first user - if so, promote to admin
+        const userCount = await storage.getUserCount();
+        const role = userCount === 0 ? "admin" : "user";
+        user = await storage.createAnonymousUser(role);
         isNewUser = true;
       }
 

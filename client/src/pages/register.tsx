@@ -78,10 +78,20 @@ export default function RegisterPage() {
       }
       setAuthToken(data.token);
       setGeneratedUuid(data.user.id);
-      toast({
-        title: "Account created successfully!",
-        description: "Your unique UUID has been generated",
-      });
+      
+      // Show admin promotion toast if user is first user
+      if (data.user.role === 'admin') {
+        toast({
+          title: "Account created successfully!",
+          description: "🎉 You are the first user - promoted to Admin!",
+        });
+      } else {
+        toast({
+          title: "Account created successfully!",
+          description: "Your unique UUID has been generated",
+        });
+      }
+      
       // Redirect after 3 seconds to show UUID
       setTimeout(() => {
         handlePostAuthRedirect(data.token, data.user.id);

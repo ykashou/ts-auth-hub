@@ -120,12 +120,21 @@ export default function LoginPage() {
         // Clear all cached data when logging in to prevent showing previous user's data
         queryClient.clear();
       }
-      toast({
-        title: "Login successful",
-        description: data.user.email 
-          ? `Welcome back! Your UUID is ${data.user.id}`
-          : `New UUID created: ${data.user.id}`,
-      });
+      
+      // Show admin promotion toast if user is first user
+      if (data.user.role === 'admin' && !data.user.email) {
+        toast({
+          title: "Login successful",
+          description: `🎉 First user - promoted to Admin! UUID: ${data.user.id}`,
+        });
+      } else {
+        toast({
+          title: "Login successful",
+          description: data.user.email 
+            ? `Welcome back! Your UUID is ${data.user.id}`
+            : `New UUID created: ${data.user.id}`,
+        });
+      }
       handlePostAuthRedirect(data.token, data.user);
     },
     onError: (error: any) => {
@@ -153,10 +162,19 @@ export default function LoginPage() {
         // Clear all cached data when logging in to prevent showing previous user's data
         queryClient.clear();
       }
-      toast({
-        title: "UUID Generated!",
-        description: `Your new Account ID: ${data.user.id}`,
-      });
+      
+      // Show admin promotion toast if user is first user
+      if (data.user.role === 'admin') {
+        toast({
+          title: "UUID Generated!",
+          description: `🎉 First user - promoted to Admin! ID: ${data.user.id}`,
+        });
+      } else {
+        toast({
+          title: "UUID Generated!",
+          description: `Your new Account ID: ${data.user.id}`,
+        });
+      }
       handlePostAuthRedirect(data.token, data.user);
     },
     onError: (error: any) => {

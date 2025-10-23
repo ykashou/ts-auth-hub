@@ -9,9 +9,10 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  createAnonymousUser(): Promise<User>;
-  createUserWithUuid(uuid: string): Promise<User>;
+  createAnonymousUser(role?: "admin" | "user"): Promise<User>;
+  createUserWithUuid(uuid: string, role?: "admin" | "user"): Promise<User>;
   getAllUsers(): Promise<User[]>;
+  getUserCount(): Promise<number>;
 
   // API Key operations
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
@@ -51,20 +52,25 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  async createAnonymousUser(): Promise<User> {
+  async getUserCount(): Promise<number> {
+    const allUsers = await db.select().from(users);
+    return allUsers.length;
+  }
+
+  async createAnonymousUser(role?: "admin" | "user"): Promise<User> {
     // Create anonymous user with auto-generated UUID, no email/password
     const [user] = await db
       .insert(users)
-      .values({})
+      .values({ role: role || "user" })
       .returning();
     return user;
   }
 
-  async createUserWithUuid(uuid: string): Promise<User> {
+  async createUserWithUuid(uuid: string, role?: "admin" | "user"): Promise<User> {
     // Create user with specific UUID, no email/password
     const [user] = await db
       .insert(users)
-      .values({ id: uuid })
+      .values({ id: uuid, role: role || "user" })
       .returning();
     return user;
   }

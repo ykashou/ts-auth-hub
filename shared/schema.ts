@@ -44,9 +44,11 @@ export const services = pgTable("services", {
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
+  role: true,
 }).extend({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["admin", "user"]).optional(),
 });
 
 export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
