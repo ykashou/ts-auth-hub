@@ -27,11 +27,19 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Shield, Key, Eye, Download, Check, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Navbar from "@/components/Navbar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type Role = {
   id: string;
@@ -109,6 +117,26 @@ export default function AdminRbacDetail() {
   const { data: rolePermissions = [] } = useQuery<Permission[]>({
     queryKey: ["/api/admin/rbac/roles", assignPermissionsRoleId, "permissions"],
     enabled: isAdmin && !!assignPermissionsRoleId,
+  });
+
+  // Fetch all role-permission mappings for matrix view
+  const { data: allRolePermissionMappings = [] } = useQuery<Array<{ roleId: string; permissions: Permission[] }>>({
+    queryKey: ["/api/admin/rbac/models", modelId, "role-permission-mappings"],
+    queryFn: async () => {
+      const mappings = await Promise.all(
+        roles.map(async (role) => {
+          const response = await fetch(`/api/admin/rbac/roles/${role.id}/permissions`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          });
+          const permissions = await response.json();
+          return { roleId: role.id, permissions };
+        })
+      );
+      return mappings;
+    },
+    enabled: isAdmin && !!modelId && roles.length > 0,
   });
 
   // Mutations
@@ -220,6 +248,23 @@ export default function AdminRbacDetail() {
     setFormName("");
     setFormDescription("");
   };
+
+  // Helper function to check if a role has a permission
+  const roleHasPermission = (roleId: string, permissionId: string): boolean => {
+    const mapping = allRolePermissionMappings.find(m => m.roleId === roleId);
+    return mapping?.permissions.some(p => p.id === permissionId) || false;
+  };
+
+  // Filter roles and permissions based on search
+  const filteredRoles = roles.filter(role =>
+    role.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    role.description.toLowerCase().includes(searchFilter.toLowerCase())
+  );
+
+  const filteredPermissions = permissions.filter(permission =>
+    permission.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    permission.description.toLowerCase().includes(searchFilter.toLowerCase())
+  );
 
   const handleCreateRole = () => {
     if (!formName.trim() || !formDescription.trim()) {
@@ -541,12 +586,54 @@ export default function AdminRbacDetail() {
               </Button>
             </div>
 
-            {/* View Content - Placeholder for now */}
+            {/* View Content */}
             <div data-testid="visualization-content">
               {viewType === "matrix" && (
-                <div className="text-muted-foreground text-center py-12">
-                  Permission Matrix View (Coming next)
-                </div>
+                <Card>
+                  <CardContent className="p-6">
+                    {filteredRoles.length === 0 || filteredPermissions.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">
+                        {searchFilter ? "No matching roles or permissions found" : "Create roles and permissions to view the matrix"}
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="font-semibold">Permission</TableHead>
+                              {filteredRoles.map(role => (
+                                <TableHead key={role.id} className="text-center font-semibold min-w-32" data-testid={`matrix-header-${role.id}`}>
+                                  {role.name}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredPermissions.map(permission => (
+                              <TableRow key={permission.id} data-testid={`matrix-row-${permission.id}`}>
+                                <TableCell className="font-medium">
+                                  <div>
+                                    <div className="font-semibold">{permission.name}</div>
+                                    <div className="text-sm text-muted-foreground">{permission.description}</div>
+                                  </div>
+                                </TableCell>
+                                {filteredRoles.map(role => (
+                                  <TableCell key={role.id} className="text-center" data-testid={`matrix-cell-${role.id}-${permission.id}`}>
+                                    {roleHasPermission(role.id, permission.id) ? (
+                                      <Check className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto" data-testid={`matrix-check-${role.id}-${permission.id}`} />
+                                    ) : (
+                                      <X className="h-5 w-5 text-muted-foreground/30 mx-auto" data-testid={`matrix-x-${role.id}-${permission.id}`} />
+                                    )}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
               {viewType === "tree" && (
                 <div className="text-muted-foreground text-center py-12">
