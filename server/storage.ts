@@ -1,5 +1,5 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission } from "@shared/schema";
+import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -67,6 +67,14 @@ export interface IStorage {
   removeRbacModelFromService(serviceId: string): Promise<void>;
   getRbacModelForService(serviceId: string): Promise<RbacModel | undefined>;
   getServicesForRbacModel(rbacModelId: string): Promise<Service[]>;
+
+  // User-Service-Role Assignment operations
+  assignUserToServiceRole(userId: string, serviceId: string, roleId: string): Promise<UserServiceRole>;
+  removeUserFromServiceRole(assignmentId: string): Promise<void>;
+  getUserServiceRoles(userId: string): Promise<UserServiceRole[]>;
+  getServiceUserRoles(serviceId: string): Promise<UserServiceRole[]>;
+  getRoleUserAssignments(roleId: string): Promise<UserServiceRole[]>;
+  getAllUserServiceRoles(): Promise<UserServiceRole[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -764,6 +772,48 @@ export class DatabaseStorage implements IStorage {
       .where(eq(serviceRbacModels.rbacModelId, rbacModelId));
 
     return assignments.map(a => a.service);
+  }
+
+  // User-Service-Role Assignment operations
+  async assignUserToServiceRole(userId: string, serviceId: string, roleId: string): Promise<UserServiceRole> {
+    const [assignment] = await db
+      .insert(userServiceRoles)
+      .values({ userId, serviceId, roleId })
+      .returning();
+    return assignment;
+  }
+
+  async removeUserFromServiceRole(assignmentId: string): Promise<void> {
+    await db
+      .delete(userServiceRoles)
+      .where(eq(userServiceRoles.id, assignmentId));
+  }
+
+  async getUserServiceRoles(userId: string): Promise<UserServiceRole[]> {
+    return await db
+      .select()
+      .from(userServiceRoles)
+      .where(eq(userServiceRoles.userId, userId));
+  }
+
+  async getServiceUserRoles(serviceId: string): Promise<UserServiceRole[]> {
+    return await db
+      .select()
+      .from(userServiceRoles)
+      .where(eq(userServiceRoles.serviceId, serviceId));
+  }
+
+  async getRoleUserAssignments(roleId: string): Promise<UserServiceRole[]> {
+    return await db
+      .select()
+      .from(userServiceRoles)
+      .where(eq(userServiceRoles.roleId, roleId));
+  }
+
+  async getAllUserServiceRoles(): Promise<UserServiceRole[]> {
+    return await db
+      .select()
+      .from(userServiceRoles);
   }
 }
 

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ export default function Navbar() {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: Home, testId: "button-dashboard", adminOnly: false },
     { path: "/admin/users", label: "User Management", icon: Users, testId: "button-user-management", adminOnly: true },
+    { path: "/admin/role-assignments", label: "Role Assignments", icon: ShieldCheck, testId: "button-role-assignments", adminOnly: true },
     { path: "/admin/rbac", label: "RBAC Models", icon: Shield, testId: "button-rbac-models", adminOnly: true },
     { path: "/services", label: "Services", icon: Boxes, testId: "button-services", adminOnly: true },
     { path: "/config", label: "Config", icon: Settings2, testId: "button-config", adminOnly: true },

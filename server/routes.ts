@@ -927,6 +927,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== User-Service-Role Assignment Routes ====================
+  
+  // Get all user-service-role assignments (admin only)
+  app.get("/api/admin/user-service-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getAllUserServiceRoles();
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Get all user service roles error:", error);
+      res.status(500).json({ error: "Failed to fetch user service roles" });
+    }
+  });
+
+  // Assign user to role in a service (admin only)
+  app.post("/api/admin/user-service-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { userId, serviceId, roleId } = req.body;
+
+      // Validate required fields
+      if (!userId || !serviceId || !roleId) {
+        return res.status(400).json({ error: "userId, serviceId, and roleId are required" });
+      }
+
+      // Verify user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Verify service exists
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Verify service has an RBAC model assigned
+      const serviceRbacModel = await storage.getRbacModelForService(serviceId);
+      if (!serviceRbacModel) {
+        return res.status(400).json({ error: "Service does not have an RBAC model assigned. Please assign one first." });
+      }
+
+      // Verify role exists and belongs to the service's RBAC model
+      const role = await storage.getRole(roleId);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+
+      if (role.rbacModelId !== serviceRbacModel.id) {
+        return res.status(400).json({ 
+          error: "Role does not belong to this service's RBAC model",
+          details: `Role belongs to model ${role.rbacModelId} but service uses model ${serviceRbacModel.id}`
+        });
+      }
+
+      try {
+        const assignment = await storage.assignUserToServiceRole(userId, serviceId, roleId);
+        res.json(assignment);
+      } catch (dbError: any) {
+        // Check if this is a unique constraint violation
+        if (dbError.code === '23505' || dbError.message?.includes('duplicate') || dbError.message?.includes('unique')) {
+          return res.status(409).json({ 
+            error: "User is already assigned to this role for this service",
+            details: "This assignment already exists"
+          });
+        }
+        throw dbError; // Re-throw if it's not a duplicate error
+      }
+    } catch (error: any) {
+      console.error("Assign user to service role error:", error);
+      res.status(500).json({ error: "Failed to assign user to service role" });
+    }
+  });
+
+  // Remove user from service role (admin only)
+  app.delete("/api/admin/user-service-roles/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: assignmentId } = req.params;
+
+      await storage.removeUserFromServiceRole(assignmentId);
+
+      res.json({
+        success: true,
+        message: "User role assignment removed successfully",
+      });
+    } catch (error: any) {
+      console.error("Remove user from service role error:", error);
+      res.status(500).json({ error: "Failed to remove user role assignment" });
+    }
+  });
+
+  // Get all role assignments for a user (admin only)
+  app.get("/api/admin/users/:id/service-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: userId } = req.params;
+
+      // Verify user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const assignments = await storage.getUserServiceRoles(userId);
+
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Get user service roles error:", error);
+      res.status(500).json({ error: "Failed to fetch user service roles" });
+    }
+  });
+
+  // Get all user role assignments for a service (admin only)
+  app.get("/api/admin/services/:id/user-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+
+      // Verify service exists
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const assignments = await storage.getServiceUserRoles(serviceId);
+
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Get service user roles error:", error);
+      res.status(500).json({ error: "Failed to fetch service user roles" });
+    }
+  });
+
   // ==================== RBAC Model Routes ====================
   
   // Get all RBAC models (admin only)

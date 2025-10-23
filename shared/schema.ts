@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -84,6 +84,21 @@ export const serviceRbacModels = pgTable("service_rbac_models", {
   assignedAt: timestamp("assigned_at").notNull().defaultNow(),
 });
 
+// User-Service-Role junction table - assigns users to roles within specific services
+// Users can have multiple roles across different services
+// Unique constraint ensures one user can't be assigned the same role multiple times for the same service
+export const userServiceRoles = pgTable("user_service_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  serviceId: varchar("service_id").notNull().references(() => services.id, { onDelete: "cascade" }),
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    uniqueUserServiceRole: uniqueIndex("user_service_role_unique_idx").on(table.userId, table.serviceId, table.roleId)
+  };
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -150,6 +165,11 @@ export const insertServiceRbacModelSchema = createInsertSchema(serviceRbacModels
   assignedAt: true, // Auto-generated timestamp
 });
 
+export const insertUserServiceRoleSchema = createInsertSchema(userServiceRoles).omit({
+  id: true, // Auto-generated UUID
+  assignedAt: true, // Auto-generated timestamp
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -178,5 +198,7 @@ export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
 export type RolePermission = typeof rolePermissions.$inferSelect;
 export type InsertServiceRbacModel = z.infer<typeof insertServiceRbacModelSchema>;
 export type ServiceRbacModel = typeof serviceRbacModels.$inferSelect;
+export type InsertUserServiceRole = z.infer<typeof insertUserServiceRoleSchema>;
+export type UserServiceRole = typeof userServiceRoles.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;
