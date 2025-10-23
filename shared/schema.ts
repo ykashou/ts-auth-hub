@@ -40,6 +40,16 @@ export const services = pgTable("services", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// RBAC Models table - stores custom RBAC model definitions
+// Each model is a container for roles and permissions that can be applied to services
+export const rbacModels = pgTable("rbac_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -73,6 +83,15 @@ export const insertServiceSchema = createInsertSchema(services).omit({
   color: z.string().optional(),
 });
 
+export const insertRbacModelSchema = createInsertSchema(rbacModels).omit({
+  id: true,
+  createdBy: true, // Set from authenticated admin user
+  createdAt: true,
+}).extend({
+  name: z.string().min(1, "Model name is required"),
+  description: z.string().min(1, "Description is required"),
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -91,5 +110,7 @@ export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertService = z.infer<typeof insertServiceSchema>;
 export type Service = typeof services.$inferSelect;
+export type InsertRbacModel = z.infer<typeof insertRbacModelSchema>;
+export type RbacModel = typeof rbacModels.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;
