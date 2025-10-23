@@ -164,52 +164,71 @@ const role = userCount === 0 ? "admin" : "user";
 
 ---
 
-## Task 6: Role-Based Access Control (RBAC) Configuration Page - Full Stack
-**What you'll see:** Admin page for configuring permissions and access control policies
+## Task 6: RBAC Model Manager - Full Stack
+**What you'll see:** Admin page for creating and managing custom RBAC models that can be applied to different services
 
 **Changes:**
-1. **Schema**: Create `permissions` table (id, name, description, resource, action, createdAt)
-2. **Schema**: Create `rolePermissions` junction table (roleId, permissionId, createdAt)
-3. **Backend**: Create `GET /api/admin/rbac/permissions` endpoint (returns all permissions)
-4. **Backend**: Create `POST /api/admin/rbac/permissions` endpoint (create new permission)
-5. **Backend**: Create `GET /api/admin/rbac/roles` endpoint (returns roles with their permissions)
-6. **Backend**: Create `PATCH /api/admin/rbac/roles/:role/permissions` endpoint (update role permissions)
-7. **Frontend**: Create RBAC page at `/admin/rbac` with permission management UI
-8. **Frontend**: Add "Access Control" link to admin navbar
-9. **Frontend**: Display two-panel layout: Roles on left, Permissions on right
-10. **Frontend**: Show permission matrix (roles vs permissions grid with checkboxes)
-11. **Frontend**: Allow admins to grant/revoke permissions per role
-12. **Frontend**: Add permission creation dialog for custom permissions
-13. **Test in browser**:
-    - Login as admin → see "Access Control" in navbar
-    - Click link → see RBAC configuration page
-    - View default permissions (e.g., "manage_users", "manage_services", "view_analytics")
-    - Toggle permissions for "user" role → see changes persist
-    - Create new permission → appears in matrix
-    - Regular user can't access page (redirected to dashboard)
+1. **Schema**: Create `rbacModels` table (id, name, description, createdBy, createdAt)
+2. **Schema**: Create `rbacRoles` table (id, modelId, name, description, createdAt)
+3. **Schema**: Create `rbacPermissions` table (id, modelId, name, description, resource, action, createdAt)
+4. **Schema**: Create `rbacRolePermissions` junction table (roleId, permissionId, createdAt)
+5. **Schema**: Create `serviceRbacModels` table (serviceId, modelId, assignedAt) - links services to RBAC models
+6. **Schema**: Create `userServiceRoles` table (userId, serviceId, roleId, assignedAt) - user's role per service
+7. **Backend**: Create `GET /api/admin/rbac/models` endpoint (returns all RBAC models)
+8. **Backend**: Create `POST /api/admin/rbac/models` endpoint (create new RBAC model)
+9. **Backend**: Create `GET /api/admin/rbac/models/:id` endpoint (get model with roles and permissions)
+10. **Backend**: Create `POST /api/admin/rbac/models/:id/roles` endpoint (add role to model)
+11. **Backend**: Create `POST /api/admin/rbac/models/:id/permissions` endpoint (add permission to model)
+12. **Backend**: Create `PATCH /api/admin/rbac/roles/:roleId/permissions` endpoint (assign permissions to role)
+13. **Frontend**: Create RBAC Models page at `/admin/rbac` with model management UI
+14. **Frontend**: Add "RBAC Models" link to admin navbar
+15. **Frontend**: Display model list with create button
+16. **Frontend**: Model detail view showing roles and permissions for selected model
+17. **Frontend**: Permission matrix UI for each model (roles × permissions grid)
+18. **Frontend**: Add "Create Model" dialog with name and description
+19. **Frontend**: Add "Add Role" and "Add Permission" dialogs within each model
+20. **Frontend**: Show which services use each RBAC model
+21. **Test in browser**:
+    - Login as admin → see "RBAC Models" in navbar
+    - Click link → see RBAC model list (initially empty or with default model)
+    - Create new model "Enterprise Access Control"
+    - Add roles to model: "Owner", "Manager", "Viewer"
+    - Add permissions to model: "edit_data", "view_data", "delete_data"
+    - Build permission matrix: Owner gets all, Manager gets edit+view, Viewer gets view only
+    - See that different services can use different RBAC models
+    - Regular user can't access page
 
-**Default Permissions:**
-- Admin role: All permissions by default
-- User role: Limited permissions (view own services, manage own profile)
+**RBAC Model Concept:**
+Each RBAC model is a complete, independent access control system with:
+- Custom roles (e.g., Model A: Owner/Editor/Viewer, Model B: Admin/User/Guest)
+- Custom permissions (e.g., Model A: read/write/delete, Model B: approve/reject/comment)
+- Permission assignments (which roles have which permissions)
 
-**Permission Matrix UI:**
-```
-           | manage_users | manage_services | view_analytics | ...
------------+--------------+-----------------+----------------+----
-Admin      |      ✓       |        ✓        |       ✓        | ...
-User       |      ✗       |        ✗        |       ✗        | ...
-```
+**Service Assignment:**
+- Each service can be assigned one RBAC model
+- Users get different roles for different services based on which model is used
+- Example: User X is "Owner" in Service A (using Model 1) but "Viewer" in Service B (using Model 2)
+
+**UI Flow:**
+1. Admin creates RBAC model "Content Management"
+2. Adds roles: Editor, Reviewer, Publisher
+3. Adds permissions: create_content, edit_content, review_content, publish_content
+4. Maps permissions: Publisher gets all, Editor gets create+edit, Reviewer gets review only
+5. Assigns this model to "Blog CMS" service
+6. Creates different model "Analytics Dashboard" for analytics service
+7. Assigns users different roles in each service
 
 **UI Components:**
-- Role cards/list on left sidebar
-- Permission grid/table in main area
-- Add Permission dialog
-- Permission description tooltips
-- Real-time toggle switches for grant/revoke
+- Model cards showing name, description, role count, permission count
+- Model detail panel with role-permission matrix
+- Service assignment indicator (which services use this model)
+- Create/Edit model dialogs
+- Add role/permission dialogs
+- Drag-and-drop or checkbox matrix for permission assignment
 
-**UI Location:** New page at /admin/rbac with two-panel layout
+**UI Location:** New page at /admin/rbac with model list and detail view
 
-**Acceptance:** Admin can view and configure role-based permissions through intuitive UI
+**Acceptance:** Admin can create multiple RBAC models, each with custom roles and permissions, enabling different access control schemes for different services
 
 ---
 
