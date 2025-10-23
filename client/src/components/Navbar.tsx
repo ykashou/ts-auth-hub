@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ export default function Navbar() {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: Home, testId: "button-dashboard", adminOnly: false },
+    { path: "/admin/users", label: "User Management", icon: Users, testId: "button-user-management", adminOnly: true },
     { path: "/services", label: "Services", icon: Boxes, testId: "button-services", adminOnly: true },
     { path: "/config", label: "Config", icon: Settings2, testId: "button-config", adminOnly: true },
     { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs", adminOnly: true },
