@@ -1,7 +1,7 @@
 // Database storage implementation following javascript_database blueprint
 import { users, apiKeys, services, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -19,9 +19,9 @@ export interface IStorage {
   getAllApiKeys(): Promise<ApiKey[]>;
 
   // Service operations
-  createService(service: InsertService & { hashedSecret?: string; secretPreview?: string; userId: string }): Promise<Service>;
+  createService(service: InsertService & { secret?: string; secretPreview?: string; userId: string }): Promise<Service>;
   getService(id: string, userId: string): Promise<Service | undefined>;
-  getServiceById(id: string): Promise<Service | undefined>; // Get service by ID only (for widget verification)
+  getServiceById(id: string): Promise<Service | undefined>; // Get service by ID (for JWT signing and verification)
   getAllServicesByUser(userId: string): Promise<Service[]>;
   updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
   deleteService(id: string, userId: string): Promise<void>;
@@ -91,7 +91,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Service operations
-  async createService(insertService: InsertService & { hashedSecret?: string; secretPreview?: string; userId: string }): Promise<Service> {
+  async createService(insertService: InsertService & { secret?: string; secretPreview?: string; userId: string }): Promise<Service> {
     const [service] = await db
       .insert(services)
       .values(insertService)
@@ -103,8 +103,7 @@ export class DatabaseStorage implements IStorage {
     const [service] = await db
       .select()
       .from(services)
-      .where(eq(services.id, id))
-      .where(eq(services.userId, userId));
+      .where(and(eq(services.id, id), eq(services.userId, userId)));
     return service || undefined;
   }
 
@@ -123,14 +122,13 @@ export class DatabaseStorage implements IStorage {
     const [service] = await db
       .update(services)
       .set(updateData)
-      .where(eq(services.id, id))
-      .where(eq(services.userId, userId))
+      .where(and(eq(services.id, id), eq(services.userId, userId)))
       .returning();
     return service;
   }
 
   async deleteService(id: string, userId: string): Promise<void> {
-    await db.delete(services).where(eq(services.id, id)).where(eq(services.userId, userId));
+    await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
   }
 }
 

@@ -31,7 +31,7 @@ export const services = pgTable("services", {
   redirectUrl: text("redirect_url"), // Redirect URL after authentication (defaults to service URL)
   icon: text("icon").notNull().default("Globe"),
   color: text("color"),
-  hashedSecret: text("hashed_secret"), // Bcrypt hash of secret for widget authentication
+  secret: text("secret"), // Plaintext secret for JWT signing (encrypted at rest by database)
   secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -53,7 +53,7 @@ export const insertServiceSchema = createInsertSchema(services).omit({
   id: true,
   userId: true, // User ID is set from authenticated user, not from form
   createdAt: true,
-  hashedSecret: true, // Secret is auto-generated and hashed, not provided by user
+  secret: true, // Secret is auto-generated, not provided by user
   secretPreview: true, // Preview is auto-generated from secret
 }).extend({
   name: z.string().min(1, "Service name is required"),

@@ -26,6 +26,29 @@ if (!process.env.SESSION_SECRET) {
 const JWT_SECRET = process.env.SESSION_SECRET;
 const SALT_ROUNDS = 10;
 
+// Helper function to generate JWT with appropriate secret
+async function generateAuthToken(userId: string, email: string | null, serviceId?: string): Promise<string> {
+  let signingSecret = JWT_SECRET;
+  
+  // If serviceId is provided, sign with service's secret instead of SESSION_SECRET
+  if (serviceId) {
+    const service = await storage.getServiceById(serviceId);
+    if (!service) {
+      throw new Error("Invalid service ID");
+    }
+    if (!service.secret) {
+      throw new Error("Service has no secret configured");
+    }
+    signingSecret = service.secret;
+  }
+  
+  return jwt.sign(
+    { id: userId, email: email },
+    signingSecret,
+    { expiresIn: "7d" }
+  );
+}
+
 // Middleware to verify API key for external SaaS products
 const verifyApiKey = async (req: any, res: any, next: any) => {
   const apiKey = req.headers['x-api-key'];
@@ -271,18 +294,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid service" });
       }
 
-      if (!service.hashedSecret) {
+      if (!service.secret) {
         return res.status(401).json({ error: "Service has no secret configured" });
       }
 
-      const isValidSecret = await bcrypt.compare(secret, service.hashedSecret);
-      if (!isValidSecret) {
+      if (secret !== service.secret) {
         return res.status(401).json({ error: "Invalid service secret" });
       }
 
-      // Now verify the JWT token
+      // Now verify the JWT token (should be signed with service secret)
       try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        const decoded = jwt.verify(token, service.secret) as any;
         
         // Get full user information
         const user = await storage.getUser(decoded.id);
@@ -382,11 +404,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertServiceSchema.parse(req.body);
       
-      // Generate a unique secret for the service (for widget authentication)
+      // Generate a unique secret for the service (for JWT signing and widget authentication)
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
-      
-      // Hash the secret for secure storage
-      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
       
       // Create truncated preview for display (e.g., "sk_abc123...def789")
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
@@ -397,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const service = await storage.createService({
         ...validatedData,
         redirectUrl,
-        hashedSecret,
+        secret: plaintextSecret, // Store plaintext for JWT signing (encrypted at rest by database)
         secretPreview,
         userId: req.user.id, // Associate service with authenticated user
       });
@@ -491,7 +510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use the rotation endpoint to change secrets
       const updateData = {
         ...validatedData,
-        hashedSecret: service.hashedSecret, // Preserve existing hashed secret
+        secret: service.secret, // Preserve existing secret
         secretPreview: service.secretPreview, // Preserve existing secret preview
       };
       
@@ -542,14 +561,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate a new plaintext secret
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
       
-      // Hash the new secret
-      const hashedSecret = await bcrypt.hash(plaintextSecret, SALT_ROUNDS);
-      
       // Create truncated preview for display
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
-      // Update the service with the new hashed secret and preview
-      await storage.updateService(req.params.id, req.user.id, { hashedSecret, secretPreview });
+      // Update the service with the new secret and preview
+      await storage.updateService(req.params.id, req.user.id, { secret: plaintextSecret, secretPreview });
       
       res.json({
         success: true,
@@ -581,19 +597,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
-      if (!service.hashedSecret) {
+      if (!service.secret) {
         return res.status(401).json({ error: "Service has no secret configured" });
       }
 
-      // Verify the secret using bcrypt (like password verification)
-      const isValid = await bcrypt.compare(secret, service.hashedSecret);
-      
-      if (!isValid) {
+      // Verify the secret (direct comparison - secret is stored plaintext)
+      if (secret !== service.secret) {
         return res.status(401).json({ error: "Invalid secret" });
       }
 
-      // Return success with service details (exclude hashed secret)
-      const { hashedSecret, ...serviceData } = service;
+      // Return success with service details (exclude secret)
+      const { secret: _, ...serviceData } = service;
       res.json({
         success: true,
         message: "Secret verified successfully",
