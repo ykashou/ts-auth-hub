@@ -24,10 +24,11 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Services table - globally defined services shared across all users
-// Admin creates/manages services, then assigns them to users
+// Services table - configured service cards that appear after login
+// Each service belongs to a specific user
 export const services = pgTable("services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description").notNull(),
   url: text("url").notNull(),
@@ -115,6 +116,7 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
 
 export const insertServiceSchema = createInsertSchema(services).omit({
   id: true,
+  userId: true, // User ID is set from authenticated user, not from form
   createdAt: true,
   secret: true, // Secret is auto-generated, not provided by user
   secretPreview: true, // Preview is auto-generated from secret
