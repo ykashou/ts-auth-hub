@@ -2,22 +2,23 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertServiceSchema, type Service, type InsertService } from "@shared/schema";
+import { insertServiceSchema, type Service, type InsertService, type RbacModel } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2, Copy, Check } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, ExternalLink, Settings2, Copy, Check, Shield } from "lucide-react";
 import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+import { Badge } from "@/components/ui/badge";
 
 // Popular icon options for services
 const ICON_OPTIONS = [
@@ -27,6 +28,29 @@ const ICON_OPTIONS = [
   "Users", "User", "Home", "Settings", "Bell", "Search"
 ];
 
+// Component to display RBAC model badge for a service
+function ServiceRbacBadge({ serviceId }: { serviceId: string }) {
+  const { data: rbacModel, isLoading, isError } = useQuery<RbacModel | null>({
+    queryKey: ["/api/services", serviceId, "rbac-model"],
+    retry: false,
+  });
+
+  if (isLoading) {
+    return <span className="text-xs text-muted-foreground">Loading...</span>;
+  }
+
+  if (isError || !rbacModel) {
+    return <span className="text-xs text-muted-foreground">None</span>;
+  }
+
+  return (
+    <Badge variant="secondary" className="gap-1" data-testid={`badge-rbac-${serviceId}`}>
+      <Shield className="w-3 h-3" />
+      {rbacModel.name}
+    </Badge>
+  );
+}
+
 export default function Config() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -35,15 +59,19 @@ export default function Config() {
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [secretServiceName, setSecretServiceName] = useState<string>("");
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
+  const [selectedRbacModelId, setSelectedRbacModelId] = useState<string>("");
+  const [previousRbacModelId, setPreviousRbacModelId] = useState<string>("");
 
-  // Check authentication
+  // Check authentication and admin role
   useEffect(() => {
     if (!isAuthenticated()) {
       setLocation("/login");
+    } else if (getUserRole() !== 'admin') {
+      setLocation("/dashboard");
     }
   }, [setLocation]);
 
-  if (!isAuthenticated()) {
+  if (!isAuthenticated() || getUserRole() !== 'admin') {
     return null;
   }
 
@@ -51,6 +79,11 @@ export default function Config() {
   // Fetch all services with secrets (admin endpoint)
   const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services/admin"],
+  });
+
+  // Fetch all RBAC models (admin endpoint)
+  const { data: rbacModels = [] } = useQuery<RbacModel[]>({
+    queryKey: ["/api/admin/rbac/models"],
   });
 
   // Sort services alphabetically by name
@@ -107,14 +140,54 @@ export default function Config() {
     mutationFn: async ({ id, data }: { id: string; data: InsertService }) => {
       return await apiRequest("PATCH", `/api/services/${id}`, data);
     },
-    onSuccess: () => {
+    onSuccess: async (_, { id }) => {
+      // Update RBAC model assignment if changed
+      try {
+        if (editingService) {
+          await updateRbacModelAssignment(id);
+        }
+      } catch (rbacError) {
+        // RBAC assignment failed, but service update succeeded
+        console.error("[Config] RBAC assignment failed in onSuccess:", rbacError);
+        // Don't reset the form state so user can try again
+        return;
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["/api/services/admin"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      
+      // Invalidate RBAC model queries - both general list and specific model services
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models"] });
+      
+      // Invalidate the specific service's RBAC model badge query
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/services", data.id, "rbac-model"],
+        refetchType: 'active'
+      });
+      
+      // Explicitly invalidate the services query for the previous model (if any)
+      if (previousRbacModelId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/admin/rbac/models", previousRbacModelId, "services"],
+          refetchType: 'active' // Only refetch if query is currently active
+        });
+      }
+      
+      // Explicitly invalidate the services query for the new model (if any)
+      if (selectedRbacModelId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ["/api/admin/rbac/models", selectedRbacModelId, "services"],
+          refetchType: 'active' // Only refetch if query is currently active
+        });
+      }
+      
       toast({
         title: "Service updated",
         description: "The service has been updated successfully",
       });
       setEditingService(null);
+      setSelectedRbacModelId("");
+      setPreviousRbacModelId("");
       form.reset();
     },
     onError: (error: any) => {
@@ -125,6 +198,34 @@ export default function Config() {
       });
     },
   });
+
+  // Helper function to update RBAC model assignment
+  const updateRbacModelAssignment = async (serviceId: string) => {
+    console.log("[Config] updateRbacModelAssignment called with serviceId:", serviceId, "selectedRbacModelId:", selectedRbacModelId);
+    try {
+      if (selectedRbacModelId) {
+        // Assign the selected RBAC model
+        console.log("[Config] Assigning RBAC model:", selectedRbacModelId, "to service:", serviceId);
+        const result = await apiRequest("POST", `/api/services/${serviceId}/rbac-model`, { rbacModelId: selectedRbacModelId });
+        console.log("[Config] RBAC model assignment result:", result);
+      } else if (previousRbacModelId) {
+        // Only remove if there was a previous assignment
+        console.log("[Config] Removing RBAC model from service:", serviceId);
+        await apiRequest("DELETE", `/api/services/${serviceId}/rbac-model`);
+      } else {
+        console.log("[Config] No RBAC model to assign or remove");
+      }
+    } catch (error: any) {
+      console.error("[Config] Failed to update RBAC model assignment:", error);
+      // Show a toast for RBAC model assignment failure
+      toast({
+        title: "RBAC model assignment failed",
+        description: error.message || "Failed to update RBAC model assignment",
+        variant: "destructive",
+      });
+      throw error; // Re-throw to prevent success toast
+    }
+  };
 
   // Delete service mutation
   const deleteMutation = useMutation({
@@ -162,7 +263,7 @@ export default function Config() {
     }
   };
 
-  const handleEdit = (service: Service) => {
+  const handleEdit = async (service: Service) => {
     setEditingService(service);
     form.reset({
       name: service.name,
@@ -172,6 +273,18 @@ export default function Config() {
       icon: service.icon,
       color: service.color || "",
     });
+
+    // Fetch the RBAC model for this service
+    try {
+      const rbacModel = await apiRequest("GET", `/api/services/${service.id}/rbac-model`);
+      const modelId = rbacModel?.id || "";
+      setSelectedRbacModelId(modelId);
+      setPreviousRbacModelId(modelId); // Track the original model ID
+    } catch (error) {
+      console.error("Failed to fetch RBAC model for service:", error);
+      setSelectedRbacModelId("");
+      setPreviousRbacModelId("");
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -184,6 +297,8 @@ export default function Config() {
     if (!open) {
       setIsAddDialogOpen(false);
       setEditingService(null);
+      setSelectedRbacModelId("");
+      setPreviousRbacModelId("");
       form.reset();
     }
   };
@@ -258,169 +373,198 @@ export default function Config() {
       <Navbar />
 
       <main className="container mx-auto px-6 py-8">
-        <div className="mb-6">
-          <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Service
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
-                <DialogDescription>
-                  Configure a service card to display on the services page
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Service Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="My SaaS App"
-                            {...field}
-                            data-testid="input-service-name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Brief description of the service"
-                            {...field}
-                            data-testid="input-service-description"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Service URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com"
-                            {...field}
-                            data-testid="input-service-url"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="redirectUrl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Redirect URL (Optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com/dashboard (defaults to Service URL)"
-                            {...field}
-                            data-testid="input-redirect-url"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="icon"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Icon</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-service-icon">
-                              <SelectValue placeholder="Select an icon" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {ICON_OPTIONS.map((iconName) => {
-                              const Icon = getIcon(iconName);
-                              return (
-                                <SelectItem key={iconName} value={iconName}>
-                                  <div className="flex items-center gap-2">
-                                    <Icon className="w-4 h-4" />
-                                    <span>{iconName}</span>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="color"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Color (Optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="#FF5733 or hsl(9, 75%, 61%)"
-                            {...field}
-                            data-testid="input-service-color"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleDialogClose(false)}
-                      data-testid="button-cancel"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={createMutation.isPending || updateMutation.isPending}
-                      data-testid="button-submit-service"
-                    >
-                      {(createMutation.isPending || updateMutation.isPending) && (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      )}
-                      {editingService ? "Update" : "Create"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
         <Card>
-          <CardHeader>
-            <CardTitle>Configured Services</CardTitle>
-            <CardDescription>
-              Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>Configured Services</CardTitle>
+              <CardDescription>
+                Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
+              </CardDescription>
+            </div>
+            <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Service
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
+                  <DialogDescription>
+                    Configure a service card to display on the services page
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="My SaaS App"
+                              {...field}
+                              data-testid="input-service-name"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Brief description of the service"
+                              {...field}
+                              data-testid="input-service-description"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com"
+                              {...field}
+                              data-testid="input-service-url"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="redirectUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Redirect URL (Optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/dashboard (defaults to Service URL)"
+                              {...field}
+                              data-testid="input-redirect-url"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="icon"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Icon</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-service-icon">
+                                <SelectValue placeholder="Select an icon" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {ICON_OPTIONS.map((iconName) => {
+                                const Icon = getIcon(iconName);
+                                return (
+                                  <SelectItem key={iconName} value={iconName}>
+                                    <div className="flex items-center gap-2">
+                                      <Icon className="w-4 h-4" />
+                                      <span>{iconName}</span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="color"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Color (Optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="#FF5733 or hsl(9, 75%, 61%)"
+                              {...field}
+                              data-testid="input-service-color"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {/* RBAC Model Selector - shown for both create and edit */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        RBAC Model (Optional)
+                      </label>
+                      <Select 
+                        value={selectedRbacModelId || "none"} 
+                        onValueChange={(value) => setSelectedRbacModelId(value === "none" ? "" : value)}
+                      >
+                        <SelectTrigger data-testid="select-rbac-model">
+                          <SelectValue placeholder="No RBAC model assigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" data-testid="option-no-rbac">
+                            None
+                          </SelectItem>
+                          {rbacModels.map((model) => (
+                            <SelectItem key={model.id} value={model.id} data-testid={`option-rbac-${model.id}`}>
+                              {model.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        Assign an RBAC model to define roles and permissions for this service
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleDialogClose(false)}
+                        data-testid="button-cancel"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={createMutation.isPending || updateMutation.isPending}
+                        data-testid="button-submit-service"
+                      >
+                        {(createMutation.isPending || updateMutation.isPending) && (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        )}
+                        {editingService ? "Update" : "Create"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -449,6 +593,7 @@ export default function Config() {
                       <TableHead className="font-semibold">Name</TableHead>
                       <TableHead className="font-semibold">Description</TableHead>
                       <TableHead className="font-semibold">URL</TableHead>
+                      <TableHead className="font-semibold">RBAC Model</TableHead>
                       <TableHead className="font-semibold">Secret</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
@@ -484,6 +629,9 @@ export default function Config() {
                               Visit
                               <ExternalLink className="w-3 h-3" />
                             </a>
+                          </TableCell>
+                          <TableCell>
+                            <ServiceRbacBadge serviceId={service.id} />
                           </TableCell>
                           <TableCell>
                             {service.secretPreview ? (

@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, type User } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { seedServices } from "./seed";
@@ -15,6 +15,7 @@ declare global {
       user?: {
         id: string;
         email: string | null;
+        role: "admin" | "user";
       };
     }
   }
@@ -27,11 +28,12 @@ if (!process.env.SESSION_SECRET) {
 const JWT_SECRET = process.env.SESSION_SECRET;
 const SALT_ROUNDS = 10;
 
-// Helper function to generate JWT with appropriate secret
-async function generateAuthToken(userId: string, email: string | null, serviceId?: string): Promise<string> {
+// Helper function to generate JWT with appropriate secret and RBAC data
+async function generateAuthToken(userId: string, email: string | null, role: "admin" | "user", serviceId?: string): Promise<string> {
   let signingSecret = JWT_SECRET;
+  let payload: any = { id: userId, email: email, role: role };
   
-  // If serviceId is provided, sign with service's secret instead of SESSION_SECRET
+  // If serviceId is provided, sign with service's secret and include RBAC data
   if (serviceId) {
     const service = await storage.getServiceById(serviceId);
     if (!service) {
@@ -42,10 +44,18 @@ async function generateAuthToken(userId: string, email: string | null, serviceId
     }
     // Decrypt the service secret to use for JWT signing
     signingSecret = decryptSecret(service.secret);
+    
+    // Get RBAC permissions for this user-service combination
+    const rbacData = await storage.getUserPermissionsForService(userId, serviceId);
+    
+    // Add RBAC data to payload
+    payload.rbacRole = rbacData.role;
+    payload.permissions = rbacData.permissions;
+    payload.rbacModel = rbacData.rbacModel;
   }
   
   return jwt.sign(
-    { id: userId, email: email },
+    payload,
     signingSecret,
     { expiresIn: "7d" }
   );
@@ -68,7 +78,7 @@ const verifyApiKey = async (req: any, res: any, next: any) => {
   next();
 };
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token and attach user to request
 const verifyToken = (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.replace("Bearer ", "");
   
@@ -85,6 +95,54 @@ const verifyToken = (req: any, res: any, next: any) => {
   }
 };
 
+// Middleware to require admin role
+const requireAdmin = (req: any, res: any, next: any) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  
+  next();
+};
+
+// Helper function to convert object to YAML format (simple implementation)
+function convertToYAML(obj: any, indent: number = 0): string {
+  const spaces = ' '.repeat(indent);
+  let yaml = '';
+
+  if (Array.isArray(obj)) {
+    obj.forEach((item) => {
+      if (typeof item === 'object' && item !== null) {
+        yaml += `${spaces}- `;
+        const itemYaml = convertToYAML(item, indent + 2);
+        yaml += itemYaml.substring(indent + 2) + '\n';
+      } else {
+        yaml += `${spaces}- ${item}\n`;
+      }
+    });
+  } else if (typeof obj === 'object' && obj !== null) {
+    Object.keys(obj).forEach((key) => {
+      const value = obj[key];
+      if (Array.isArray(value)) {
+        yaml += `${spaces}${key}:\n`;
+        yaml += convertToYAML(value, indent + 2);
+      } else if (typeof value === 'object' && value !== null) {
+        yaml += `${spaces}${key}:\n`;
+        yaml += convertToYAML(value, indent + 2);
+      } else {
+        yaml += `${spaces}${key}: ${value}\n`;
+      }
+    });
+  } else {
+    yaml = `${obj}`;
+  }
+
+  return yaml;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
 
@@ -100,13 +158,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User with this email already exists" });
       }
 
+      // Check if this is the first user - if so, promote to admin
+      const userCount = await storage.getUserCount();
+      const role = userCount === 0 ? "admin" : "user";
+
       // Hash password
       const hashedPassword = await bcrypt.hash(validatedData.password, SALT_ROUNDS);
 
-      // Create user
+      // Create user with appropriate role
       const user = await storage.createUser({
         email: validatedData.email,
         password: hashedPassword,
+        role: role,
       });
 
       // Auto-seed default services for new user
@@ -117,8 +180,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
+      // If this is the first admin, seed default RBAC models
+      if (role === 'admin') {
+        try {
+          await storage.seedDefaultRbacModels(user.id);
+        } catch (seedError) {
+          console.error("Failed to seed default RBAC models:", seedError);
+          // Continue even if seeding fails - admin can create models manually
+        }
+      }
+
       // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email, serviceId);
+      const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
 
       // Return user info (without password) and token
       res.status(201).json({
@@ -126,6 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -165,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email, serviceId);
+      const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
 
       // Return user info (without password) and token
       res.json({
@@ -173,6 +247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -198,12 +273,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // If UUID doesn't exist, auto-register it
         if (!user) {
-          user = await storage.createUserWithUuid(validatedData.uuid);
+          // Check if this is the first user - if so, promote to admin
+          const userCount = await storage.getUserCount();
+          const role = userCount === 0 ? "admin" : "user";
+          user = await storage.createUserWithUuid(validatedData.uuid, role);
           isNewUser = true;
         }
       } else {
         // No UUID provided - generate new anonymous user
-        user = await storage.createAnonymousUser();
+        // Check if this is the first user - if so, promote to admin
+        const userCount = await storage.getUserCount();
+        const role = userCount === 0 ? "admin" : "user";
+        user = await storage.createAnonymousUser(role);
         isNewUser = true;
       }
 
@@ -218,8 +299,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
+      // If this is the first admin, seed default RBAC models
+      if (user.role === 'admin' && isNewUser) {
+        try {
+          await storage.seedDefaultRbacModels(user.id);
+        } catch (seedError) {
+          console.error("Failed to seed default RBAC models:", seedError);
+          // Continue even if seeding fails - admin can create models manually
+        }
+      }
+
       // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email || null, serviceId);
+      const token = await generateAuthToken(user.id, user.email || null, user.role, serviceId);
 
       // Return user info (without password) and token
       res.json({
@@ -227,6 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           email: user.email,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -364,6 +456,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all users (admin only) - dedicated admin endpoint
+  app.get("/api/admin/users", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      
+      // Get service counts for each user
+      const usersWithServiceCounts = await Promise.all(
+        users.map(async (user) => {
+          const userServices = await storage.getAllServicesByUser(user.id);
+          const { password, ...sanitizedUser } = user;
+          return {
+            ...sanitizedUser,
+            servicesCount: userServices.length,
+          };
+        })
+      );
+      
+      res.json(usersWithServiceCounts);
+    } catch (error: any) {
+      console.error("Get admin users error:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Update user (admin only)
+  app.patch("/api/admin/users/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { email, role } = req.body;
+
+      // Get current user
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // If changing role from admin to user, check if this is the last admin
+      if (user.role === 'admin' && role === 'user') {
+        const adminCount = await storage.getAdminCount();
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: "Cannot demote the last admin" });
+        }
+      }
+
+      // Prepare updates
+      const updates: Partial<User> = {};
+      if (email !== undefined) updates.email = email;
+      if (role !== undefined) updates.role = role;
+
+      // Update user
+      const updatedUser = await storage.updateUser(id, updates);
+      const { password, ...sanitizedUser } = updatedUser;
+
+      res.json(sanitizedUser);
+    } catch (error: any) {
+      console.error("Update user error:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete("/api/admin/users/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Get user to check if it's an admin
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // If user is admin, check if this is the last admin
+      if (user.role === 'admin') {
+        const adminCount = await storage.getAdminCount();
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: "Cannot delete the last admin" });
+        }
+      }
+
+      // Delete user (CASCADE will delete associated services)
+      await storage.deleteUser(id);
+
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
   // Get user by ID
   app.get("/api/users/:id", verifyApiKey, async (req, res) => {
     try {
@@ -463,7 +644,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Getting services for user:", req.user.id);
       const services = await storage.getAllServicesByUser(req.user.id);
       console.log("Found services:", services.length);
-      res.json(services);
+      
+      // Fetch RBAC model for each service
+      const servicesWithRbacModels = await Promise.all(
+        services.map(async (service) => {
+          const rbacModel = await storage.getRbacModelForService(service.id);
+          return {
+            ...service,
+            rbacModel: rbacModel || null,
+          };
+        })
+      );
+      
+      res.json(servicesWithRbacModels);
     } catch (error: any) {
       console.error("Get services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
@@ -641,6 +834,658 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Verify secret error:", error);
       res.status(500).json({ error: "Failed to verify secret" });
+    }
+  });
+
+  // ==================== Service-RBAC Model Assignment Routes ====================
+  
+  // Assign RBAC model to a service
+  app.post("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+      const { rbacModelId } = req.body;
+
+      if (!rbacModelId) {
+        return res.status(400).json({ error: "rbacModelId is required" });
+      }
+
+      // Verify the service belongs to the user
+      const service = await storage.getService(serviceId, req.user!.id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Verify the RBAC model exists
+      const model = await storage.getRbacModel(rbacModelId);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      await storage.assignRbacModelToService(serviceId, rbacModelId);
+
+      res.json({
+        success: true,
+        message: "RBAC model assigned to service successfully",
+      });
+    } catch (error: any) {
+      console.error("Assign RBAC model to service error:", error);
+      res.status(500).json({ error: "Failed to assign RBAC model to service" });
+    }
+  });
+
+  // Remove RBAC model from a service
+  app.delete("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+
+      // Verify the service belongs to the user
+      const service = await storage.getService(serviceId, req.user!.id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      await storage.removeRbacModelFromService(serviceId);
+
+      res.json({
+        success: true,
+        message: "RBAC model removed from service successfully",
+      });
+    } catch (error: any) {
+      console.error("Remove RBAC model from service error:", error);
+      res.status(500).json({ error: "Failed to remove RBAC model from service" });
+    }
+  });
+
+  // Get RBAC model for a service
+  app.get("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+
+      // Verify the service belongs to the user
+      const service = await storage.getService(serviceId, req.user!.id);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const model = await storage.getRbacModelForService(serviceId);
+
+      res.json(model || null);
+    } catch (error: any) {
+      console.error("Get RBAC model for service error:", error);
+      res.status(500).json({ error: "Failed to fetch RBAC model for service" });
+    }
+  });
+
+  // Get all services using a specific RBAC model (admin only)
+  app.get("/api/admin/rbac/models/:id/services", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: modelId } = req.params;
+
+      // Verify the RBAC model exists
+      const model = await storage.getRbacModel(modelId);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      const services = await storage.getServicesForRbacModel(modelId);
+
+      res.json(services);
+    } catch (error: any) {
+      console.error("Get services for RBAC model error:", error);
+      res.status(500).json({ error: "Failed to fetch services for RBAC model" });
+    }
+  });
+
+  // Verify JWT token for a specific service (for external services)
+  // This endpoint allows external services to verify tokens they received via OAuth redirect
+  app.get("/api/services/:serviceId/verify-token", async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      const token = req.headers.authorization?.replace("Bearer ", "");
+
+      if (!token) {
+        return res.status(400).json({ error: "Token is required in Authorization header" });
+      }
+
+      // Get the service
+      const service = await storage.getServiceById(serviceId);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      if (!service.secret) {
+        return res.status(500).json({ error: "Service has no secret configured" });
+      }
+
+      // Decrypt the service secret
+      const decryptedSecret = decryptSecret(service.secret);
+
+      // Verify the JWT token (should be signed with service secret)
+      try {
+        const decoded = jwt.verify(token, decryptedSecret) as any;
+        
+        // Return the decoded token payload which includes RBAC data
+        res.json({
+          valid: true,
+          payload: {
+            userId: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+            rbacRole: decoded.rbacRole || null,
+            permissions: decoded.permissions || [],
+            rbacModel: decoded.rbacModel || null
+          }
+        });
+      } catch (jwtError) {
+        // Token is invalid or expired
+        return res.status(401).json({ 
+          valid: false,
+          error: "Invalid or expired token" 
+        });
+      }
+    } catch (error: any) {
+      console.error("Token verification error:", error);
+      res.status(500).json({ error: error.message || "Token verification failed" });
+    }
+  });
+
+  // ==================== User-Service-Role Assignment Routes ====================
+  
+  // Get all user-service-role assignments (admin only)
+  app.get("/api/admin/user-service-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getAllUserServiceRoles();
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Get all user service roles error:", error);
+      res.status(500).json({ error: "Failed to fetch user service roles" });
+    }
+  });
+
+  // Assign user to role in a service (admin only)
+  app.post("/api/admin/user-service-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { userId, serviceId, roleId } = req.body;
+
+      // Validate required fields
+      if (!userId || !serviceId || !roleId) {
+        return res.status(400).json({ error: "userId, serviceId, and roleId are required" });
+      }
+
+      // Verify user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Verify service exists
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Verify service has an RBAC model assigned
+      const serviceRbacModel = await storage.getRbacModelForService(serviceId);
+      if (!serviceRbacModel) {
+        return res.status(400).json({ error: "Service does not have an RBAC model assigned. Please assign one first." });
+      }
+
+      // Verify role exists and belongs to the service's RBAC model
+      const role = await storage.getRole(roleId);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+
+      if (role.rbacModelId !== serviceRbacModel.id) {
+        return res.status(400).json({ 
+          error: "Role does not belong to this service's RBAC model",
+          details: `Role belongs to model ${role.rbacModelId} but service uses model ${serviceRbacModel.id}`
+        });
+      }
+
+      try {
+        const assignment = await storage.assignUserToServiceRole(userId, serviceId, roleId);
+        res.json(assignment);
+      } catch (dbError: any) {
+        // Check if this is a unique constraint violation
+        if (dbError.code === '23505' || dbError.message?.includes('duplicate') || dbError.message?.includes('unique')) {
+          return res.status(409).json({ 
+            error: "User is already assigned to this role for this service",
+            details: "This assignment already exists"
+          });
+        }
+        throw dbError; // Re-throw if it's not a duplicate error
+      }
+    } catch (error: any) {
+      console.error("Assign user to service role error:", error);
+      res.status(500).json({ error: "Failed to assign user to service role" });
+    }
+  });
+
+  // Remove user from service role (admin only)
+  app.delete("/api/admin/user-service-roles/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: assignmentId } = req.params;
+
+      await storage.removeUserFromServiceRole(assignmentId);
+
+      res.json({
+        success: true,
+        message: "User role assignment removed successfully",
+      });
+    } catch (error: any) {
+      console.error("Remove user from service role error:", error);
+      res.status(500).json({ error: "Failed to remove user role assignment" });
+    }
+  });
+
+  // Get all role assignments for a user (admin only)
+  app.get("/api/admin/users/:id/service-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: userId } = req.params;
+
+      // Verify user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const assignments = await storage.getUserServiceRoles(userId);
+
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Get user service roles error:", error);
+      res.status(500).json({ error: "Failed to fetch user service roles" });
+    }
+  });
+
+  // Get all user role assignments for a service (admin only)
+  app.get("/api/admin/services/:id/user-roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id: serviceId } = req.params;
+
+      // Verify service exists
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const assignments = await storage.getServiceUserRoles(serviceId);
+
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Get service user roles error:", error);
+      res.status(500).json({ error: "Failed to fetch service user roles" });
+    }
+  });
+
+  // ==================== RBAC Model Routes ====================
+  
+  // Get all RBAC models (admin only)
+  app.get("/api/admin/rbac/models", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const models = await storage.getAllRbacModels();
+      res.json(models);
+    } catch (error: any) {
+      console.error("Get RBAC models error:", error);
+      res.status(500).json({ error: "Failed to fetch RBAC models" });
+    }
+  });
+
+  // Get single RBAC model (admin only)
+  app.get("/api/admin/rbac/models/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const model = await storage.getRbacModel(id);
+      
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      res.json(model);
+    } catch (error: any) {
+      console.error("Get RBAC model error:", error);
+      res.status(500).json({ error: "Failed to fetch RBAC model" });
+    }
+  });
+
+  // Create RBAC model (admin only)
+  app.post("/api/admin/rbac/models", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const userId = (req as any).user.id;
+      const { name, description } = req.body;
+
+      // Validate input
+      if (!name || !description) {
+        return res.status(400).json({ error: "Name and description are required" });
+      }
+
+      const model = await storage.createRbacModel({
+        name,
+        description,
+        createdBy: userId,
+      });
+
+      res.status(201).json(model);
+    } catch (error: any) {
+      console.error("Create RBAC model error:", error);
+      res.status(500).json({ error: "Failed to create RBAC model" });
+    }
+  });
+
+  // Update RBAC model (admin only)
+  app.patch("/api/admin/rbac/models/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      // Check if model exists
+      const existingModel = await storage.getRbacModel(id);
+      if (!existingModel) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      // Prepare updates
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updatedModel = await storage.updateRbacModel(id, updates);
+      res.json(updatedModel);
+    } catch (error: any) {
+      console.error("Update RBAC model error:", error);
+      res.status(500).json({ error: "Failed to update RBAC model" });
+    }
+  });
+
+  // Delete RBAC model (admin only)
+  app.delete("/api/admin/rbac/models/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if model exists
+      const model = await storage.getRbacModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      await storage.deleteRbacModel(id);
+      res.json({ success: true, message: "RBAC model deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete RBAC model error:", error);
+      res.status(500).json({ error: "Failed to delete RBAC model" });
+    }
+  });
+
+  // Export RBAC model (admin only) - returns JSON or YAML format
+  app.get("/api/admin/rbac/models/:id/export", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { format = 'json', download } = req.query;
+
+      // Get model
+      const model = await storage.getRbacModel(id);
+      if (!model) {
+        return res.status(404).json({ error: "RBAC model not found" });
+      }
+
+      // Get all roles and permissions for this model
+      const roles = await storage.getRolesByModel(id);
+      const permissions = await storage.getPermissionsByModel(id);
+
+      // Get permission assignments for each role
+      const rolesWithPermissions = await Promise.all(
+        roles.map(async (role) => {
+          const rolePermissions = await storage.getPermissionsForRole(role.id);
+          return {
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            permissions: rolePermissions.map(p => ({
+              id: p.id,
+              name: p.name,
+              description: p.description,
+            })),
+          };
+        })
+      );
+
+      // Build export data structure
+      const exportData = {
+        model: {
+          id: model.id,
+          name: model.name,
+          description: model.description,
+          createdAt: model.createdAt,
+        },
+        roles: rolesWithPermissions,
+        permissions: permissions.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+        })),
+      };
+
+      // If download parameter is set, return as downloadable file
+      if (download === 'true') {
+        if (format === 'yaml') {
+          const yamlStr = convertToYAML(exportData);
+          res.setHeader('Content-Type', 'application/x-yaml');
+          res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.yaml"`);
+          res.send(yamlStr);
+        } else {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Content-Disposition', `attachment; filename="${model.name.replace(/\s+/g, '_')}_rbac.json"`);
+          res.json(exportData);
+        }
+      } else {
+        // Otherwise, return as regular JSON for display
+        res.json(exportData);
+      }
+    } catch (error: any) {
+      console.error("Export RBAC model error:", error);
+      res.status(500).json({ error: "Failed to export RBAC model" });
+    }
+  });
+
+  // ==================== Role Routes ====================
+
+  // Get all roles for a model (admin only)
+  app.get("/api/admin/rbac/models/:modelId/roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const roles = await storage.getRolesByModel(modelId);
+      res.json(roles);
+    } catch (error: any) {
+      console.error("Get roles error:", error);
+      res.status(500).json({ error: "Failed to fetch roles" });
+    }
+  });
+
+  // Create role (admin only)
+  app.post("/api/admin/rbac/models/:modelId/roles", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { name, description } = req.body;
+
+      if (!name || !description) {
+        return res.status(400).json({ error: "Name and description are required" });
+      }
+
+      const role = await storage.createRole({
+        rbacModelId: modelId,
+        name,
+        description,
+      });
+
+      res.status(201).json(role);
+    } catch (error: any) {
+      console.error("Create role error:", error);
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update role (admin only)
+  app.patch("/api/admin/rbac/roles/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      const existingRole = await storage.getRole(id);
+      if (!existingRole) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updatedRole = await storage.updateRole(id, updates);
+      res.json(updatedRole);
+    } catch (error: any) {
+      console.error("Update role error:", error);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Delete role (admin only)
+  app.delete("/api/admin/rbac/roles/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const role = await storage.getRole(id);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+
+      await storage.deleteRole(id);
+      res.json({ success: true, message: "Role deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete role error:", error);
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // ==================== Permission Routes ====================
+
+  // Get all permissions for a model (admin only)
+  app.get("/api/admin/rbac/models/:modelId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const permissions = await storage.getPermissionsByModel(modelId);
+      res.json(permissions);
+    } catch (error: any) {
+      console.error("Get permissions error:", error);
+      res.status(500).json({ error: "Failed to fetch permissions" });
+    }
+  });
+
+  // Create permission (admin only)
+  app.post("/api/admin/rbac/models/:modelId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const { name, description } = req.body;
+
+      if (!name || !description) {
+        return res.status(400).json({ error: "Name and description are required" });
+      }
+
+      const permission = await storage.createPermission({
+        rbacModelId: modelId,
+        name,
+        description,
+      });
+
+      res.status(201).json(permission);
+    } catch (error: any) {
+      console.error("Create permission error:", error);
+      res.status(500).json({ error: "Failed to create permission" });
+    }
+  });
+
+  // Update permission (admin only)
+  app.patch("/api/admin/rbac/permissions/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      const existingPermission = await storage.getPermission(id);
+      if (!existingPermission) {
+        return res.status(404).json({ error: "Permission not found" });
+      }
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updatedPermission = await storage.updatePermission(id, updates);
+      res.json(updatedPermission);
+    } catch (error: any) {
+      console.error("Update permission error:", error);
+      res.status(500).json({ error: "Failed to update permission" });
+    }
+  });
+
+  // Delete permission (admin only)
+  app.delete("/api/admin/rbac/permissions/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const permission = await storage.getPermission(id);
+      if (!permission) {
+        return res.status(404).json({ error: "Permission not found" });
+      }
+
+      await storage.deletePermission(id);
+      res.json({ success: true, message: "Permission deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete permission error:", error);
+      res.status(500).json({ error: "Failed to delete permission" });
+    }
+  });
+
+  // ==================== Role-Permission Assignment Routes ====================
+
+  // Get all role-permission mappings for a model (admin only)
+  app.get("/api/admin/rbac/models/:modelId/role-permission-mappings", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const mappings = await storage.getRolePermissionMappingsForModel(modelId);
+      res.json(mappings);
+    } catch (error: any) {
+      console.error("Get role-permission mappings error:", error);
+      res.status(500).json({ error: "Failed to fetch role-permission mappings" });
+    }
+  });
+
+  // Get permissions for a role (admin only)
+  app.get("/api/admin/rbac/roles/:roleId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { roleId } = req.params;
+      const permissions = await storage.getPermissionsForRole(roleId);
+      res.json(permissions);
+    } catch (error: any) {
+      console.error("Get role permissions error:", error);
+      res.status(500).json({ error: "Failed to fetch role permissions" });
+    }
+  });
+
+  // Set permissions for a role (admin only)
+  app.put("/api/admin/rbac/roles/:roleId/permissions", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { roleId } = req.params;
+      const { permissionIds } = req.body;
+
+      if (!Array.isArray(permissionIds)) {
+        return res.status(400).json({ error: "permissionIds must be an array" });
+      }
+
+      await storage.setRolePermissions(roleId, permissionIds);
+      res.json({ success: true, message: "Role permissions updated successfully" });
+    } catch (error: any) {
+      console.error("Set role permissions error:", error);
+      res.status(500).json({ error: "Failed to update role permissions" });
     }
   });
 
