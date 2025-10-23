@@ -611,6 +611,14 @@ function handleAuthCallback() {
               </p>
             </div>
 
+            <div className="bg-muted/50 border border-border p-3 rounded-lg mt-3">
+              <p className="text-sm text-muted-foreground">
+                <strong>Security Note:</strong> AuthHub stores your service secrets encrypted using AES-256-GCM in the database. 
+                When signing JWTs, AuthHub decrypts your secret internally. <strong>You always work with the plaintext secret</strong> 
+                (the sk_* value shown when you create/rotate it) - no changes needed on your end!
+              </p>
+            </div>
+
             <div>
               <h4 className="font-semibold text-sm mb-2">Step 1: Setup Your Integration URL</h4>
               <p className="text-sm text-muted-foreground mb-2">
