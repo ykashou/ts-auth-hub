@@ -1,5 +1,5 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService } from "@shared/schema";
+import { users, apiKeys, services, rbacModels, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -29,6 +29,13 @@ export interface IStorage {
   getAllServicesByUser(userId: string): Promise<Service[]>;
   updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
   deleteService(id: string, userId: string): Promise<void>;
+
+  // RBAC Model operations
+  createRbacModel(model: InsertRbacModel & { createdBy: string }): Promise<RbacModel>;
+  getRbacModel(id: string): Promise<RbacModel | undefined>;
+  getAllRbacModels(): Promise<RbacModel[]>;
+  updateRbacModel(id: string, updates: Partial<RbacModel>): Promise<RbacModel>;
+  deleteRbacModel(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -157,6 +164,40 @@ export class DatabaseStorage implements IStorage {
 
   async deleteService(id: string, userId: string): Promise<void> {
     await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
+  }
+
+  // RBAC Model operations
+  async createRbacModel(insertModel: InsertRbacModel & { createdBy: string }): Promise<RbacModel> {
+    const [model] = await db
+      .insert(rbacModels)
+      .values(insertModel)
+      .returning();
+    return model;
+  }
+
+  async getRbacModel(id: string): Promise<RbacModel | undefined> {
+    const [model] = await db
+      .select()
+      .from(rbacModels)
+      .where(eq(rbacModels.id, id));
+    return model || undefined;
+  }
+
+  async getAllRbacModels(): Promise<RbacModel[]> {
+    return await db.select().from(rbacModels);
+  }
+
+  async updateRbacModel(id: string, updates: Partial<RbacModel>): Promise<RbacModel> {
+    const [model] = await db
+      .update(rbacModels)
+      .set(updates)
+      .where(eq(rbacModels.id, id))
+      .returning();
+    return model;
+  }
+
+  async deleteRbacModel(id: string): Promise<void> {
+    await db.delete(rbacModels).where(eq(rbacModels.id, id));
   }
 }
 
