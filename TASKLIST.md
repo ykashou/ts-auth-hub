@@ -552,7 +552,7 @@ model:
 ---
 
 ## Task 11: OAuth Flow RBAC Integration - Full Stack
-**What you'll see:** External services receive user role and permissions in JWT tokens during OAuth redirect flow
+**What you'll see:** External services receive user role and permissions in JWT tokens during OAuth redirect flow, with comprehensive documentation in API Docs and Widget Docs
 
 **Changes:**
 1. **Backend**: Create `getUserPermissionsForService(userId, serviceId)` helper that fetches user's role and permissions for a service
@@ -562,7 +562,15 @@ model:
    - Add `rbacModel` object: `{ id, name, description }`
 3. **Backend**: Handle edge cases: no role assigned (empty permissions), no RBAC model (null values)
 4. **Backend**: Create `GET /api/services/:serviceId/verify-token` endpoint for external token verification
-5. **Frontend**: Update API docs page with new token structure and code examples showing how external services decode/use permissions
+5. **Frontend**: Update API Docs page (`/api-docs`) with:
+   - New token structure documentation
+   - Code examples showing how external services decode and use RBAC data
+   - Examples of permission checking logic in external applications
+   - Updated OAuth redirect flow documentation with RBAC fields
+6. **Frontend**: Update Widget Docs page (`/widget-docs`) with:
+   - Updated token payload structure showing RBAC fields
+   - Code examples for extracting and using role/permissions from widget authentication
+   - Examples of client-side permission checks based on widget-provided tokens
 
 **Token Structure:**
 ```json
@@ -583,8 +591,10 @@ model:
 - OAuth flow without role → token has empty permissions array
 - OAuth flow without RBAC model → token has null values
 - External service can decode token and enforce permissions
+- API Docs page shows updated token structure and RBAC usage examples
+- Widget Docs page shows updated token structure and RBAC integration examples
 
-**Acceptance:** External services receive complete RBAC context in JWT tokens, enabling local permission enforcement without callbacks to AuthHub
+**Acceptance:** External services receive complete RBAC context in JWT tokens, enabling local permission enforcement without callbacks to AuthHub. Both API Docs and Widget Docs are updated to reflect the new RBAC integration in token payloads.
 
 ---
 
