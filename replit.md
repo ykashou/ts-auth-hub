@@ -4,6 +4,16 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
+- ✅ **Phase 0 Completed: Strategy Pattern Refactor** - Unified authentication architecture with extensible strategy system
+  - Created `AuthStrategy` interface defining standard authentication method contract
+  - Implemented `EmailPasswordStrategy` and `UuidStrategy` for existing auth methods
+  - Built `StrategyRegistry` with 2 implemented + 4 placeholder methods (Nostr, BlueSky, WebAuthn, Magic Links)
+  - Created unified `AuthHandler` consolidating all post-auth hooks (service seeding, RBAC seeding, JWT generation)
+  - Added `/api/auth/authenticate` unified endpoint replacing method-specific endpoints
+  - Added `/api/auth/methods` auto-discovery endpoint returning all 6 methods (2 implemented, 4 placeholders with `implemented: false` flag)
+  - Refactored legacy `/api/auth/login` and `/api/auth/uuid-login` to use new auth handler (maintained backward compatibility)
+  - E2E tests passed: all 6 methods returned correctly, email + UUID authentication working via unified endpoint
+  - **Next Steps**: Phase 1 - Database schema for login page configuration (auth_methods, login_page_config, service_auth_methods tables)
 - ✅ **Task 12 Completed: Global Services Foundation** - Created infrastructure for global service catalog that will replace user-specific services
   - Added `globalServices` database table (identical to `services` table but WITHOUT userId field)
   - Implemented complete backend: storage interface, CRUD methods, and admin-only API endpoints
