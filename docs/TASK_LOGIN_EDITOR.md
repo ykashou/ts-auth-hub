@@ -534,30 +534,6 @@ const settingsItems = [
 
 ---
 
-## Advanced Features (Optional Enhancements)
-
-### 1. A/B Testing
-- Create multiple login page variants
-- Track conversion rates per configuration
-- Analytics dashboard showing which config performs better
-
-### 2. Conditional Logic
-- Show different methods based on user location
-- Hide methods during maintenance windows
-- Enable methods based on time of day
-
-### 3. Custom CSS
-- Text area for custom CSS injection
-- Override specific element styles
-- Preview custom CSS in real-time
-
-### 4. Multi-Language Support
-- Configure text in multiple languages
-- Auto-detect user language
-- Language switcher on login page
-
----
-
 ## Acceptance Criteria
 
 ✅ **Configuration Management:**
