@@ -4,6 +4,15 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
+- ✅ **Task 12 Completed: Global Services Foundation** - Created infrastructure for global service catalog that will replace user-specific services
+  - Added `globalServices` database table (identical to `services` table but WITHOUT userId field)
+  - Implemented complete backend: storage interface, CRUD methods, and admin-only API endpoints
+  - Created `/admin/global-services` frontend page with full CRUD UI (create, edit, rotate-secret, delete)
+  - All global services use same secret encryption/rotation as user-specific services (AES-256-GCM)
+  - Only admins can manage global services via `requireAdmin` middleware on all endpoints
+  - Added "Global Services" navigation link in Service Management dropdown
+  - E2E Playwright tests passed validating complete create/edit/rotate/delete flow
+  - **Next Steps**: Plan migration path for mapping user-specific services to global catalog; define user-service assignment model
 - ✅ **Task 11 Completed: OAuth Flow RBAC Integration** - JWT tokens now include role and permission data for seamless external service integration
   - Enhanced `generateAuthToken()` to include RBAC data (rbacRole, permissions, rbacModel) when service_id is provided
   - Created `getUserPermissionsForService()` helper to fetch user's role and permissions for a specific service
@@ -63,7 +72,7 @@ AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme, uti
 ### System Design Choices
 AuthHub follows a client-server architecture. The frontend uses React, TypeScript, Tailwind CSS, Shadcn UI, Wouter, and TanStack Query. The backend uses Express.js and Node.js. PostgreSQL is the database, managed with Drizzle ORM. Shared types and Zod schemas ensure data consistency.
 
-**Data Models**: Includes `Users`, `API Keys`, `Services`, `RBAC Models`, `Roles`, `Permissions`, `Role Permissions`, and `Service RBAC Models`. All models are designed with appropriate UUIDs, foreign keys, and CASCADE delete relationships to maintain data integrity and support the outlined features.
+**Data Models**: Includes `Users`, `API Keys`, `Services`, `Global Services`, `RBAC Models`, `Roles`, `Permissions`, `Role Permissions`, `Service RBAC Models`, and `User Service Roles`. All models are designed with appropriate UUIDs, foreign keys, and CASCADE delete relationships to maintain data integrity and support the outlined features.
 
 ## External Dependencies
 *   **Database**: PostgreSQL
