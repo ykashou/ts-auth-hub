@@ -3,6 +3,9 @@
 ## Principle: Complete Control Over Authentication Experience
 Admins can customize every aspect of the login page: branding, enabled methods, ordering, text, and appearance - all without touching code.
 
+## Architecture: Service-Specific Login Pages
+Login page configurations can be assigned to specific services, similar to RBAC models. Each service gets its own branded login experience with custom authentication methods, while a default configuration serves the main AuthHub login.
+
 ---
 
 ## Task: Login Page Editor & Configuration System - Full Stack
@@ -14,16 +17,19 @@ Admins can customize every aspect of the login page: branding, enabled methods, 
 - Branding is fixed (AuthHub logo, hardcoded title/description)
 - No way to customize without editing code
 - All placeholder methods show "Coming Soon" badge
+- Same login page shown for all services
 
 **Goal State:**
-- Admin can toggle authentication methods on/off individually
+- Admin can create service-specific login page configurations
+- Admin can toggle authentication methods on/off per service
 - Admin can reorder authentication methods via drag-and-drop
-- Admin can customize branding (logo, title, description, colors)
-- Admin can set default authentication method (which tab is selected by default)
+- Admin can customize branding (logo, title, description, colors) per service
+- Admin can set default authentication method per service
 - Admin can customize button text and labels
 - Live preview shows exactly how login page will appear to users
 - Changes saved to database and applied immediately
-- Non-implemented methods can be hidden from users
+- Default configuration used when no service specified
+- Service-specific configuration overrides default when `service_id` query parameter present
 
 ---
 
@@ -34,6 +40,9 @@ Admins can customize every aspect of the login page: branding, enabled methods, 
 // shared/schema.ts
 export const loginPageConfig = pgTable("login_page_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Service Association (null = default/global configuration)
+  serviceId: varchar("service_id").references(() => globalServices.id, { onDelete: "cascade" }),
   
   // Branding
   title: varchar("title").notNull().default("Welcome to AuthHub"),
@@ -48,16 +57,24 @@ export const loginPageConfig = pgTable("login_page_config", {
   methodOrder: json("method_order").$type<string[]>().notNull().default(sql`'["uuid","email","nostr","bluesky","webauthn","magic_link"]'::json`),
   
   // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // Admin who made last change
 });
+
+// Unique constraint: one config per service (or one global if serviceId is null)
+export const loginPageConfigConstraints = pgTable("login_page_config", {
+  // ... columns ...
+}, (table) => ({
+  uniqueServiceConfig: unique().on(table.serviceId),
+}));
 
 export const insertLoginPageConfigSchema = createInsertSchema(loginPageConfig);
 export type LoginPageConfig = typeof loginPageConfig.$inferSelect;
 export type InsertLoginPageConfig = z.infer<typeof insertLoginPageConfigSchema>;
 ```
 
-### 2. Authentication Methods Table
+### 2. Authentication Methods Table (Global Definitions)
 ```typescript
 // shared/schema.ts
 export const authMethodsEnum = pgEnum("auth_method_type", [
@@ -76,17 +93,11 @@ export const authMethods = pgTable("auth_methods", {
   icon: varchar("icon").notNull(), // Lucide icon name: "KeyRound", "Mail", "Zap", etc.
   type: authMethodsEnum("type").notNull(),
   
-  // Status
-  enabled: boolean("enabled").notNull().default(false), // Can users see this method?
+  // Global defaults
   implemented: boolean("implemented").notNull().default(false), // Is backend ready?
-  
-  // Customization
-  buttonText: varchar("button_text").notNull(), // e.g., "Login with Nostr"
-  buttonVariant: varchar("button_variant").notNull().default("outline"), // "default" | "outline" | "ghost"
-  showComingSoonBadge: boolean("show_coming_soon_badge").notNull().default(true),
-  
-  // Help text shown below method selector
-  helpText: varchar("help_text"),
+  defaultButtonText: varchar("default_button_text").notNull(), // Default: "Login with Nostr"
+  defaultButtonVariant: varchar("default_button_variant").notNull().default("outline"),
+  defaultHelpText: varchar("default_help_text"),
   
   // Metadata
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -98,6 +109,40 @@ export type AuthMethod = typeof authMethods.$inferSelect;
 export type InsertAuthMethod = z.infer<typeof insertAuthMethodSchema>;
 ```
 
+### 3. Service Auth Methods Table (Service-Specific Overrides)
+```typescript
+// shared/schema.ts
+export const serviceAuthMethods = pgTable("service_auth_methods", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Relations
+  loginConfigId: varchar("login_config_id").notNull().references(() => loginPageConfig.id, { onDelete: "cascade" }),
+  authMethodId: varchar("auth_method_id").notNull().references(() => authMethods.id, { onDelete: "cascade" }),
+  
+  // Service-specific settings
+  enabled: boolean("enabled").notNull().default(true), // Is this method visible for this service?
+  showComingSoonBadge: boolean("show_coming_soon_badge").notNull().default(false),
+  
+  // Optional overrides (null = use defaults from auth_methods table)
+  buttonText: varchar("button_text"), // Override default button text
+  buttonVariant: varchar("button_variant"), // Override default variant
+  helpText: varchar("help_text"), // Override default help text
+  
+  // Display order within this config (for fine-grained control)
+  displayOrder: integer("display_order").notNull().default(0),
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueConfigMethod: unique().on(table.loginConfigId, table.authMethodId),
+}));
+
+export const insertServiceAuthMethodSchema = createInsertSchema(serviceAuthMethods);
+export type ServiceAuthMethod = typeof serviceAuthMethods.$inferSelect;
+export type InsertServiceAuthMethod = z.infer<typeof insertServiceAuthMethodSchema>;
+```
+
 ---
 
 ## Backend Implementation
@@ -106,119 +151,194 @@ export type InsertAuthMethod = z.infer<typeof insertAuthMethodSchema>;
 ```typescript
 // server/storage.ts
 async seedLoginPageConfig() {
-  // Check if config already exists
-  const existing = await db.select().from(loginPageConfig).limit(1);
-  if (existing.length > 0) return;
+  // Seed global authentication methods (if not already seeded)
+  const existingMethods = await db.select().from(authMethods).limit(1);
+  if (existingMethods.length === 0) {
+    const methods = [
+      {
+        id: "uuid",
+        name: "UUID Login",
+        description: "Use an existing Account ID or generate a new one for anonymous authentication",
+        icon: "KeyRound",
+        type: "uuid",
+        implemented: true,
+        defaultButtonText: "UUID Login",
+        defaultButtonVariant: "default",
+      },
+      {
+        id: "email",
+        name: "Email Login",
+        description: "Sign in with your email and password",
+        icon: "Mail",
+        type: "email",
+        implemented: true,
+        defaultButtonText: "Email Login",
+        defaultButtonVariant: "default",
+      },
+      {
+        id: "nostr",
+        name: "Nostr",
+        description: "Authenticate using your Nostr public key with cryptographic signatures",
+        icon: "Zap",
+        type: "nostr",
+        implemented: false,
+        defaultButtonText: "Login with Nostr",
+        defaultButtonVariant: "outline",
+        defaultHelpText: "Requires Nostr browser extension (Alby or nos2x)",
+      },
+      {
+        id: "bluesky",
+        name: "BlueSky",
+        description: "Sign in with your BlueSky ATProtocol identity",
+        icon: "Cloud",
+        type: "bluesky",
+        implemented: false,
+        defaultButtonText: "Login with BlueSky",
+        defaultButtonVariant: "outline",
+      },
+      {
+        id: "webauthn",
+        name: "WebAuthn",
+        description: "Passwordless authentication using biometrics or security keys",
+        icon: "Fingerprint",
+        type: "webauthn",
+        implemented: false,
+        defaultButtonText: "Login with WebAuthn",
+        defaultButtonVariant: "outline",
+      },
+      {
+        id: "magic_link",
+        name: "Magic Link",
+        description: "Receive a one-time login link via email",
+        icon: "Sparkles",
+        type: "magic_link",
+        implemented: false,
+        defaultButtonText: "Login with Magic Link",
+        defaultButtonVariant: "outline",
+      },
+    ];
+    
+    await db.insert(authMethods).values(methods);
+  }
   
-  // Seed default configuration
-  await db.insert(loginPageConfig).values({
-    title: "Welcome to AuthHub",
-    description: "Choose your preferred authentication method",
-    defaultMethod: "uuid",
-    methodOrder: ["uuid", "email", "nostr", "bluesky", "webauthn", "magic_link"],
-  });
-  
-  // Seed authentication methods
-  const methods = [
-    {
-      id: "uuid",
-      name: "UUID Login",
-      description: "Use an existing Account ID or generate a new one for anonymous authentication",
-      icon: "KeyRound",
-      type: "uuid",
-      enabled: true,
-      implemented: true,
-      buttonText: "UUID Login",
-      showComingSoonBadge: false,
-    },
-    {
-      id: "email",
-      name: "Email Login",
-      description: "Sign in with your email and password",
-      icon: "Mail",
-      type: "email",
-      enabled: true,
-      implemented: true,
-      buttonText: "Email Login",
-      showComingSoonBadge: false,
-    },
-    {
-      id: "nostr",
-      name: "Nostr",
-      description: "Authenticate using your Nostr public key with cryptographic signatures",
-      icon: "Zap",
-      type: "nostr",
-      enabled: true,
-      implemented: false,
-      buttonText: "Login with Nostr",
-      showComingSoonBadge: true,
-      helpText: "Requires Nostr browser extension (Alby or nos2x)",
-    },
-    {
-      id: "bluesky",
-      name: "BlueSky",
-      description: "Sign in with your BlueSky ATProtocol identity",
-      icon: "Cloud",
-      type: "bluesky",
-      enabled: true,
-      implemented: false,
-      buttonText: "Login with BlueSky",
-      showComingSoonBadge: true,
-    },
-    {
-      id: "webauthn",
-      name: "WebAuthn",
-      description: "Passwordless authentication using biometrics or security keys",
-      icon: "Fingerprint",
-      type: "webauthn",
-      enabled: true,
-      implemented: false,
-      buttonText: "Login with WebAuthn",
-      showComingSoonBadge: true,
-    },
-    {
-      id: "magic_link",
-      name: "Magic Link",
-      description: "Receive a one-time login link via email",
-      icon: "Sparkles",
-      type: "magic_link",
-      enabled: true,
-      implemented: false,
-      buttonText: "Login with Magic Link",
-      showComingSoonBadge: true,
-    },
-  ];
-  
-  await db.insert(authMethods).values(methods);
+  // Seed default login page configuration (serviceId = null)
+  const existingDefaultConfig = await db.select()
+    .from(loginPageConfig)
+    .where(isNull(loginPageConfig.serviceId))
+    .limit(1);
+    
+  if (existingDefaultConfig.length === 0) {
+    const [defaultConfig] = await db.insert(loginPageConfig).values({
+      serviceId: null, // Default configuration
+      title: "Welcome to AuthHub",
+      description: "Choose your preferred authentication method",
+      defaultMethod: "uuid",
+      methodOrder: ["uuid", "email", "nostr", "bluesky", "webauthn", "magic_link"],
+    }).returning();
+    
+    // Seed service auth methods for default config
+    const allMethods = await db.select().from(authMethods);
+    const serviceAuthMethodsData = allMethods.map((method, index) => ({
+      loginConfigId: defaultConfig.id,
+      authMethodId: method.id,
+      enabled: method.implemented, // Only enable implemented methods by default
+      showComingSoonBadge: !method.implemented, // Show badge for non-implemented
+      displayOrder: index,
+    }));
+    
+    await db.insert(serviceAuthMethods).values(serviceAuthMethodsData);
+  }
 }
 ```
 
-### 2. API Endpoints (Admin Only)
+### 2. API Endpoints
 
 ```typescript
 // server/routes.ts
 
 // ==================== Login Page Configuration Routes ====================
 
-// Get current login page configuration
-app.get("/api/admin/login-config", verifyToken, requireAdmin, async (req, res) => {
+// Get all login page configurations (Admin only - for management UI)
+app.get("/api/admin/login-configs", verifyToken, requireAdmin, async (req, res) => {
   try {
-    const config = await storage.getLoginPageConfig();
+    const configs = await storage.getAllLoginPageConfigs(); // Returns all configs with service info
+    res.json(configs);
+  } catch (error: any) {
+    console.error("Get login configs error:", error);
+    res.status(500).json({ error: "Failed to fetch login configurations" });
+  }
+});
+
+// Get login page configuration by ID or service ID (Admin only)
+app.get("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { serviceId } = req.query;
+    
+    let config;
+    if (serviceId) {
+      config = await storage.getLoginPageConfigByServiceId(serviceId as string);
+    } else {
+      config = await storage.getLoginPageConfigById(id);
+    }
+    
     if (!config) {
       return res.status(404).json({ error: "Configuration not found" });
     }
-    res.json(config);
+    
+    // Also fetch associated auth methods with overrides
+    const methods = await storage.getServiceAuthMethods(config.id);
+    
+    res.json({ config, methods });
   } catch (error: any) {
     console.error("Get login config error:", error);
     res.status(500).json({ error: "Failed to fetch login configuration" });
   }
 });
 
-// Update login page configuration
-app.patch("/api/admin/login-config", verifyToken, requireAdmin, async (req, res) => {
+// Create new login page configuration for a service (Admin only)
+app.post("/api/admin/login-config", verifyToken, requireAdmin, async (req, res) => {
   try {
+    const validatedData = insertLoginPageConfigSchema.parse(req.body);
+    
+    // Check if config already exists for this service
+    if (validatedData.serviceId) {
+      const existing = await storage.getLoginPageConfigByServiceId(validatedData.serviceId);
+      if (existing) {
+        return res.status(409).json({ error: "Configuration already exists for this service" });
+      }
+    }
+    
+    const newConfig = await storage.createLoginPageConfig({
+      ...validatedData,
+      updatedBy: (req as any).user.id,
+    });
+    
+    // Auto-create default service auth methods entries
+    const allMethods = await storage.getAllAuthMethods();
+    const serviceAuthMethodsData = allMethods.map((method, index) => ({
+      loginConfigId: newConfig.id,
+      authMethodId: method.id,
+      enabled: method.implemented,
+      showComingSoonBadge: !method.implemented,
+      displayOrder: index,
+    }));
+    
+    await storage.createServiceAuthMethods(serviceAuthMethodsData);
+    
+    res.status(201).json(newConfig);
+  } catch (error: any) {
+    console.error("Create login config error:", error);
+    res.status(400).json({ error: error.message || "Failed to create configuration" });
+  }
+});
+
+// Update login page configuration (Admin only)
+app.patch("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
     const validatedData = insertLoginPageConfigSchema.partial().parse(req.body);
-    const updated = await storage.updateLoginPageConfig({
+    const updated = await storage.updateLoginPageConfig(id, {
       ...validatedData,
       updatedBy: (req as any).user.id,
       updatedAt: new Date(),
@@ -230,7 +350,26 @@ app.patch("/api/admin/login-config", verifyToken, requireAdmin, async (req, res)
   }
 });
 
-// Get all authentication methods
+// Delete login page configuration (Admin only)
+app.delete("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Prevent deleting default config
+    const config = await storage.getLoginPageConfigById(id);
+    if (!config.serviceId) {
+      return res.status(400).json({ error: "Cannot delete default configuration" });
+    }
+    
+    await storage.deleteLoginPageConfig(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Delete login config error:", error);
+    res.status(500).json({ error: "Failed to delete configuration" });
+  }
+});
+
+// Get all global authentication methods (Admin only)
 app.get("/api/admin/auth-methods", verifyToken, requireAdmin, async (req, res) => {
   try {
     const methods = await storage.getAllAuthMethods();
@@ -241,27 +380,46 @@ app.get("/api/admin/auth-methods", verifyToken, requireAdmin, async (req, res) =
   }
 });
 
-// Update authentication method
-app.patch("/api/admin/auth-methods/:id", verifyToken, requireAdmin, async (req, res) => {
+// Update service auth method configuration (Admin only)
+app.patch("/api/admin/service-auth-methods/:id", verifyToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const validatedData = insertAuthMethodSchema.partial().parse(req.body);
-    const updated = await storage.updateAuthMethod(id, {
+    const validatedData = insertServiceAuthMethodSchema.partial().parse(req.body);
+    const updated = await storage.updateServiceAuthMethod(id, {
       ...validatedData,
       updatedAt: new Date(),
     });
     res.json(updated);
   } catch (error: any) {
-    console.error("Update auth method error:", error);
-    res.status(400).json({ error: error.message || "Failed to update authentication method" });
+    console.error("Update service auth method error:", error);
+    res.status(400).json({ error: error.message || "Failed to update service auth method" });
   }
 });
+
+// ==================== Public Login Configuration Endpoint ====================
 
 // Public endpoint for login page (used by login page itself)
 app.get("/api/login-config", async (req, res) => {
   try {
-    const config = await storage.getLoginPageConfig();
-    const methods = await storage.getEnabledAuthMethods(); // Only return enabled methods
+    const { service_id } = req.query;
+    
+    let config;
+    if (service_id) {
+      // Try to get service-specific config
+      config = await storage.getLoginPageConfigByServiceId(service_id as string);
+    }
+    
+    // Fall back to default config if no service-specific config exists
+    if (!config) {
+      config = await storage.getDefaultLoginPageConfig();
+    }
+    
+    if (!config) {
+      return res.status(404).json({ error: "No login configuration found" });
+    }
+    
+    // Get enabled auth methods for this config (with enriched data from global auth_methods)
+    const methods = await storage.getEnabledServiceAuthMethods(config.id);
     
     res.json({
       config,
@@ -282,13 +440,32 @@ app.get("/api/login-config", async (req, res) => {
 
 **Features:**
 - Split-screen layout: Editor on left, Live Preview on right
+- Service selector dropdown at top (Default, or select from Global Services)
 - Tabs: Branding, Authentication Methods, Advanced Settings
 - Drag-and-drop to reorder authentication methods
-- Toggle switches to enable/disable methods
+- Toggle switches to enable/disable methods per service
+- Service-specific overrides for button text and help text
 - Real-time preview updates as you make changes
 - Save/Reset buttons
+- Copy configuration from another service
+- Create new service-specific configuration
 
 **UI Components:**
+
+#### Service Selector (Top of Page)
+```
+┌───────────────────────────────────────────────────────────┐
+│ Editing Login Page For:                                   │
+│ ┌─────────────────────────────────────────────────┐       │
+│ │ Default (AuthHub)                           ▼   │       │
+│ └─────────────────────────────────────────────────┘       │
+│   Options:                                                │
+│   - Default (AuthHub)                                     │
+│   - Service 1: My SaaS App                                │
+│   - Service 2: Partner Portal                             │
+│   [+ Create New Service Configuration]                    │
+└───────────────────────────────────────────────────────────┘
+```
 
 #### Branding Tab
 ```
@@ -313,6 +490,8 @@ app.get("/api/login-config", async (req, res) => {
 │ ┌─────────────────────────────┐    │
 │ │ UUID Login             ▼    │    │
 │ └─────────────────────────────┘    │
+│                                     │
+│ [Copy from Another Service ▼]      │
 └─────────────────────────────────────┘
 ```
 
@@ -376,38 +555,60 @@ app.get("/api/login-config", async (req, res) => {
 
 ### 2. Updated Login Page (`/login`)
 
+**URL Patterns:**
+- `/login` - Shows default AuthHub login page
+- `/login?service_id=<service_id>` - Shows service-specific branded login page
+
 **Changes:**
-- Fetch configuration from `/api/login-config` on mount
-- Dynamically render only enabled authentication methods
-- Apply custom branding (title, description, logo, colors)
-- Respect method ordering from config
-- Show/hide "Coming Soon" badges based on config
-- Set default tab based on config
+- Fetch configuration from `/api/login-config?service_id=<id>` on mount
+- Extract `service_id` from URL query parameters
+- Dynamically render only enabled authentication methods for that service
+- Apply service-specific branding (title, description, logo, colors)
+- Respect method ordering from service config
+- Show/hide "Coming Soon" badges based on service config
+- Set default tab based on service config
+- Fall back to default config if service doesn't have custom config
 
 ```typescript
 // client/src/pages/login.tsx
-const { data: loginConfig } = useQuery({
-  queryKey: ["/api/login-config"],
-  staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-});
+import { useLocation, useSearch } from "wouter";
 
-// Filter to only enabled methods, sorted by configured order
-const enabledMethods = useMemo(() => {
-  if (!loginConfig?.methods) return [];
+export default function Login() {
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const serviceId = params.get("service_id");
   
-  const methodMap = new Map(loginConfig.methods.map(m => [m.id, m]));
-  const order = loginConfig.config.methodOrder || [];
-  
-  return order
-    .map(id => methodMap.get(id))
-    .filter(m => m && m.enabled);
-}, [loginConfig]);
+  // Fetch service-specific or default login configuration
+  const { data: loginConfig, isLoading } = useQuery({
+    queryKey: ["/api/login-config", serviceId],
+    queryFn: async () => {
+      const url = serviceId 
+        ? `/api/login-config?service_id=${serviceId}`
+        : "/api/login-config";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch login config");
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
-// Apply branding
-const title = loginConfig?.config?.title || "Welcome to AuthHub";
-const description = loginConfig?.config?.description || "Choose your preferred authentication method";
-const logoUrl = loginConfig?.config?.logoUrl;
-const primaryColor = loginConfig?.config?.primaryColor;
+  // Filter to only enabled methods, sorted by configured order
+  const enabledMethods = useMemo(() => {
+    if (!loginConfig?.methods) return [];
+    
+    // Methods come pre-sorted from backend based on displayOrder
+    return loginConfig.methods.filter(m => m.enabled);
+  }, [loginConfig]);
+
+  // Apply service-specific branding
+  const title = loginConfig?.config?.title || "Welcome to AuthHub";
+  const description = loginConfig?.config?.description || "Choose your preferred authentication method";
+  const logoUrl = loginConfig?.config?.logoUrl;
+  const primaryColor = loginConfig?.config?.primaryColor;
+  const defaultMethod = loginConfig?.config?.defaultMethod || "uuid";
+  
+  // ... rest of component
+}
 ```
 
 ---
@@ -441,15 +642,27 @@ const primaryColor = loginConfig?.config?.primaryColor;
 
 ## Testing Scenarios
 
-### Test 1: Basic Configuration
+### Test 1: Default Configuration
 1. Login as admin → navigate to `/admin/login-editor`
-2. See current configuration loaded in editor
-3. Change title from "Welcome to AuthHub" to "Sign In to MyApp"
+2. See "Default (AuthHub)" selected in service dropdown
+3. Change title from "Welcome to AuthHub" to "Sign In to AuthHub"
 4. See preview update immediately
 5. Click "Save Changes" → see success toast
-6. Open login page in incognito window → see new title
+6. Open `/login` in incognito window → see new title
 
-**Expected:** Title changes persist and appear on actual login page
+**Expected:** Default configuration changes persist and appear on login page
+
+### Test 1B: Service-Specific Configuration
+1. In login editor, select "Service 1: My SaaS App" from dropdown
+2. Change title to "Welcome to My SaaS App"
+3. Change logo and primary color
+4. Disable Nostr and BlueSky methods (enable only UUID and Email)
+5. Save changes
+6. Open `/login?service_id=<service1_id>` → see custom branding
+7. Verify only UUID and Email methods are shown
+8. Open `/login` (no service_id) → see default AuthHub branding
+
+**Expected:** Service-specific config shows when service_id present, default shows otherwise
 
 ### Test 2: Toggle Authentication Methods
 1. In editor, disable "Login with Nostr" (toggle off)
@@ -515,9 +728,18 @@ npm run db:push --force
 ```
 
 **Migration creates:**
-- `login_page_config` table with default row
-- `auth_methods` table with 6 default methods
-- Seeds configuration on first run
+- `auth_methods` table with 6 global authentication method definitions
+- `login_page_config` table with unique constraint on serviceId (nullable)
+- `service_auth_methods` junction table with unique constraint on (loginConfigId, authMethodId)
+- Default configuration row with serviceId = null (global/AuthHub config)
+- Default service_auth_methods entries linking all 6 auth methods to default config
+
+**Important Relationships:**
+- Each `login_page_config` can reference ONE `global_service` (or null for default)
+- Each service can have only ONE `login_page_config` (unique constraint)
+- When a `global_service` is deleted, its `login_page_config` is cascade deleted
+- When a `login_page_config` is deleted, all its `service_auth_methods` are cascade deleted
+- The default config (serviceId = null) CANNOT be deleted
 
 ---
 
@@ -639,10 +861,59 @@ npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 
 ---
 
+---
+
+## Service Integration & OAuth Flow
+
+### How It Works with Services:
+
+When an external service redirects users to AuthHub for authentication:
+
+```
+1. External app redirects to:
+   https://authhub.example.com/login?service_id=abc123&redirect_uri=...
+
+2. AuthHub login page fetches service-specific config:
+   GET /api/login-config?service_id=abc123
+
+3. User sees branded login experience (custom logo, colors, enabled methods)
+
+4. After authentication, user is redirected back with token:
+   https://external-app.com/callback?token=...
+```
+
+### Admin Workflow for New Service:
+
+1. Admin creates global service in `/admin/global-services`
+2. Admin assigns RBAC model to service (if needed)
+3. Admin creates custom login page for service in `/admin/login-editor`
+   - Select service from dropdown
+   - Customize branding
+   - Enable/disable auth methods
+   - Save configuration
+4. Service can now redirect users to AuthHub with branded experience
+
+### Relationship to RBAC Models:
+
+```
+Global Service
+├── Login Page Config (1:1) - How users see the login page
+├── RBAC Model (1:1) - What permissions users get after login
+└── User-Service-Role Assignments (many) - Which users have access
+```
+
+Both login page configurations and RBAC models are assigned to services independently:
+- **Login Page Config**: Controls the authentication UX
+- **RBAC Model**: Controls permissions after authentication
+
+---
+
 ## Notes
 
 - This feature gives admins complete control without requiring code changes
-- The login page becomes a "product" that can be customized per deployment
-- Enables white-labeling for different environments/customers
-- Configuration is environment-specific (dev/staging/prod can have different configs)
-- Future: Export/import configurations for easy deployment migration
+- Each service can have its own branded login experience
+- Services can enable different authentication methods (e.g., one service allows Nostr, another doesn't)
+- The login page becomes a "product" that can be customized per service/customer
+- Default configuration serves as both the AuthHub login and fallback for unconfigured services
+- Configuration is database-driven and environment-specific (dev/staging/prod can differ)
+- Service-specific configs are automatically deleted when the service is deleted (cascade)
