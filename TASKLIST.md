@@ -653,7 +653,78 @@ model:
 
 ---
 
-## Task 13: Service Enablement System - Junction Table for User Access Control - Full Stack
+## Task 13: Add Login with Nostr - Full Stack
+**What you'll see:** Users can authenticate using their Nostr public key (npub) instead of email/password or UUID
+
+**Background:**
+Nostr is a decentralized protocol for social media and communication. Users have a public key (npub - starts with "npub1") and a private key (nsec). The Nostr authentication flow uses cryptographic signatures to prove identity without passwords.
+
+**Changes:**
+1. **Schema**: Add `nostrPubkey` field to users table (nullable varchar for Nostr public key in hex format)
+2. **Backend**: Create `POST /api/auth/nostr/challenge` endpoint (generates a random challenge string for the user to sign)
+3. **Backend**: Create `POST /api/auth/nostr/verify` endpoint (verifies signature and logs in/registers user)
+4. **Backend**: Store challenge in memory/session with expiration (5 minutes)
+5. **Backend**: Use a Nostr library (nostr-tools or similar) to verify signatures
+6. **Backend**: On successful verification:
+   - If user exists (nostrPubkey matches): login and return JWT token
+   - If new user: auto-register with nostrPubkey, assign "user" role, return JWT token
+7. **Frontend**: Add "Login with Nostr" button to login page
+8. **Frontend**: Create Nostr login flow:
+   - User clicks "Login with Nostr"
+   - User enters their npub (public key) or browser extension auto-fills
+   - Request challenge from backend
+   - Use window.nostr API (from browser extension like Alby, nos2x) to sign challenge
+   - Send signature to backend for verification
+   - On success: redirect to dashboard with JWT token
+9. **Frontend**: Add Nostr browser extension detection (check if window.nostr exists)
+10. **Frontend**: Show helpful message if no extension detected: "Install Alby or nos2x browser extension"
+11. **Frontend**: Display Nostr public key in dashboard for users who logged in via Nostr
+12. **Frontend**: Allow linking Nostr to existing email/UUID accounts in profile settings
+13. **Test in browser**:
+    - Install Nostr browser extension (Alby or nos2x)
+    - Click "Login with Nostr" button
+    - Extension prompts for signature
+    - Sign challenge → automatically logged in
+    - Dashboard shows Nostr public key (npub format)
+    - Logout and login again with same Nostr key → same user account
+    - Try login without extension → see installation instructions
+
+**Nostr Authentication Flow:**
+```
+1. User clicks "Login with Nostr"
+2. Frontend requests challenge: POST /api/auth/nostr/challenge { pubkey: "npub1..." }
+3. Backend returns: { challenge: "random-string-12345", expiresAt: "..." }
+4. Frontend uses window.nostr.signEvent() to sign challenge
+5. Frontend sends: POST /api/auth/nostr/verify { pubkey: "npub1...", signature: "...", challenge: "..." }
+6. Backend verifies signature using nostr-tools
+7. If valid: create/login user, return JWT token
+8. Frontend stores token and redirects to dashboard
+```
+
+**UI Components:**
+- "Login with Nostr" button on login page (styled like social login button)
+- Nostr login modal/dialog with npub input field
+- Extension detection banner
+- Nostr pubkey display in dashboard
+- Link Nostr account option in profile settings
+
+**Dependencies:**
+- nostr-tools (npm package for signature verification)
+- Browser extension detection (window.nostr API)
+
+**UI Location:** Login page with new "Login with Nostr" button
+
+**Acceptance:**
+- Users can login/register using Nostr public key signature
+- No password required for Nostr authentication
+- Nostr users get same dashboard access as other users
+- Browser extension integration works seamlessly
+- Helpful error messages when extension not installed
+- Existing users can link Nostr identity to their account
+
+---
+
+## Task 14: Service Enablement System - Junction Table for User Access Control - Full Stack
 **What you'll see:** Admin can enable/disable global services for individual users via toggle switches
 
 **Current State:**
@@ -717,7 +788,7 @@ model:
 
 ---
 
-## Task 14: Dashboard Transition - Show Both Personal & Enabled Global Services - Full Stack
+## Task 15: Dashboard Transition - Show Both Personal & Enabled Global Services - Full Stack
 **What you'll see:** User dashboard shows BOTH their existing personal services AND any global services enabled for them
 
 **Current State:**
@@ -785,7 +856,7 @@ model:
 
 ---
 
-## Task 15: Personal Service Management Removal - Prepare for Migration - Full Stack
+## Task 16: Personal Service Management Removal - Prepare for Migration - Full Stack
 **What you'll see:** Remove ability for users to create/edit/delete personal services, transitioning to global-only service management
 
 **Current State (from Task 14):**
@@ -847,7 +918,7 @@ model:
 
 ---
 
-## Task 16: Migrate Existing Services to Global Catalog - Full Stack
+## Task 17: Migrate Existing Services to Global Catalog - Full Stack
 **What you'll see:** Old user-specific services become global, users keep access via userServices
 
 **Changes:**
@@ -877,7 +948,7 @@ model:
 
 ---
 
-## Task 17: Service Auto-Enablement for New Users - Full Stack
+## Task 18: Service Auto-Enablement for New Users - Full Stack
 **What you'll see:** New users automatically get access to a default set of services
 
 **Changes:**
