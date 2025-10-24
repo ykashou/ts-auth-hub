@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { storage } from "./storage";
 
 const app = express();
 
@@ -48,6 +49,14 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // Seed login page configuration on startup
+  try {
+    await storage.seedLoginPageConfig();
+    log("[Server] Login page configuration seeded successfully");
+  } catch (error) {
+    console.error("[Server] Failed to seed login page configuration:", error);
+  }
 
   // Serve the widget SDK file
   app.use('/authhub-widget.js', express.static('client/public/authhub-widget.js'));

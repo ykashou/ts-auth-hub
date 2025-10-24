@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, type User } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, type User } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { seedServices } from "./seed";
@@ -1585,6 +1585,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Set role permissions error:", error);
       res.status(500).json({ error: "Failed to update role permissions" });
+    }
+  });
+
+  // ==================== LOGIN PAGE CONFIGURATION ROUTES ====================
+
+  // Public endpoint: Get login page configuration for a service (or default)
+  app.get("/api/login-config", async (req, res) => {
+    try {
+      const { serviceId } = req.query;
+      
+      let config;
+      if (serviceId) {
+        config = await storage.getLoginPageConfigByServiceId(serviceId as string);
+      } else {
+        config = await storage.getDefaultLoginPageConfig();
+      }
+      
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      // Get enabled auth methods for this config
+      const methods = await storage.getEnabledServiceAuthMethods(config.id);
+      
+      res.json({ config, methods });
+    } catch (error: any) {
+      console.error("Get login config error:", error);
+      res.status(500).json({ error: "Failed to fetch login configuration" });
+    }
+  });
+
+  // Admin: Get all login page configurations
+  app.get("/api/admin/login-configs", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const configs = await storage.getAllLoginPageConfigs();
+      res.json(configs);
+    } catch (error: any) {
+      console.error("Get login configs error:", error);
+      res.status(500).json({ error: "Failed to fetch login configurations" });
+    }
+  });
+
+  // Admin: Get login page configuration by ID
+  app.get("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const config = await storage.getLoginPageConfigById(id);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      // Also fetch associated auth methods (all, including disabled)
+      const methods = await storage.getServiceAuthMethods(config.id);
+      
+      res.json({ config, methods });
+    } catch (error: any) {
+      console.error("Get login config error:", error);
+      res.status(500).json({ error: "Failed to fetch login configuration" });
+    }
+  });
+
+  // Admin: Create new login page configuration for a service
+  app.post("/api/admin/login-config", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertLoginPageConfigSchema.parse(req.body);
+      
+      // Check if config already exists for this service
+      if (validatedData.serviceId) {
+        const existing = await storage.getLoginPageConfigByServiceId(validatedData.serviceId);
+        if (existing) {
+          return res.status(409).json({ error: "Configuration already exists for this service" });
+        }
+      }
+      
+      const newConfig = await storage.createLoginPageConfig({
+        ...validatedData,
+        updatedBy: (req as any).user.id,
+      });
+      
+      // Auto-create default service auth methods entries
+      const allMethods = await storage.getAllAuthMethods();
+      const serviceAuthMethodsData = allMethods.map((method, index) => ({
+        loginConfigId: newConfig.id,
+        authMethodId: method.id,
+        enabled: method.implemented,
+        showComingSoonBadge: !method.implemented,
+        displayOrder: index,
+      }));
+      
+      await storage.createServiceAuthMethods(serviceAuthMethodsData);
+      
+      res.status(201).json(newConfig);
+    } catch (error: any) {
+      console.error("Create login config error:", error);
+      res.status(400).json({ error: error.message || "Failed to create configuration" });
+    }
+  });
+
+  // Admin: Update login page configuration
+  app.patch("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertLoginPageConfigSchema.partial().parse(req.body);
+      const updated = await storage.updateLoginPageConfig(id, {
+        ...validatedData,
+        updatedBy: (req as any).user.id,
+      });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update login config error:", error);
+      res.status(400).json({ error: error.message || "Failed to update configuration" });
+    }
+  });
+
+  // Admin: Delete login page configuration
+  app.delete("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Prevent deleting default config
+      const config = await storage.getLoginPageConfigById(id);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      if (!config.serviceId) {
+        return res.status(400).json({ error: "Cannot delete default configuration" });
+      }
+      
+      await storage.deleteLoginPageConfig(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete login config error:", error);
+      res.status(500).json({ error: "Failed to delete configuration" });
+    }
+  });
+
+  // Admin: Update service auth method (toggle enabled, change button text, etc.)
+  app.patch("/api/admin/service-auth-method/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertServiceAuthMethodSchema.partial().parse(req.body);
+      const updated = await storage.updateServiceAuthMethod(id, validatedData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update service auth method error:", error);
+      res.status(400).json({ error: error.message || "Failed to update auth method" });
+    }
+  });
+
+  // Admin: Update display order of auth methods (drag-and-drop)
+  app.put("/api/admin/service-auth-methods/order", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { updates } = req.body;
+      
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ error: "updates must be an array" });
+      }
+      
+      await storage.updateServiceAuthMethodsOrder(updates);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Update auth methods order error:", error);
+      res.status(500).json({ error: "Failed to update order" });
     }
   });
 

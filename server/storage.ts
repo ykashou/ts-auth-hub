@@ -95,12 +95,16 @@ export interface IStorage {
   getEnabledServiceAuthMethods(loginConfigId: string): Promise<any[]>;
   getServiceAuthMethods(loginConfigId: string): Promise<any[]>;
   getLoginPageConfigByServiceId(serviceId: string | null): Promise<LoginPageConfig | undefined>;
+  getLoginPageConfigById(id: string): Promise<LoginPageConfig | undefined>;
   getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined>;
   getAllLoginPageConfigs(): Promise<LoginPageConfig[]>;
   createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig>;
   updateLoginPageConfig(id: string, data: Partial<LoginPageConfig>): Promise<LoginPageConfig>;
+  deleteLoginPageConfig(id: string): Promise<void>;
   updateServiceAuthMethod(id: string, data: Partial<ServiceAuthMethod>): Promise<ServiceAuthMethod>;
   updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void>;
+  getAllAuthMethods(): Promise<AuthMethod[]>;
+  createServiceAuthMethods(data: InsertServiceAuthMethod[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1172,6 +1176,31 @@ export class DatabaseStorage implements IStorage {
         .update(serviceAuthMethods)
         .set({ displayOrder: update.displayOrder, updatedAt: new Date() })
         .where(eq(serviceAuthMethods.id, update.id));
+    }
+  }
+
+  async getLoginPageConfigById(id: string): Promise<LoginPageConfig | undefined> {
+    const [config] = await db
+      .select()
+      .from(loginPageConfig)
+      .where(eq(loginPageConfig.id, id))
+      .limit(1);
+    return config || undefined;
+  }
+
+  async deleteLoginPageConfig(id: string): Promise<void> {
+    await db
+      .delete(loginPageConfig)
+      .where(eq(loginPageConfig.id, id));
+  }
+
+  async getAllAuthMethods(): Promise<AuthMethod[]> {
+    return await db.select().from(authMethods);
+  }
+
+  async createServiceAuthMethods(data: InsertServiceAuthMethod[]): Promise<void> {
+    if (data.length > 0) {
+      await db.insert(serviceAuthMethods).values(data);
     }
   }
 }
