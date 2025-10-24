@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Shield, Mail, KeyRound, Loader2, Zap, Cloud, Fingerprint, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Shield, Mail, KeyRound, Loader2, Zap, Cloud, Fingerprint, Sparkles, type LucideIcon } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { setToken, setUserRole } from "@/lib/auth";
@@ -26,8 +28,49 @@ const uuidLoginSchema = z.object({
 type EmailLoginForm = z.infer<typeof emailLoginSchema>;
 type UuidLoginForm = z.infer<typeof uuidLoginSchema>;
 
+// Type definitions for login configuration
+interface LoginConfig {
+  id: string;
+  serviceId: string | null;
+  title: string;
+  description: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  defaultMethod: string;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+interface AuthMethod {
+  id: string;
+  loginConfigId: string;
+  authMethodId: string;
+  enabled: boolean;
+  showComingSoonBadge: boolean;
+  buttonText: string | null;
+  buttonVariant: string | null;
+  helpText: string | null;
+  displayOrder: number;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  implemented: boolean;
+  defaultButtonText: string;
+  defaultButtonVariant: string;
+  defaultHelpText: string | null;
+}
+
+interface LoginConfigResponse {
+  config: LoginConfig;
+  methods: AuthMethod[];
+}
+
 export default function LoginPage() {
-  const [loginMethod, setLoginMethod] = useState<"uuid" | "email">("uuid");
+  const [loginMethod, setLoginMethod] = useState<string | null>(null);
+  const [userSelectedMethod, setUserSelectedMethod] = useState(false); // Track if user manually selected a method
+  const [lastConfigId, setLastConfigId] = useState<string | null>(null); // Track config changes
   const [redirectUri, setRedirectUri] = useState<string | null>(null);
   const [serviceId, setServiceId] = useState<string | null>(null);
   const [, setLocation] = useLocation();
@@ -45,6 +88,62 @@ export default function LoginPage() {
       setServiceId(service);
     }
   }, []);
+
+  // Fetch login configuration
+  const { data: loginConfigData, isLoading: isLoadingConfig, isError, error } = useQuery<LoginConfigResponse>({
+    queryKey: serviceId ? ["/api/login-config", serviceId] : ["/api/login-config"],
+    enabled: true,
+  });
+
+  // Helper to get icon component from icon name
+  const getIcon = (iconName: string): LucideIcon => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent || Shield;
+  };
+
+  // Filter enabled methods and sort by displayOrder
+  const enabledMethods = loginConfigData?.methods
+    ?.filter(m => m.enabled)
+    .sort((a, b) => a.displayOrder - b.displayOrder) || [];
+
+  // Set default login method from config, respecting user manual selection
+  // Reset when config changes (new service) or when current selection is unavailable
+  useEffect(() => {
+    if (!loginConfigData?.config) return;
+    
+    const currentConfigId = loginConfigData.config.id;
+    const configDefault = loginConfigData.config.defaultMethod;
+    const availableMethodIds = enabledMethods.map(m => m.authMethodId);
+    
+    // If config changed (new service loaded), reset to new service's default
+    if (lastConfigId && lastConfigId !== currentConfigId) {
+      setLoginMethod(configDefault);
+      setUserSelectedMethod(false);
+      setLastConfigId(currentConfigId);
+      return;
+    }
+    
+    // Set lastConfigId on first load
+    if (!lastConfigId) {
+      setLastConfigId(currentConfigId);
+    }
+    
+    // If loginMethod is set but not available in current config, reset it
+    if (loginMethod && !availableMethodIds.includes(loginMethod)) {
+      setLoginMethod(configDefault);
+      setUserSelectedMethod(false);
+      return;
+    }
+    
+    // If user hasn't manually selected, use config default
+    if (!userSelectedMethod && configDefault) {
+      setLoginMethod(configDefault);
+    }
+  }, [loginConfigData?.config, loginConfigData?.config?.id, loginConfigData?.config?.defaultMethod, enabledMethods, loginMethod, userSelectedMethod, lastConfigId]);
+
+  // Get primary methods (email, uuid) and alternative methods
+  const primaryMethods = enabledMethods.filter(m => m.authMethodId === "email" || m.authMethodId === "uuid");
+  const alternativeMethods = enabledMethods.filter(m => m.authMethodId !== "email" && m.authMethodId !== "uuid");
 
   // Helper to handle post-authentication redirect
   const handlePostAuthRedirect = (token: string, user: any) => {
@@ -194,58 +293,108 @@ export default function LoginPage() {
     uuidLoginMutation.mutate(data);
   };
 
+  // Show loading state while fetching configuration
+  if (isLoadingConfig) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error state if config fetch failed
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-sm">
+          <CardHeader className="space-y-2 text-center">
+            <CardTitle className="text-2xl font-semibold text-destructive">Configuration Error</CardTitle>
+            <CardDescription className="text-sm text-muted-foreground">
+              Failed to load login configuration. Please try again later.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground text-center">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const config = loginConfigData?.config;
+  const LogoIcon = config?.logoUrl ? null : getIcon("Shield");
+  
+  // Use configured default method or fallback to first available primary method or "uuid"
+  const activeMethod = loginMethod || config?.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-sm">
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-2">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-              <Shield className="w-6 h-6 text-primary-foreground" />
-            </div>
+            {config?.logoUrl ? (
+              <img src={config.logoUrl} alt="Logo" className="w-12 h-12 rounded-lg object-cover" />
+            ) : LogoIcon ? (
+              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
+                <LogoIcon className="w-6 h-6 text-primary-foreground" />
+              </div>
+            ) : null}
           </div>
-          <CardTitle className="text-2xl font-semibold">Welcome to AuthHub</CardTitle>
+          <CardTitle className="text-2xl font-semibold">{config?.title || "Welcome to AuthHub"}</CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
-            Choose your preferred authentication method
+            {config?.description || "Choose your preferred authentication method"}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Authentication Method Selector */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={loginMethod === "uuid" ? "default" : "outline"}
-              className="w-full"
-              onClick={() => setLoginMethod("uuid")}
-              data-testid="button-uuid-login-tab"
-              disabled={emailLoginMutation.isPending || uuidLoginMutation.isPending}
-            >
-              <KeyRound className="w-4 h-4 mr-2" />
-              UUID Login
-            </Button>
-            <Button
-              type="button"
-              variant={loginMethod === "email" ? "default" : "outline"}
-              className="w-full"
-              onClick={() => setLoginMethod("email")}
-              data-testid="button-email-login-tab"
-              disabled={emailLoginMutation.isPending || uuidLoginMutation.isPending}
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              Email Login
-            </Button>
-          </div>
+          {/* Authentication Method Selector - Dynamic Primary Methods */}
+          {primaryMethods.length > 1 && (
+            <>
+              <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }}>
+                {primaryMethods.map((method) => {
+                  const Icon = getIcon(method.icon);
+                  return (
+                    <Button
+                      key={method.authMethodId}
+                      type="button"
+                      variant={activeMethod === method.authMethodId ? "default" : "outline"}
+                      className="w-full"
+                      onClick={() => {
+                        setLoginMethod(method.authMethodId);
+                        setUserSelectedMethod(true);
+                      }}
+                      data-testid={`button-${method.authMethodId}-login-tab`}
+                      disabled={emailLoginMutation.isPending || uuidLoginMutation.isPending || generateNewUuidMutation.isPending}
+                    >
+                      <Icon className="w-4 h-4 mr-2" />
+                      {method.name}
+                    </Button>
+                  );
+                })}
+              </div>
 
-          <p className="text-xs text-center text-muted-foreground">
-            {loginMethod === "uuid" 
-              ? "Use an existing Account ID or generate a new one for anonymous authentication"
-              : "Sign in with your email and password"}
-          </p>
+              {/* Show help text for selected method */}
+              {primaryMethods.find(m => m.authMethodId === activeMethod)?.helpText && (
+                <p className="text-xs text-center text-muted-foreground">
+                  {primaryMethods.find(m => m.authMethodId === activeMethod)?.helpText || 
+                   primaryMethods.find(m => m.authMethodId === activeMethod)?.defaultHelpText}
+                </p>
+              )}
+            </>
+          )}
 
           <Separator />
 
           {/* UUID Login Form */}
-          {loginMethod === "uuid" && (
+          {activeMethod === "uuid" && (
             <>
               <div className="space-y-4">
                 <div className="text-center">
@@ -322,7 +471,7 @@ export default function LoginPage() {
           )}
 
           {/* Email Login Form */}
-          {loginMethod === "email" && (
+          {activeMethod === "email" && (
             <Form {...emailForm}>
               <form onSubmit={emailForm.handleSubmit(onEmailLogin)} className="space-y-4">
                 <FormField
@@ -388,74 +537,46 @@ export default function LoginPage() {
 
           <Separator className="my-4" />
 
-          {/* Alternative Authentication Methods Placeholders */}
-          <div className="space-y-3">
-            <p className="text-xs text-center text-muted-foreground">
-              OR AUTHENTICATE WITH
-            </p>
-            
-            <div className="grid grid-cols-1 gap-2">
-              {/* Nostr Login */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 relative"
-                disabled
-                data-testid="button-nostr-login"
-              >
-                <Zap className="w-4 h-4 mr-2" />
-                Login with Nostr
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
-                  Coming Soon
-                </span>
-              </Button>
-
-              {/* BlueSky ATProtocol */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 relative"
-                disabled
-                data-testid="button-bluesky-login"
-              >
-                <Cloud className="w-4 h-4 mr-2" />
-                Login with BlueSky
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
-                  Coming Soon
-                </span>
-              </Button>
-
-              {/* WebAuthn */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 relative"
-                disabled
-                data-testid="button-webauthn-login"
-              >
-                <Fingerprint className="w-4 h-4 mr-2" />
-                Login with WebAuthn
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
-                  Coming Soon
-                </span>
-              </Button>
-
-              {/* Magic Links */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11 relative"
-                disabled
-                data-testid="button-magic-link-login"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Login with Magic Link
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
-                  Coming Soon
-                </span>
-              </Button>
+          {/* Alternative Authentication Methods - Dynamic from Config */}
+          {alternativeMethods.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs text-center text-muted-foreground">
+                OR AUTHENTICATE WITH
+              </p>
+              
+              <div className="grid grid-cols-1 gap-2">
+                {alternativeMethods.map((method) => {
+                  const Icon = getIcon(method.icon);
+                  const buttonText = method.buttonText || method.defaultButtonText;
+                  const buttonVariant = (method.buttonVariant || method.defaultButtonVariant) as any;
+                  const showBadge = method.showComingSoonBadge || !method.implemented;
+                  
+                  return (
+                    <Button
+                      key={method.authMethodId}
+                      type="button"
+                      variant={buttonVariant}
+                      className="w-full h-11 relative"
+                      disabled={showBadge}
+                      data-testid={`button-${method.authMethodId}-login`}
+                    >
+                      <Icon className="w-4 h-4 mr-2" />
+                      {buttonText}
+                      {showBadge && (
+                        <Badge 
+                          variant="secondary" 
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
+                          data-testid={`badge-${method.authMethodId}-coming-soon`}
+                        >
+                          Coming Soon
+                        </Badge>
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <Separator className="my-4" />
 
