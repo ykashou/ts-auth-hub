@@ -4,7 +4,7 @@
 **What you'll see:** Click-to-edit interface where admins modify login page appearance in real-time with inline editing, similar to modern website builders
 
 **Changes:**
-1. **Frontend**: Add "Visual Editor" tab to login editor page (alongside Branding, Auth Methods)
+1. **Frontend**: Add "Visual Editor" button to login editor page (alongside Branding, Auth Methods)
 2. **Frontend**: Full-screen preview of login page with editable overlays
 3. **Frontend**: Click on title → inline text input appears with "Save" / "Cancel" buttons
 4. **Frontend**: Click on logo → file upload dialog opens, preview updates immediately
