@@ -1368,42 +1368,111 @@ Both login page configurations and RBAC models are assigned to services independ
   - Login editor shows only registered strategies
   - Database auto-syncs on startup
 
-### Example: Adding WebAuthn Support
+### Current State vs Proposed Architecture
 
-**Old way (without Strategy Pattern):**
+**Current Implementation (Code Duplication):**
 ```typescript
-// 1. Add to database seed (hardcoded array)
-// 2. Create /api/auth/webauthn-login endpoint
-// 3. Duplicate all post-auth logic (seeding, JWT, etc.)
-// 4. Update frontend to handle new endpoint
-// 5. Update login editor manually
-// Total: ~200 lines of duplicated code
+// server/routes.ts - CURRENT STATE
+
+// Email/Password Login - ~100 lines
+app.post("/api/auth/login", async (req, res) => {
+  // 1. Extract serviceId from body
+  // 2. Validate with loginSchema
+  // 3. Check user exists, verify password
+  // 4. Check if first user → assign admin
+  // 5. Auto-seed services
+  // 6. Auto-seed RBAC models if admin
+  // 7. Generate JWT token
+  // 8. Return { token, user }
+});
+
+// UUID Login - ~100 lines  
+app.post("/api/auth/uuid-login", async (req, res) => {
+  // 1. Extract serviceId from body
+  // 2. Validate with uuidLoginSchema
+  // 3. Find or create user with UUID
+  // 4. Check if first user → assign admin
+  // 5. Auto-seed services (DUPLICATED!)
+  // 6. Auto-seed RBAC models if admin (DUPLICATED!)
+  // 7. Generate JWT token (DUPLICATED!)
+  // 8. Return { token, user } (DUPLICATED!)
+});
+
+// Problem: Steps 4-8 are identical and duplicated!
+// Adding Nostr would duplicate them again in /api/auth/nostr-login
 ```
 
-**New way (with Strategy Pattern):**
+**Proposed Implementation (Strategy Pattern):**
 ```typescript
-// server/auth/strategies/WebAuthnStrategy.ts
+// server/auth/strategies/EmailPasswordStrategy.ts - ~30 lines
+export class EmailPasswordStrategy implements AuthStrategy {
+  readonly metadata = {
+    id: "email",
+    name: "Email Login",
+    icon: "Mail",
+    buttonText: "Email Login",
+    // All UI metadata in one place
+  };
+  
+  async authenticate(credentials) {
+    // Only email-specific logic here
+    const user = await storage.getUserByEmail(credentials.email);
+    const isValid = await bcrypt.compare(credentials.password, user.password);
+    return { userId: user.id, email: user.email, ... };
+  }
+}
+
+// server/auth/strategies/WebAuthnStrategy.ts - ~30 lines
 export class WebAuthnStrategy implements AuthStrategy {
   readonly metadata = {
     id: "webauthn",
     name: "WebAuthn",
     icon: "Fingerprint",
-    // ... other metadata
+    buttonText: "Login with WebAuthn",
   };
   
   async authenticate(credentials) {
-    // WebAuthn-specific logic only
+    // Only WebAuthn-specific logic here
+    const verified = await verifyWebAuthnAssertion(credentials);
+    return { userId: verified.userId, ... };
   }
 }
 
-// server/auth/StrategyRegistry.ts
-strategyRegistry.register(new WebAuthnStrategy());
+// server/auth/AuthHandler.ts - ~50 lines (SHARED BY ALL)
+export class AuthHandler {
+  async authenticate(method, credentials, serviceId) {
+    const strategy = strategyRegistry.get(method);
+    const result = await strategy.authenticate(credentials);
+    
+    // Common post-auth logic - written ONCE, used by ALL methods
+    await this.runPostAuthHooks(result.user, result.isNewUser);
+    const token = await generateAuthToken(...);
+    return { token, user };
+  }
+}
 
-// Total: ~50 lines, zero duplication, auto-integrated everywhere
+// server/routes.ts - ~15 lines total for ALL auth methods
+app.post("/api/auth/authenticate", async (req, res) => {
+  const { method, serviceId, ...credentials } = req.body;
+  const result = await authHandler.authenticate(method, credentials, serviceId);
+  res.json(result);
+});
+
+// Adding WebAuthn = Create 1 strategy class + 1 registration line
+// Post-auth hooks automatically apply - zero duplication!
 ```
 
-### Migration from Existing Code
-- Phase 0 refactors existing email/UUID auth to use Strategy pattern
-- Legacy endpoints (`/api/auth/login`, `/api/auth/uuid-login`) remain for backward compatibility
-- Frontend can migrate to unified endpoint gradually
-- All existing tests should continue to pass
+### What Gets Built
+
+**Phase 0 (Refactor existing auth):**
+- Extract email/UUID logic into strategy classes
+- Eliminate ~150 lines of duplicated code
+- Create foundation for adding new methods
+
+**Phase 1-6 (Login Editor):**
+- Build UI for managing login pages (doesn't exist yet)
+- Service-specific configurations (new feature)
+- Auto-discovery from strategy registry (new feature)
+- Drag-and-drop method ordering (new feature)
+
+The strategy pattern is the **foundation** that makes the login editor possible and maintainable.
