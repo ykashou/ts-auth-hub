@@ -4,6 +4,15 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
+- ✅ **Phase 4 Completed: Drag-and-Drop Reordering** - Added intuitive drag-and-drop reordering for authentication methods
+  - Integrated @dnd-kit library with vertical list sorting strategy
+  - Added GripVertical drag handles to each method card for clear visual affordance
+  - Implemented real-time reordering with visual feedback (semi-transparent dragging item)
+  - DisplayOrder automatically updates in component state when methods are reordered
+  - Live preview panel reflects new method order immediately after drag-and-drop
+  - Methods sorted by displayOrder on initial load from database
+  - E2E tests passed: drag handle presence, drag-and-drop swap, order verification, preview updates
+  - **Next Steps**: Phase 5 - Implement save/reset functionality with API mutations and optimistic updates
 - ✅ **Phase 3 Completed: Admin Login Editor UI** - Created comprehensive admin interface for customizing login page experiences
   - Built `/admin/login-editor` page with service selector allowing admins to customize global or service-specific login pages
   - Implemented tabbed interface with "Branding" and "Authentication Methods" tabs
@@ -13,7 +22,6 @@ AuthHub is a centralized authentication service designed to be the single source
   - Added admin-only authorization: non-admin users redirected to dashboard
   - Added "Login Editor" link to Service Management navigation dropdown
   - E2E tests passed: service selection, tab switching, form fields, method toggles, and live preview all working correctly
-  - **Next Steps**: Phase 4 - Implement drag-and-drop reordering for authentication methods; Phase 5 - Add save/reset functionality
 - ✅ **Phase 2 Completed: Login Page Dynamic Rendering** - Login page now dynamically fetches and renders based on database configuration
   - Added config fetching via React Query from `/api/login-config` or `/api/login-config?service_id=...`
   - Dynamic branding: title, description, and logo rendered from config
