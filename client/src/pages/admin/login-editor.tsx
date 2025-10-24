@@ -15,6 +15,7 @@ import { getUserRole } from "@/lib/auth";
 import type { GlobalService } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import Navbar from "@/components/Navbar";
 import {
   DndContext,
   closestCenter,
@@ -316,17 +317,20 @@ export default function LoginEditorPage() {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left Panel - Editor */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold">Login Page Editor</h1>
-            <p className="text-muted-foreground mt-2">
-              Customize authentication experience for each service
-            </p>
-          </div>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      
+      <div className="flex" style={{ height: "calc(100vh - 64px)" }}>
+        {/* Left Panel - Editor */}
+        <div className="flex-1 overflow-auto p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div>
+              <h1 className="text-3xl font-bold">Login Page Editor</h1>
+              <p className="text-muted-foreground mt-2">
+                Customize authentication experience for each service
+              </p>
+            </div>
 
           {/* Service Selector */}
           <Card data-testid="card-service-selector">
@@ -607,6 +611,7 @@ export default function LoginEditorPage() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

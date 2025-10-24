@@ -19,7 +19,14 @@ AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme (lig
 3.  **Admin Dashboard**: Provides an overview of key metrics, service management, quick actions, recent activity logs, and a searchable user directory. Admin-only sections are hidden from regular users.
 4.  **User Management (Admin)**: A dedicated admin page (`/admin/users`) allows administrators to manage users, including sorting, filtering, searching, bulk selection, editing, and deleting. Backend protection prevents deletion or demotion of the last admin.
 5.  **RBAC Model Management (Admin)**: Admins can create custom RBAC models defining roles and permissions for external services. This includes a card-based grid for management, a detail page with tabs for roles and permissions, and a visualization tab (Permission Matrix, Tree View, JSON, YAML). Initial admin registration seeds three comprehensive RBAC models. Admins can assign RBAC models to services.
-6.  **Login Page Configuration**: Admins can customize login page experiences via an editor. This includes branding (title, description, logo URL) and enabling/disabling authentication methods. Changes are reflected in a live preview. Dynamic rendering of login pages fetches configurations from the database, applying branding and method order. Drag-and-drop reordering for authentication methods is supported.
+6.  **Login Page Configuration**: Admins can customize login page experiences via a comprehensive editor at `/admin/login-editor`. Features include:
+    *   **Service Selection**: Choose between default configuration or service-specific login pages
+    *   **Branding Tab**: Customize title, description, logo URL, and default authentication method
+    *   **Authentication Methods Tab**: Enable/disable methods, drag-and-drop reordering with visual feedback
+    *   **Live Preview**: Real-time visualization of login page changes
+    *   **Save/Reset**: Persistent changes with dirty state tracking, optimistic updates, and toast notifications
+    *   **Standard Navigation**: Consistent navbar across admin interface for seamless navigation
+    *   Dynamic rendering of login pages fetches configurations from the database, applying branding, method order, and enabled/disabled states
 7.  **Dual Integration Patterns with RBAC**:
     *   **Popup Widget Flow**: JavaScript SDK with popup-based authentication using PostMessage.
     *   **OAuth Redirect Flow with RBAC**: Standard redirect-based authentication. When a `service_id` is provided, AuthHub signs the JWT with the service's secret, including RBAC data (role, permissions, RBAC model). External services can verify tokens locally. A token verification endpoint (`GET /api/services/:serviceId/verify-token`) is available. Admins assign users to roles within specific services.
