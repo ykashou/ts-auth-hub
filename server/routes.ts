@@ -239,11 +239,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== NEW UNIFIED AUTHENTICATION ENDPOINTS ====================
   
-  // Get all available authentication methods (auto-discovered from registry)
+  // Get all available authentication methods (auto-discovered from registry + placeholders)
   app.get("/api/auth/methods", async (req, res) => {
     try {
-      const methods = strategyRegistry.getAllMetadata();
-      res.json(methods);
+      // Import placeholder methods
+      const { placeholderMethods } = await import("./auth/StrategyRegistry");
+      
+      // Get implemented strategies metadata
+      const implementedMethods = strategyRegistry.getAllMetadata();
+      
+      // Combine implemented + placeholders
+      const allMethods = [
+        ...implementedMethods.map(m => ({ ...m, implemented: true })),
+        ...placeholderMethods.map(m => ({ ...m, implemented: false }))
+      ];
+      
+      res.json(allMethods);
     } catch (error: any) {
       console.error("Get auth methods error:", error);
       res.status(500).json({ error: "Failed to fetch authentication methods" });
