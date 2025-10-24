@@ -13,7 +13,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Save, RotateCcw, Globe, GripVertical, Undo2, Redo2, Monitor, Smartphone, Tablet, Upload, Check, X, Palette, Settings } from "lucide-react";
+import { Loader2, Save, RotateCcw, Globe, GripVertical, Undo2, Redo2, Monitor, Smartphone, Tablet, Upload, Check, X, Palette, Settings, Shield, Mail, KeyRound } from "lucide-react";
+import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { HexColorPicker } from "react-colorful";
 import { getUserRole } from "@/lib/auth";
 import type { GlobalService } from "@shared/schema";
@@ -117,6 +120,15 @@ function VisualSortableMethodItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const getIcon = (iconName: string): LucideIcon => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent || Shield;
+  };
+
+  const Icon = getIcon(method.icon);
+  const buttonText = method.buttonText || method.defaultButtonText;
+  const buttonVariant = (method.buttonVariant || method.defaultButtonVariant) as any;
+  const showBadge = method.showComingSoonBadge || !method.implemented;
   const isEditing = editingMethodId === method.id;
 
   return (
@@ -126,29 +138,37 @@ function VisualSortableMethodItem({
       className="relative group"
       data-testid={`visual-method-${method.authMethodId}`}
     >
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div>
-              <Button
-                variant={method.buttonVariant as any || "outline"}
-                className="w-full relative"
-                data-testid={`button-auth-${method.authMethodId}`}
-              >
-                <span className="absolute left-2 cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100 transition-opacity" {...attributes} {...listeners}>
-                  <GripVertical className="h-4 w-4" />
-                </span>
-                <span className="flex-1">{method.buttonText || method.defaultButtonText}</span>
-              </Button>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Click gear icon to customize</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      
-      {/* Settings Icon */}
+      {/* Exact button appearance from login page */}
+      <Button
+        type="button"
+        variant={buttonVariant}
+        className="w-full h-11 relative"
+        disabled
+        data-testid={`button-auth-${method.authMethodId}`}
+      >
+        <Icon className="w-4 h-4 mr-2" />
+        {buttonText}
+        {showBadge && (
+          <Badge 
+            variant="secondary" 
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
+          >
+            Coming Soon
+          </Badge>
+        )}
+      </Button>
+
+      {/* Drag handle (visible on hover) */}
+      <div 
+        {...attributes}
+        {...listeners}
+        className="absolute left-2 top-1/2 -translate-y-1/2 p-1 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-60 transition-opacity bg-background/80 rounded backdrop-blur-sm"
+        data-testid={`drag-handle-${method.authMethodId}`}
+      >
+        <GripVertical className="h-3 w-3 text-foreground" />
+      </div>
+
+      {/* Settings button (visible on hover) */}
       <Popover open={isEditing} onOpenChange={(open) => {
         if (!open) setEditingMethodId(null);
       }}>
@@ -156,7 +176,7 @@ function VisualSortableMethodItem({
           <Button
             size="icon"
             variant="ghost"
-            className="absolute -right-2 -top-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={() => {
               setEditingMethodId(method.id);
               setTempMethodConfig({
@@ -169,7 +189,7 @@ function VisualSortableMethodItem({
             <Settings className="h-3 w-3" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-80" data-testid={`popover-method-config-${method.authMethodId}`}>
+        <PopoverContent side="left" className="w-80" data-testid={`popover-method-config-${method.authMethodId}`}>
           <div className="space-y-4">
             <h4 className="font-medium">Customize {method.name}</h4>
             <div>
@@ -819,9 +839,9 @@ export default function LoginEditorPage() {
               </div>
 
               {/* Preview Canvas */}
-              <div className="flex-1 overflow-auto p-8 flex items-center justify-center">
+              <div className="flex-1 overflow-auto p-8 flex items-center justify-center bg-background">
                 <div
-                  className={`bg-background rounded-lg shadow-xl border transition-all duration-300 ${
+                  className={`transition-all duration-300 ${
                     responsiveView === "mobile"
                       ? "w-[375px]"
                       : responsiveView === "tablet"
@@ -830,29 +850,36 @@ export default function LoginEditorPage() {
                   }`}
                   data-testid="visual-editor-preview"
                 >
-                  <div className="p-8 space-y-6">
-                    {/* Logo - Click to Upload */}
-                    {formData.logoUrl && (
-                      <div className="flex justify-center">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div 
-                                className="cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded transition-all"
-                                onClick={() => fileInputRef.current?.click()}
-                                data-testid="logo-upload-trigger"
-                              >
-                                <img 
-                                  src={formData.logoUrl} 
-                                  alt="Logo" 
-                                  className="h-16 w-auto"
-                                  data-testid="img-logo"
-                                />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>Click to change logo</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                  {/* Exact Login Page Preview */}
+                  <Card className="w-full max-w-md mx-auto shadow-sm">
+                    <CardHeader className="space-y-2 text-center">
+                      {/* Logo */}
+                      <div className="flex justify-center mb-2">
+                        {formData.logoUrl ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded transition-all"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  data-testid="logo-upload-trigger"
+                                >
+                                  <img 
+                                    src={formData.logoUrl} 
+                                    alt="Logo" 
+                                    className="w-12 h-12 rounded-lg object-cover"
+                                    data-testid="img-logo"
+                                  />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>Click to change logo</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
+                            <Shield className="w-6 h-6 text-primary-foreground" />
+                          </div>
+                        )}
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -862,16 +889,14 @@ export default function LoginEditorPage() {
                           data-testid="input-logo-file"
                         />
                       </div>
-                    )}
 
-                    {/* Title - Click to Edit */}
-                    <div className="text-center">
+                      {/* Title */}
                       {editingElement === "title" ? (
                         <div className="flex flex-col gap-2">
                           <Input
                             value={tempEditValue}
                             onChange={(e) => setTempEditValue(e.target.value)}
-                            className="text-center text-3xl font-bold"
+                            className="text-center text-2xl font-semibold"
                             autoFocus
                             data-testid="input-edit-title"
                           />
@@ -888,28 +913,26 @@ export default function LoginEditorPage() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <h1
-                                className="text-3xl font-bold cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded px-2 py-1 transition-all"
+                              <CardTitle
+                                className="text-2xl font-semibold cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded px-2 py-1 transition-all"
                                 onClick={() => startEditing("title", formData.title)}
                                 data-testid="text-title"
                               >
                                 {formData.title}
-                              </h1>
+                              </CardTitle>
                             </TooltipTrigger>
                             <TooltipContent>Click to edit title</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                    </div>
 
-                    {/* Description - Click to Edit */}
-                    <div className="text-center">
+                      {/* Description */}
                       {editingElement === "description" ? (
                         <div className="flex flex-col gap-2">
                           <Textarea
                             value={tempEditValue}
                             onChange={(e) => setTempEditValue(e.target.value)}
-                            className="text-center resize-none"
+                            className="text-center resize-none text-sm"
                             rows={2}
                             autoFocus
                             data-testid="input-edit-description"
@@ -927,54 +950,209 @@ export default function LoginEditorPage() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <p
-                                className="text-muted-foreground cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded px-2 py-1 transition-all"
+                              <CardDescription
+                                className="text-sm text-muted-foreground cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded px-2 py-1 transition-all"
                                 onClick={() => startEditing("description", formData.description)}
                                 data-testid="text-description"
                               >
                                 {formData.description}
-                              </p>
+                              </CardDescription>
                             </TooltipTrigger>
                             <TooltipContent>Click to edit description</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                    </div>
+                    </CardHeader>
 
-                    {/* Authentication Methods - Drag to Reorder */}
-                    <div className="space-y-3 max-w-md mx-auto">
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <SortableContext
-                          items={methodsState.filter(m => m.enabled).map(m => m.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div className="space-y-2" data-testid="visual-editor-methods">
-                            {methodsState
-                              .filter(m => m.enabled)
-                              .map((method) => (
-                                <VisualSortableMethodItem
-                                  key={method.id}
-                                  method={method}
-                                  editingMethodId={editingMethodId}
-                                  setEditingMethodId={setEditingMethodId}
-                                  tempMethodConfig={tempMethodConfig}
-                                  setTempMethodConfig={setTempMethodConfig}
-                                  setAutoSaveStatus={setAutoSaveStatus}
-                                  setMethodsState={setMethodsState}
-                                  methodsState={methodsState}
-                                  setOriginalMethodsState={setOriginalMethodsState}
-                                  toast={toast}
-                                />
-                              ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    </div>
-                  </div>
+                    <CardContent className="space-y-6">
+                      {(() => {
+                        const getIcon = (iconName: string): LucideIcon => {
+                          const IconComponent = (LucideIcons as any)[iconName];
+                          return IconComponent || Shield;
+                        };
+
+                        const enabledMethods = methodsState
+                          .filter(m => m.enabled)
+                          .sort((a, b) => a.displayOrder - b.displayOrder);
+
+                        const primaryMethods = enabledMethods.filter(m => m.authMethodId === "email" || m.authMethodId === "uuid");
+                        const alternativeMethods = enabledMethods.filter(m => m.authMethodId !== "email" && m.authMethodId !== "uuid");
+                        const activeMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
+
+                        return (
+                          <>
+                            {/* Primary Method Tabs - Only if more than one */}
+                            {primaryMethods.length > 1 && (
+                              <>
+                                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }} data-testid="preview-primary-tabs">
+                                  {primaryMethods.map((method) => {
+                                    const Icon = getIcon(method.icon);
+                                    return (
+                                      <Button
+                                        key={method.authMethodId}
+                                        type="button"
+                                        variant={activeMethod === method.authMethodId ? "default" : "outline"}
+                                        className="w-full"
+                                        disabled
+                                        data-testid={`button-${method.authMethodId}-preview-tab`}
+                                      >
+                                        <Icon className="w-4 h-4 mr-2" />
+                                        {method.name}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+
+                                {primaryMethods.find(m => m.authMethodId === activeMethod)?.helpText && (
+                                  <p className="text-xs text-center text-muted-foreground">
+                                    {primaryMethods.find(m => m.authMethodId === activeMethod)?.helpText ||
+                                     primaryMethods.find(m => m.authMethodId === activeMethod)?.defaultHelpText}
+                                  </p>
+                                )}
+                              </>
+                            )}
+
+                            <Separator />
+
+                            {/* Active Method Form - PREVIEW ONLY (non-functional) */}
+                            {activeMethod === "uuid" && (
+                              <div className="space-y-4" onClick={(e) => e.preventDefault()}>
+                                <div className="text-center">
+                                  <p className="text-xs text-muted-foreground mb-3">
+                                    GENERATE NEW ACCOUNT ID
+                                  </p>
+                                  <Button
+                                    type="button"
+                                    className="w-full h-11"
+                                    variant="default"
+                                    disabled
+                                    onClick={(e) => e.preventDefault()}
+                                  >
+                                    Generate New Account ID
+                                  </Button>
+                                </div>
+
+                                <Separator />
+
+                                <p className="text-xs text-center text-muted-foreground">
+                                  OR USE EXISTING ACCOUNT ID
+                                </p>
+
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label className="text-sm font-medium">Account ID (Optional)</Label>
+                                    <Input
+                                      placeholder="Enter your existing account ID"
+                                      className="h-11 mt-1.5"
+                                      disabled
+                                      readOnly
+                                    />
+                                  </div>
+
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full h-11"
+                                    disabled
+                                    onClick={(e) => e.preventDefault()}
+                                  >
+                                    Log In with Existing ID
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {activeMethod === "email" && (
+                              <div className="space-y-4" onClick={(e) => e.preventDefault()}>
+                                <div>
+                                  <Label className="text-sm font-medium">Email</Label>
+                                  <Input
+                                    type="email"
+                                    placeholder="Enter your email"
+                                    className="h-11 mt-1.5"
+                                    disabled
+                                    readOnly
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label className="text-sm font-medium">Password</Label>
+                                  <Input
+                                    type="password"
+                                    placeholder="Enter your password"
+                                    className="h-11 mt-1.5"
+                                    disabled
+                                    readOnly
+                                  />
+                                </div>
+
+                                <Button
+                                  type="button"
+                                  className="w-full h-11"
+                                  disabled
+                                  onClick={(e) => e.preventDefault()}
+                                >
+                                  Log In
+                                </Button>
+                              </div>
+                            )}
+
+                            <Separator className="my-4" />
+
+                            {/* Alternative Methods - Draggable */}
+                            {alternativeMethods.length > 0 && (
+                              <div className="space-y-3">
+                                <p className="text-xs text-center text-muted-foreground">
+                                  OR AUTHENTICATE WITH
+                                </p>
+
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={handleDragEnd}
+                                >
+                                  <SortableContext
+                                    items={alternativeMethods.map(m => m.id)}
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    <div className="grid grid-cols-1 gap-2" data-testid="visual-editor-methods">
+                                      {alternativeMethods.map((method) => (
+                                        <VisualSortableMethodItem
+                                          key={method.id}
+                                          method={method}
+                                          editingMethodId={editingMethodId}
+                                          setEditingMethodId={setEditingMethodId}
+                                          tempMethodConfig={tempMethodConfig}
+                                          setTempMethodConfig={setTempMethodConfig}
+                                          setAutoSaveStatus={setAutoSaveStatus}
+                                          setMethodsState={setMethodsState}
+                                          methodsState={methodsState}
+                                          setOriginalMethodsState={setOriginalMethodsState}
+                                          toast={toast}
+                                        />
+                                      ))}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                              </div>
+                            )}
+
+                            <Separator className="my-4" />
+
+                            {/* Register Link */}
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">
+                                Don't have an account?{" "}
+                                <span className="text-primary font-medium">
+                                  Create new account
+                                </span>
+                              </p>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </>
