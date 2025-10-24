@@ -556,11 +556,6 @@ const settingsItems = [
 - Auto-detect user language
 - Language switcher on login page
 
-### 5. SSO Integration
-- Add OAuth providers (Google, GitHub, Microsoft)
-- Configure callback URLs
-- Test SSO flow from editor
-
 ---
 
 ## Acceptance Criteria
