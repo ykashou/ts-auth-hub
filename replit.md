@@ -4,6 +4,24 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
+- ✅ **Phase 3 Completed: Admin Login Editor UI** - Created comprehensive admin interface for customizing login page experiences
+  - Built `/admin/login-editor` page with service selector allowing admins to customize global or service-specific login pages
+  - Implemented tabbed interface with "Branding" and "Authentication Methods" tabs
+  - Branding tab: Title, description, logo URL, and default method configuration
+  - Authentication Methods tab: Toggle switches to enable/disable each auth method with "Coming Soon" badges for unimplemented methods
+  - Live preview panel showing real-time visualization of login page changes
+  - Added admin-only authorization: non-admin users redirected to dashboard
+  - Added "Login Editor" link to Service Management navigation dropdown
+  - E2E tests passed: service selection, tab switching, form fields, method toggles, and live preview all working correctly
+  - **Next Steps**: Phase 4 - Implement drag-and-drop reordering for authentication methods; Phase 5 - Add save/reset functionality
+- ✅ **Phase 2 Completed: Login Page Dynamic Rendering** - Login page now dynamically fetches and renders based on database configuration
+  - Added config fetching via React Query from `/api/login-config` or `/api/login-config?service_id=...`
+  - Dynamic branding: title, description, and logo rendered from config
+  - Dynamic method rendering: all 6 methods displayed with proper ordering (2 implemented + 4 with "Coming Soon" badges)
+  - Robust default method handling: tracks config changes, resets user selection when switching services, handles disabled methods gracefully
+  - Service-specific configs properly apply their defaultMethod, overriding global config
+  - Error and loading states implemented with user-friendly UI
+  - E2E tests passed validating dynamic rendering, default method application, and config transitions
 - ✅ **Phase 1 Completed: Database Schema for Login Page Configuration** - Added comprehensive database layer for customizable login experiences
   - Created 3 normalized tables: `auth_methods`, `login_page_config`, `service_auth_methods` with proper foreign keys and CASCADE constraints
   - Implemented auto-sync storage layer (`syncAuthMethods`, `seedLoginPageConfig`) synchronizing StrategyRegistry with database on server startup
@@ -12,7 +30,6 @@ AuthHub is a centralized authentication service designed to be the single source
   - Database migration successful: all tables created with proper schema
   - API validation: `/api/login-config` returns config + 6 enriched methods (2 implemented, 4 with "Coming Soon" badges)
   - Architect review: PASS - Clean schema design, coherent storage layer, proper security with Zod validation
-  - **Next Steps**: Phase 2 - Update login page to dynamically render based on configuration (fetch config, render methods, show placeholders)
 - ✅ **Phase 0 Completed: Strategy Pattern Refactor** - Unified authentication architecture with extensible strategy system
   - Created `AuthStrategy` interface defining standard authentication method contract
   - Implemented `EmailPasswordStrategy` and `UuidStrategy` for existing auth methods

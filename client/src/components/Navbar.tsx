@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Globe } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Globe, Layout } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +35,7 @@ export default function Navbar() {
     { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
     { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
     { path: "/admin/global-services", label: "Global Services", icon: Globe, testId: "button-global-services" },
+    { path: "/admin/login-editor", label: "Login Editor", icon: Layout, testId: "button-login-editor" },
   ];
 
   const documentationItems = [
