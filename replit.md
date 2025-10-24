@@ -4,6 +4,15 @@
 AuthHub is a centralized authentication service designed to be the single source of truth for user credentials and UUIDs across multiple SaaS products. It provides secure user registration, login, and robust API endpoints for external applications. The project aims to streamline user management, offering both traditional email/password and anonymous UUID-based authentication methods, along with an embeddable widget for seamless integration.
 
 ## Recent Progress
+- ✅ **Phase 1 Completed: Database Schema for Login Page Configuration** - Added comprehensive database layer for customizable login experiences
+  - Created 3 normalized tables: `auth_methods`, `login_page_config`, `service_auth_methods` with proper foreign keys and CASCADE constraints
+  - Implemented auto-sync storage layer (`syncAuthMethods`, `seedLoginPageConfig`) synchronizing StrategyRegistry with database on server startup
+  - Built 8 API endpoints: 6 admin CRUD endpoints (JWT + role protected) + 2 public endpoints for fetching configs
+  - Added automatic seeding on server startup: 6 auth methods synced, default login config created with all methods enabled
+  - Database migration successful: all tables created with proper schema
+  - API validation: `/api/login-config` returns config + 6 enriched methods (2 implemented, 4 with "Coming Soon" badges)
+  - Architect review: PASS - Clean schema design, coherent storage layer, proper security with Zod validation
+  - **Next Steps**: Phase 2 - Update login page to dynamically render based on configuration (fetch config, render methods, show placeholders)
 - ✅ **Phase 0 Completed: Strategy Pattern Refactor** - Unified authentication architecture with extensible strategy system
   - Created `AuthStrategy` interface defining standard authentication method contract
   - Implemented `EmailPasswordStrategy` and `UuidStrategy` for existing auth methods
@@ -13,7 +22,6 @@ AuthHub is a centralized authentication service designed to be the single source
   - Added `/api/auth/methods` auto-discovery endpoint returning all 6 methods (2 implemented, 4 placeholders with `implemented: false` flag)
   - Refactored legacy `/api/auth/login` and `/api/auth/uuid-login` to use new auth handler (maintained backward compatibility)
   - E2E tests passed: all 6 methods returned correctly, email + UUID authentication working via unified endpoint
-  - **Next Steps**: Phase 1 - Database schema for login page configuration (auth_methods, login_page_config, service_auth_methods tables)
 - ✅ **Task 12 Completed: Global Services Foundation** - Created infrastructure for global service catalog that will replace user-specific services
   - Added `globalServices` database table (identical to `services` table but WITHOUT userId field)
   - Implemented complete backend: storage interface, CRUD methods, and admin-only API endpoints
@@ -82,7 +90,7 @@ AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme, uti
 ### System Design Choices
 AuthHub follows a client-server architecture. The frontend uses React, TypeScript, Tailwind CSS, Shadcn UI, Wouter, and TanStack Query. The backend uses Express.js and Node.js. PostgreSQL is the database, managed with Drizzle ORM. Shared types and Zod schemas ensure data consistency.
 
-**Data Models**: Includes `Users`, `API Keys`, `Services`, `Global Services`, `RBAC Models`, `Roles`, `Permissions`, `Role Permissions`, `Service RBAC Models`, and `User Service Roles`. All models are designed with appropriate UUIDs, foreign keys, and CASCADE delete relationships to maintain data integrity and support the outlined features.
+**Data Models**: Includes `Users`, `API Keys`, `Services`, `Global Services`, `RBAC Models`, `Roles`, `Permissions`, `Role Permissions`, `Service RBAC Models`, `User Service Roles`, `Auth Methods`, `Login Page Config`, and `Service Auth Methods`. All models are designed with appropriate UUIDs, foreign keys, and CASCADE delete relationships to maintain data integrity and support the outlined features.
 
 ## External Dependencies
 *   **Database**: PostgreSQL
