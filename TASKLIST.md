@@ -647,7 +647,7 @@ model:
 
 **Acceptance:** 
 - Admin can create, view, edit, and delete global services
-- Global services are completely separate from existing user-specific services
+- Global services are the only services that should be made available. Existing user-specific services will be remapped/refactored to become global services, and services can be made available and disabled for any user
 - Secret management works identically to current services (encryption, rotation, preview)
 - Regular users cannot access global services page
 
