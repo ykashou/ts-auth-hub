@@ -1,8 +1,9 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole } from "@shared/schema";
+import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull, asc } from "drizzle-orm";
 import { randomBytes } from "crypto";
+import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
 
 export interface IStorage {
   // User operations
@@ -87,6 +88,19 @@ export interface IStorage {
     permissions: Array<{ id: string; name: string; description: string | null }>;
     rbacModel: { id: string; name: string; description: string | null } | null;
   }>;
+
+  // Login Page Configuration operations
+  syncAuthMethodsFromRegistry(): Promise<void>;
+  seedLoginPageConfig(): Promise<void>;
+  getEnabledServiceAuthMethods(loginConfigId: string): Promise<any[]>;
+  getServiceAuthMethods(loginConfigId: string): Promise<any[]>;
+  getLoginPageConfigByServiceId(serviceId: string | null): Promise<LoginPageConfig | undefined>;
+  getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined>;
+  getAllLoginPageConfigs(): Promise<LoginPageConfig[]>;
+  createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig>;
+  updateLoginPageConfig(id: string, data: Partial<LoginPageConfig>): Promise<LoginPageConfig>;
+  updateServiceAuthMethod(id: string, data: Partial<ServiceAuthMethod>): Promise<ServiceAuthMethod>;
+  updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -941,6 +955,224 @@ export class DatabaseStorage implements IStorage {
         description: rbacModel.description
       }
     };
+  }
+
+  // ==================== Login Page Configuration Operations ====================
+
+  /**
+   * Syncs auth_methods table with registered strategies + placeholders
+   * Called on server startup to ensure database reflects all available methods
+   */
+  async syncAuthMethodsFromRegistry(): Promise<void> {
+    const registeredStrategies = strategyRegistry.getAllMetadata();
+    const allMethods = [...registeredStrategies, ...placeholderMethods];
+    
+    console.log(`[Storage] Syncing ${allMethods.length} auth methods (${registeredStrategies.length} implemented, ${placeholderMethods.length} placeholders)...`);
+    
+    for (const metadata of allMethods) {
+      const isImplemented = strategyRegistry.isImplemented(metadata.id);
+      
+      await db.insert(authMethods)
+        .values({
+          id: metadata.id,
+          name: metadata.name,
+          description: metadata.description,
+          icon: metadata.icon,
+          category: metadata.category,
+          implemented: isImplemented,
+          defaultButtonText: metadata.buttonText,
+          defaultButtonVariant: metadata.buttonVariant,
+          defaultHelpText: metadata.helpText,
+        })
+        .onConflictDoUpdate({
+          target: authMethods.id,
+          set: {
+            name: metadata.name,
+            description: metadata.description,
+            icon: metadata.icon,
+            category: metadata.category,
+            implemented: isImplemented,
+            defaultButtonText: metadata.buttonText,
+            defaultButtonVariant: metadata.buttonVariant,
+            defaultHelpText: metadata.helpText,
+            updatedAt: new Date(),
+          },
+        });
+      
+      console.log(`[Storage] Synced: ${metadata.name} (${metadata.id}) - ${isImplemented ? 'IMPLEMENTED' : 'PLACEHOLDER'}`);
+    }
+  }
+
+  /**
+   * Seeds default login page configuration
+   * Only runs if no default config exists
+   */
+  async seedLoginPageConfig(): Promise<void> {
+    // First, sync auth methods from strategy registry
+    await this.syncAuthMethodsFromRegistry();
+    
+    // Check if default login config exists (serviceId = null)
+    const existingDefaultConfig = await db.select()
+      .from(loginPageConfig)
+      .where(isNull(loginPageConfig.serviceId))
+      .limit(1);
+      
+    if (existingDefaultConfig.length > 0) {
+      console.log("[Storage] Default login config already exists");
+      return;
+    }
+    
+    // Create default login page configuration
+    const implementedMethods = strategyRegistry.getImplementedIds();
+    
+    const [defaultConfig] = await db.insert(loginPageConfig).values({
+      serviceId: null,
+      title: "Welcome to AuthHub",
+      description: "Choose your preferred authentication method",
+      defaultMethod: implementedMethods[0] || "uuid",
+    }).returning();
+    
+    console.log("[Storage] Created default login config");
+    
+    // Seed service auth methods for default config
+    const allAuthMethods = await db.select().from(authMethods);
+    const serviceAuthMethodsData = allAuthMethods.map((method, index) => ({
+      loginConfigId: defaultConfig.id,
+      authMethodId: method.id,
+      enabled: true,
+      showComingSoonBadge: !method.implemented,
+      displayOrder: index,
+    }));
+    
+    if (serviceAuthMethodsData.length > 0) {
+      await db.insert(serviceAuthMethods).values(serviceAuthMethodsData);
+      console.log(`[Storage] Created ${serviceAuthMethodsData.length} default service auth methods`);
+    }
+  }
+
+  /**
+   * Get enabled auth methods for a login config with enriched data from auth_methods table
+   * Results are ordered by displayOrder ASC
+   */
+  async getEnabledServiceAuthMethods(loginConfigId: string): Promise<any[]> {
+    const results = await db
+      .select({
+        id: serviceAuthMethods.id,
+        loginConfigId: serviceAuthMethods.loginConfigId,
+        authMethodId: serviceAuthMethods.authMethodId,
+        enabled: serviceAuthMethods.enabled,
+        showComingSoonBadge: serviceAuthMethods.showComingSoonBadge,
+        buttonText: serviceAuthMethods.buttonText,
+        buttonVariant: serviceAuthMethods.buttonVariant,
+        helpText: serviceAuthMethods.helpText,
+        displayOrder: serviceAuthMethods.displayOrder,
+        
+        name: authMethods.name,
+        description: authMethods.description,
+        icon: authMethods.icon,
+        category: authMethods.category,
+        implemented: authMethods.implemented,
+        defaultButtonText: authMethods.defaultButtonText,
+        defaultButtonVariant: authMethods.defaultButtonVariant,
+        defaultHelpText: authMethods.defaultHelpText,
+      })
+      .from(serviceAuthMethods)
+      .innerJoin(authMethods, eq(serviceAuthMethods.authMethodId, authMethods.id))
+      .where(
+        and(
+          eq(serviceAuthMethods.loginConfigId, loginConfigId),
+          eq(serviceAuthMethods.enabled, true)
+        )
+      )
+      .orderBy(asc(serviceAuthMethods.displayOrder));
+      
+    return results;
+  }
+
+  /**
+   * Get ALL auth methods for a login config (including disabled ones)
+   * Used by admin login editor to show all methods with toggles
+   */
+  async getServiceAuthMethods(loginConfigId: string): Promise<any[]> {
+    const results = await db
+      .select({
+        id: serviceAuthMethods.id,
+        loginConfigId: serviceAuthMethods.loginConfigId,
+        authMethodId: serviceAuthMethods.authMethodId,
+        enabled: serviceAuthMethods.enabled,
+        showComingSoonBadge: serviceAuthMethods.showComingSoonBadge,
+        buttonText: serviceAuthMethods.buttonText,
+        buttonVariant: serviceAuthMethods.buttonVariant,
+        helpText: serviceAuthMethods.helpText,
+        displayOrder: serviceAuthMethods.displayOrder,
+        
+        name: authMethods.name,
+        description: authMethods.description,
+        icon: authMethods.icon,
+        category: authMethods.category,
+        implemented: authMethods.implemented,
+        defaultButtonText: authMethods.defaultButtonText,
+        defaultButtonVariant: authMethods.defaultButtonVariant,
+        defaultHelpText: authMethods.defaultHelpText,
+      })
+      .from(serviceAuthMethods)
+      .innerJoin(authMethods, eq(serviceAuthMethods.authMethodId, authMethods.id))
+      .where(eq(serviceAuthMethods.loginConfigId, loginConfigId))
+      .orderBy(asc(serviceAuthMethods.displayOrder));
+      
+    return results;
+  }
+
+  async getLoginPageConfigByServiceId(serviceId: string | null): Promise<LoginPageConfig | undefined> {
+    const [config] = await db
+      .select()
+      .from(loginPageConfig)
+      .where(serviceId ? eq(loginPageConfig.serviceId, serviceId) : isNull(loginPageConfig.serviceId))
+      .limit(1);
+    return config || undefined;
+  }
+
+  async getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined> {
+    return this.getLoginPageConfigByServiceId(null);
+  }
+
+  async getAllLoginPageConfigs(): Promise<LoginPageConfig[]> {
+    return await db.select().from(loginPageConfig);
+  }
+
+  async createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig> {
+    const [newConfig] = await db
+      .insert(loginPageConfig)
+      .values(config)
+      .returning();
+    return newConfig;
+  }
+
+  async updateLoginPageConfig(id: string, data: Partial<LoginPageConfig>): Promise<LoginPageConfig> {
+    const [updated] = await db
+      .update(loginPageConfig)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(loginPageConfig.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateServiceAuthMethod(id: string, data: Partial<ServiceAuthMethod>): Promise<ServiceAuthMethod> {
+    const [updated] = await db
+      .update(serviceAuthMethods)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(serviceAuthMethods.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void> {
+    for (const update of updates) {
+      await db
+        .update(serviceAuthMethods)
+        .set({ displayOrder: update.displayOrder, updatedAt: new Date() })
+        .where(eq(serviceAuthMethods.id, update.id));
+    }
   }
 }
 
