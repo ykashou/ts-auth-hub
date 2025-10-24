@@ -217,6 +217,40 @@ export class DatabaseStorage implements IStorage {
     await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
   }
 
+  // Global Service operations (admin-managed, no userId)
+  async createGlobalService(insertService: InsertGlobalService & { secret?: string; secretPreview?: string }): Promise<GlobalService> {
+    const [service] = await db
+      .insert(globalServices)
+      .values(insertService)
+      .returning();
+    return service;
+  }
+
+  async getGlobalService(id: string): Promise<GlobalService | undefined> {
+    const [service] = await db
+      .select()
+      .from(globalServices)
+      .where(eq(globalServices.id, id));
+    return service || undefined;
+  }
+
+  async getAllGlobalServices(): Promise<GlobalService[]> {
+    return await db.select().from(globalServices);
+  }
+
+  async updateGlobalService(id: string, updateData: Partial<GlobalService>): Promise<GlobalService> {
+    const [service] = await db
+      .update(globalServices)
+      .set(updateData)
+      .where(eq(globalServices.id, id))
+      .returning();
+    return service;
+  }
+
+  async deleteGlobalService(id: string): Promise<void> {
+    await db.delete(globalServices).where(eq(globalServices.id, id));
+  }
+
   // RBAC Model operations
   async createRbacModel(insertModel: InsertRbacModel & { createdBy: string }): Promise<RbacModel> {
     const [model] = await db
