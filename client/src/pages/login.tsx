@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Shield, Mail, KeyRound, Loader2, Zap } from "lucide-react";
+import { Shield, Mail, KeyRound, Loader2, Zap, Cloud, Fingerprint, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { setToken, setUserRole } from "@/lib/auth";
@@ -388,24 +388,73 @@ export default function LoginPage() {
 
           <Separator className="my-4" />
 
-          {/* Nostr Login Placeholder */}
-          <div className="space-y-2">
+          {/* Alternative Authentication Methods Placeholders */}
+          <div className="space-y-3">
             <p className="text-xs text-center text-muted-foreground">
               OR AUTHENTICATE WITH
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-11 relative"
-              disabled
-              data-testid="button-nostr-login"
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              Login with Nostr
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
-                Coming Soon
-              </span>
-            </Button>
+            
+            <div className="grid grid-cols-1 gap-2">
+              {/* Nostr Login */}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 relative"
+                disabled
+                data-testid="button-nostr-login"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Login with Nostr
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
+                  Coming Soon
+                </span>
+              </Button>
+
+              {/* BlueSky ATProtocol */}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 relative"
+                disabled
+                data-testid="button-bluesky-login"
+              >
+                <Cloud className="w-4 h-4 mr-2" />
+                Login with BlueSky
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
+                  Coming Soon
+                </span>
+              </Button>
+
+              {/* WebAuthn */}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 relative"
+                disabled
+                data-testid="button-webauthn-login"
+              >
+                <Fingerprint className="w-4 h-4 mr-2" />
+                Login with WebAuthn
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
+                  Coming Soon
+                </span>
+              </Button>
+
+              {/* Magic Links */}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 relative"
+                disabled
+                data-testid="button-magic-link-login"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Login with Magic Link
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
+                  Coming Soon
+                </span>
+              </Button>
+            </div>
           </div>
 
           <Separator className="my-4" />
