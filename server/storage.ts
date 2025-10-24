@@ -91,12 +91,11 @@ export interface IStorage {
 
   // Login Page Configuration operations
   syncAuthMethodsFromRegistry(): Promise<void>;
-  seedLoginPageConfig(): Promise<void>;
+  seedLoginPageConfigForService(serviceId: string): Promise<LoginPageConfig>;
   getEnabledServiceAuthMethods(loginConfigId: string): Promise<any[]>;
   getServiceAuthMethods(loginConfigId: string): Promise<any[]>;
-  getLoginPageConfigByServiceId(serviceId: string | null): Promise<LoginPageConfig | undefined>;
+  getLoginPageConfigByServiceId(serviceId: string): Promise<LoginPageConfig | undefined>;
   getLoginPageConfigById(id: string): Promise<LoginPageConfig | undefined>;
-  getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined>;
   getAllLoginPageConfigs(): Promise<LoginPageConfig[]>;
   createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig>;
   updateLoginPageConfig(id: string, data: Partial<LoginPageConfig>): Promise<LoginPageConfig>;
@@ -1008,40 +1007,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Seeds default login page configuration
-   * Only runs if no default config exists
+   * Seeds login page configuration for a specific service
+   * Creates default configuration with all auth methods enabled
    */
-  async seedLoginPageConfig(): Promise<void> {
+  async seedLoginPageConfigForService(serviceId: string): Promise<LoginPageConfig> {
     // First, sync auth methods from strategy registry
     await this.syncAuthMethodsFromRegistry();
     
-    // Check if default login config exists (serviceId = null)
-    const existingDefaultConfig = await db.select()
-      .from(loginPageConfig)
-      .where(isNull(loginPageConfig.serviceId))
-      .limit(1);
-      
-    if (existingDefaultConfig.length > 0) {
-      console.log("[Storage] Default login config already exists");
-      return;
+    // Check if config already exists for this service
+    const existing = await this.getLoginPageConfigByServiceId(serviceId);
+    if (existing) {
+      return existing;
     }
     
-    // Create default login page configuration
+    // Create login page configuration for this service
     const implementedMethods = strategyRegistry.getImplementedIds();
     
-    const [defaultConfig] = await db.insert(loginPageConfig).values({
-      serviceId: null,
+    const [config] = await db.insert(loginPageConfig).values({
+      serviceId,
       title: "Welcome to AuthHub",
       description: "Choose your preferred authentication method",
       defaultMethod: implementedMethods[0] || "uuid",
     }).returning();
     
-    console.log("[Storage] Created default login config");
+    console.log(`[Storage] Created login config for service ${serviceId}`);
     
-    // Seed service auth methods for default config
+    // Seed service auth methods for this config
     const allAuthMethods = await db.select().from(authMethods);
     const serviceAuthMethodsData = allAuthMethods.map((method, index) => ({
-      loginConfigId: defaultConfig.id,
+      loginConfigId: config.id,
       authMethodId: method.id,
       enabled: true,
       showComingSoonBadge: !method.implemented,
@@ -1050,8 +1044,10 @@ export class DatabaseStorage implements IStorage {
     
     if (serviceAuthMethodsData.length > 0) {
       await db.insert(serviceAuthMethods).values(serviceAuthMethodsData);
-      console.log(`[Storage] Created ${serviceAuthMethodsData.length} default service auth methods`);
+      console.log(`[Storage] Created ${serviceAuthMethodsData.length} service auth methods for service ${serviceId}`);
     }
+    
+    return config;
   }
 
   /**
@@ -1127,17 +1123,13 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
 
-  async getLoginPageConfigByServiceId(serviceId: string | null): Promise<LoginPageConfig | undefined> {
+  async getLoginPageConfigByServiceId(serviceId: string): Promise<LoginPageConfig | undefined> {
     const [config] = await db
       .select()
       .from(loginPageConfig)
-      .where(serviceId ? eq(loginPageConfig.serviceId, serviceId) : isNull(loginPageConfig.serviceId))
+      .where(eq(loginPageConfig.serviceId, serviceId))
       .limit(1);
     return config || undefined;
-  }
-
-  async getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined> {
-    return this.getLoginPageConfigByServiceId(null);
   }
 
   async getAllLoginPageConfigs(): Promise<LoginPageConfig[]> {

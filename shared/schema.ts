@@ -225,11 +225,12 @@ export const authMethods = pgTable("auth_methods", {
 });
 
 // Login Page Configuration table
+// Each service has its own login page configuration
 export const loginPageConfig = pgTable("login_page_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
-  // Service Association (null = default/global configuration)
-  serviceId: varchar("service_id").references(() => globalServices.id, { onDelete: "cascade" }),
+  // Service Association - REQUIRED (each configuration belongs to a service)
+  serviceId: varchar("service_id").notNull().references(() => services.id, { onDelete: "cascade" }).unique(),
   
   // Branding
   title: varchar("title").notNull().default("Welcome to AuthHub"),
@@ -244,10 +245,7 @@ export const loginPageConfig = pgTable("login_page_config", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // Admin who made last change
-}, (table) => ({
-  // Unique constraint: one config per service (or one global if serviceId is null)
-  uniqueServiceConfig: unique().on(table.serviceId),
-}));
+});
 
 // Service Auth Methods table - Service-specific overrides and ordering
 export const serviceAuthMethods = pgTable("service_auth_methods", {
