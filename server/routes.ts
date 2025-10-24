@@ -7,6 +7,8 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { seedServices } from "./seed";
 import { encryptSecret, decryptSecret } from "./crypto";
+import { authHandler } from "./auth/AuthHandler";
+import { strategyRegistry } from "./auth/StrategyRegistry";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -209,122 +211,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Login user with email/password
+  // Login user with email/password - LEGACY ENDPOINT
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { serviceId, ...credentials } = req.body;
-      const validatedData = loginSchema.parse(credentials);
-
-      // Find user by email
-      const user = await storage.getUserByEmail(validatedData.email);
-      if (!user || !user.password) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(validatedData.password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      // Auto-seed services if user has none (for existing users from before auto-seeding was implemented)
-      try {
-        const userServices = await storage.getAllServicesByUser(user.id);
-        if (userServices.length === 0) {
-          await seedServices(user.id);
-        }
-      } catch (seedError) {
-        console.error("Failed to seed services for user on login:", seedError);
-        // Continue even if seeding fails
-      }
-
-      // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
-
-      // Return user info (without password) and token
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-        },
-      });
+      const result = await authHandler.authenticate("email", credentials, serviceId);
+      res.json(result);
     } catch (error: any) {
       console.error("Login error:", error);
-      res.status(400).json({ error: error.message || "Login failed" });
+      res.status(401).json({ error: error.message || "Login failed" });
     }
   });
 
-  // Login user with UUID (anonymous authentication)
+  // Login user with UUID (anonymous authentication) - LEGACY ENDPOINT
   // If UUID is provided: login if exists, auto-register if not
   // If no UUID provided: generate new UUID and auto-register
   app.post("/api/auth/uuid-login", async (req, res) => {
     try {
-      const { serviceId, ...uuidData } = req.body;
-      const validatedData = uuidLoginSchema.parse(uuidData);
-      let user;
-      let isNewUser = false;
-
-      if (validatedData.uuid) {
-        // UUID provided - try to find it
-        user = await storage.getUser(validatedData.uuid);
-        
-        // If UUID doesn't exist, auto-register it
-        if (!user) {
-          // Check if this is the first user - if so, promote to admin
-          const userCount = await storage.getUserCount();
-          const role = userCount === 0 ? "admin" : "user";
-          user = await storage.createUserWithUuid(validatedData.uuid, role);
-          isNewUser = true;
-        }
-      } else {
-        // No UUID provided - generate new anonymous user
-        // Check if this is the first user - if so, promote to admin
-        const userCount = await storage.getUserCount();
-        const role = userCount === 0 ? "admin" : "user";
-        user = await storage.createAnonymousUser(role);
-        isNewUser = true;
-      }
-
-      // Auto-seed services if user has none (for new users or existing users from before auto-seeding)
-      try {
-        const userServices = await storage.getAllServicesByUser(user.id);
-        if (userServices.length === 0) {
-          await seedServices(user.id);
-        }
-      } catch (seedError) {
-        console.error("Failed to seed services for user:", seedError);
-        // Continue even if seeding fails - user can create services manually
-      }
-
-      // If this is the first admin, seed default RBAC models
-      if (user.role === 'admin' && isNewUser) {
-        try {
-          await storage.seedDefaultRbacModels(user.id);
-        } catch (seedError) {
-          console.error("Failed to seed default RBAC models:", seedError);
-          // Continue even if seeding fails - admin can create models manually
-        }
-      }
-
-      // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email || null, user.role, serviceId);
-
-      // Return user info (without password) and token
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-        },
-      });
+      const { serviceId, ...credentials } = req.body;
+      const result = await authHandler.authenticate("uuid", credentials, serviceId);
+      res.json(result);
     } catch (error: any) {
       console.error("UUID login error:", error);
-      res.status(400).json({ error: error.message || "UUID login failed" });
+      res.status(401).json({ error: error.message || "UUID login failed" });
+    }
+  });
+
+  // ==================== NEW UNIFIED AUTHENTICATION ENDPOINTS ====================
+  
+  // Get all available authentication methods (auto-discovered from registry)
+  app.get("/api/auth/methods", async (req, res) => {
+    try {
+      const methods = strategyRegistry.getAllMetadata();
+      res.json(methods);
+    } catch (error: any) {
+      console.error("Get auth methods error:", error);
+      res.status(500).json({ error: "Failed to fetch authentication methods" });
+    }
+  });
+
+  // Unified authentication endpoint (replaces separate /login, /uuid-login, etc.)
+  app.post("/api/auth/authenticate", async (req, res) => {
+    try {
+      const { method, serviceId, ...credentials } = req.body;
+      
+      if (!method) {
+        return res.status(400).json({ error: "Authentication method is required" });
+      }
+      
+      // Authenticate using strategy pattern
+      const result = await authHandler.authenticate(method, credentials, serviceId);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Authentication error:", error);
+      res.status(401).json({ error: error.message || "Authentication failed" });
     }
   });
 
