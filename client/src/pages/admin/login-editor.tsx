@@ -10,9 +10,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, RotateCcw, Globe, ShieldAlert } from "lucide-react";
+import { Loader2, Save, RotateCcw, Globe, GripVertical } from "lucide-react";
 import { getUserRole } from "@/lib/auth";
 import type { GlobalService } from "@shared/schema";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface LoginConfig {
   id: string;
@@ -52,6 +69,65 @@ interface LoginConfigResponse {
   methods: AuthMethod[];
 }
 
+interface SortableMethodItemProps {
+  method: AuthMethod;
+  onToggle: (checked: boolean) => void;
+}
+
+function SortableMethodItem({ method, onToggle }: SortableMethodItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: method.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-start gap-3 p-4 border rounded-md bg-card"
+      data-testid={`method-card-${method.authMethodId}`}
+    >
+      <button
+        className="cursor-grab active:cursor-grabbing mt-1 text-muted-foreground hover:text-foreground transition-colors"
+        {...attributes}
+        {...listeners}
+        data-testid={`drag-handle-${method.authMethodId}`}
+      >
+        <GripVertical className="h-5 w-5" />
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium">{method.name}</h4>
+          {!method.implemented && (
+            <Badge variant="secondary" data-testid={`badge-coming-soon-${method.authMethodId}`}>
+              Coming Soon
+            </Badge>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          {method.description}
+        </p>
+      </div>
+      <Switch
+        checked={method.enabled}
+        onCheckedChange={onToggle}
+        disabled={!method.implemented}
+        data-testid={`switch-enable-${method.authMethodId}`}
+      />
+    </div>
+  );
+}
+
 export default function LoginEditorPage() {
   const [, setLocation] = useLocation();
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -67,6 +143,14 @@ export default function LoginEditorPage() {
       setLocation("/dashboard");
     }
   }, [isAdmin, setLocation]);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Fetch global services
   const { data: globalServices, isLoading: servicesLoading } = useQuery<GlobalService[]>({
@@ -107,11 +191,33 @@ export default function LoginEditorPage() {
         logoUrl: configData.config.logoUrl || "",
         defaultMethod: configData.config.defaultMethod,
       });
-      setMethodsState(configData.methods);
+      // Sort methods by displayOrder
+      const sortedMethods = [...configData.methods].sort((a, b) => a.displayOrder - b.displayOrder);
+      setMethodsState(sortedMethods);
     }
   }, [configData]);
 
   const isLoading = servicesLoading || configsLoading || configDataLoading;
+
+  // Handle drag end
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setMethodsState((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        const reorderedItems = arrayMove(items, oldIndex, newIndex);
+        
+        // Update displayOrder for all items
+        return reorderedItems.map((item, index) => ({
+          ...item,
+          displayOrder: index,
+        }));
+      });
+    }
+  }
 
   return (
     <div className="flex h-full">
@@ -277,45 +383,36 @@ export default function LoginEditorPage() {
                   <CardHeader>
                     <CardTitle>Authentication Methods</CardTitle>
                     <CardDescription>
-                      Enable or disable authentication methods for this login page
+                      Drag to reorder methods and enable/disable them for this login page
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {methodsState.map((method) => (
-                        <div
-                          key={method.id}
-                          className="flex items-start justify-between p-4 border rounded-md"
-                          data-testid={`method-card-${method.authMethodId}`}
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium">{method.name}</h4>
-                              {!method.implemented && (
-                                <Badge variant="secondary" data-testid={`badge-coming-soon-${method.authMethodId}`}>
-                                  Coming Soon
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {method.description}
-                            </p>
-                          </div>
-                          <Switch
-                            checked={method.enabled}
-                            onCheckedChange={(checked) => {
-                              setMethodsState(
-                                methodsState.map(m =>
-                                  m.id === method.id ? { ...m, enabled: checked } : m
-                                )
-                              );
-                            }}
-                            disabled={!method.implemented}
-                            data-testid={`switch-enable-${method.authMethodId}`}
-                          />
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={methodsState.map(m => m.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3" data-testid="sortable-methods-list">
+                          {methodsState.map((method) => (
+                            <SortableMethodItem
+                              key={method.id}
+                              method={method}
+                              onToggle={(checked) => {
+                                setMethodsState(
+                                  methodsState.map(m =>
+                                    m.id === method.id ? { ...m, enabled: checked } : m
+                                  )
+                                );
+                              }}
+                            />
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   </CardContent>
                 </Card>
               </TabsContent>
