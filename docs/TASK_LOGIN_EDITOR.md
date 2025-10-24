@@ -213,7 +213,9 @@ export class NostrStrategy implements AuthStrategy {
   }
 }
 
-// Similar implementations for BlueSkyStrategy, WebAuthnStrategy, MagicLinkStrategy
+// NOTE: NostrStrategy shown above is a FUTURE example - not implemented in Phase 0
+// BlueSkyStrategy, WebAuthnStrategy, MagicLinkStrategy follow the same pattern
+// These will be created when actually implementing those auth methods
 ```
 
 ### 3. Strategy Registry (Single Source of Truth)
@@ -254,16 +256,19 @@ class StrategyRegistry {
 // Singleton instance
 export const strategyRegistry = new StrategyRegistry();
 
-// Auto-register implemented strategies
+// Auto-register ONLY implemented strategies
 import { EmailPasswordStrategy } from "./strategies/EmailPasswordStrategy";
 import { UuidStrategy } from "./strategies/UuidStrategy";
-import { NostrStrategy } from "./strategies/NostrStrategy";
-// Import others as they're implemented...
 
 strategyRegistry.register(new EmailPasswordStrategy());
 strategyRegistry.register(new UuidStrategy());
-strategyRegistry.register(new NostrStrategy());
-// When you add WebAuthnStrategy, just import and register - that's it!
+
+// DO NOT register placeholder strategies (Nostr, BlueSky, WebAuthn, Magic Links)
+// They remain "Coming Soon" on the login page until actually implemented
+// When you implement WebAuthnStrategy:
+//   1. Create the strategy class
+//   2. Import it here
+//   3. Register it - that's it! It auto-syncs everywhere.
 ```
 
 ### 4. Unified Authentication Handler
@@ -362,9 +367,6 @@ export const loginPageConfig = pgTable("login_page_config", {
   // Default behavior
   defaultMethod: varchar("default_method").notNull().default("uuid"), // "uuid" | "email" | "nostr" | etc.
   
-  // Method ordering (JSON array of method IDs in display order)
-  methodOrder: json("method_order").$type<string[]>().notNull().default(sql`'["uuid","email","nostr","bluesky","webauthn","magic_link"]'::json`),
-  
   // Metadata
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -386,21 +388,13 @@ export type InsertLoginPageConfig = z.infer<typeof insertLoginPageConfigSchema>;
 ### 2. Authentication Methods Table (Global Definitions)
 ```typescript
 // shared/schema.ts
-export const authMethodsEnum = pgEnum("auth_method_type", [
-  "uuid",
-  "email", 
-  "nostr",
-  "bluesky",
-  "webauthn",
-  "magic_link"
-]);
-
+// NOTE: No hardcoded enum - methods are auto-discovered from StrategyRegistry
 export const authMethods = pgTable("auth_methods", {
   id: varchar("id").primaryKey(), // "uuid", "email", "nostr", etc.
   name: varchar("name").notNull(), // Display name: "UUID Login", "Email Login", etc.
   description: varchar("description").notNull(), // Description shown to users
   icon: varchar("icon").notNull(), // Lucide icon name: "KeyRound", "Mail", "Zap", etc.
-  type: authMethodsEnum("type").notNull(),
+  category: varchar("category").notNull().default("standard"), // "standard" | "alternative" | "enterprise"
   
   // Global defaults
   implemented: boolean("implemented").notNull().default(false), // Is backend ready?
@@ -479,7 +473,7 @@ async syncAuthMethodsFromRegistry() {
         name: metadata.name,
         description: metadata.description,
         icon: metadata.icon,
-        type: metadata.id as any,
+        category: metadata.category,
         implemented: true,  // If it's registered, it's implemented!
         defaultButtonText: metadata.buttonText,
         defaultButtonVariant: metadata.buttonVariant,
@@ -492,6 +486,7 @@ async syncAuthMethodsFromRegistry() {
           name: metadata.name,
           description: metadata.description,
           icon: metadata.icon,
+          category: metadata.category,
           implemented: true,  // Auto-mark as implemented
           defaultButtonText: metadata.buttonText,
           defaultButtonVariant: metadata.buttonVariant,
@@ -531,7 +526,6 @@ async seedLoginPageConfig() {
     title: "Welcome to AuthHub",
     description: "Choose your preferred authentication method",
     defaultMethod: implementedMethods[0] || "uuid", // Use first implemented method
-    methodOrder: implementedMethods, // Auto-ordered based on registered strategies
   }).returning();
   
   console.log("[Storage] Created default login config");
@@ -560,7 +554,95 @@ async seedLoginPageConfig() {
 - ✅ Upsert logic - safe to run multiple times, updates metadata if changed
 - ✅ Logging for visibility during startup
 
-### 2. Unified Authentication Endpoint
+### 2. Storage Methods for Login Configuration
+
+```typescript
+// server/storage.ts
+
+/**
+ * Get enabled auth methods for a login config with enriched data from auth_methods table
+ * Results are ordered by displayOrder ASC
+ */
+async getEnabledServiceAuthMethods(loginConfigId: string) {
+  const results = await db
+    .select({
+      // From service_auth_methods (service-specific overrides)
+      id: serviceAuthMethods.id,
+      loginConfigId: serviceAuthMethods.loginConfigId,
+      authMethodId: serviceAuthMethods.authMethodId,
+      enabled: serviceAuthMethods.enabled,
+      showComingSoonBadge: serviceAuthMethods.showComingSoonBadge,
+      buttonText: serviceAuthMethods.buttonText,
+      buttonVariant: serviceAuthMethods.buttonVariant,
+      helpText: serviceAuthMethods.helpText,
+      displayOrder: serviceAuthMethods.displayOrder,
+      
+      // From auth_methods (global defaults)
+      name: authMethods.name,
+      description: authMethods.description,
+      icon: authMethods.icon,
+      category: authMethods.category,
+      implemented: authMethods.implemented,
+      defaultButtonText: authMethods.defaultButtonText,
+      defaultButtonVariant: authMethods.defaultButtonVariant,
+      defaultHelpText: authMethods.defaultHelpText,
+    })
+    .from(serviceAuthMethods)
+    .innerJoin(authMethods, eq(serviceAuthMethods.authMethodId, authMethods.id))
+    .where(
+      and(
+        eq(serviceAuthMethods.loginConfigId, loginConfigId),
+        eq(serviceAuthMethods.enabled, true)
+      )
+    )
+    .orderBy(asc(serviceAuthMethods.displayOrder)); // CRITICAL: Ensures methods are sorted
+    
+  return results;
+}
+
+/**
+ * Get ALL auth methods for a login config (including disabled ones)
+ * Used by admin login editor to show all methods with toggles
+ */
+async getServiceAuthMethods(loginConfigId: string) {
+  const results = await db
+    .select({
+      // Same fields as above
+      id: serviceAuthMethods.id,
+      loginConfigId: serviceAuthMethods.loginConfigId,
+      authMethodId: serviceAuthMethods.authMethodId,
+      enabled: serviceAuthMethods.enabled,
+      showComingSoonBadge: serviceAuthMethods.showComingSoonBadge,
+      buttonText: serviceAuthMethods.buttonText,
+      buttonVariant: serviceAuthMethods.buttonVariant,
+      helpText: serviceAuthMethods.helpText,
+      displayOrder: serviceAuthMethods.displayOrder,
+      
+      name: authMethods.name,
+      description: authMethods.description,
+      icon: authMethods.icon,
+      category: authMethods.category,
+      implemented: authMethods.implemented,
+      defaultButtonText: authMethods.defaultButtonText,
+      defaultButtonVariant: authMethods.defaultButtonVariant,
+      defaultHelpText: authMethods.defaultHelpText,
+    })
+    .from(serviceAuthMethods)
+    .innerJoin(authMethods, eq(serviceAuthMethods.authMethodId, authMethods.id))
+    .where(eq(serviceAuthMethods.loginConfigId, loginConfigId))
+    .orderBy(asc(serviceAuthMethods.displayOrder)); // CRITICAL: Ensures methods are sorted
+    
+  return results;
+}
+
+// Additional storage methods...
+async getLoginPageConfigByServiceId(serviceId: string) { /* ... */ }
+async getDefaultLoginPageConfig() { /* ... */ }
+async getAllLoginPageConfigs() { /* ... */ }
+async updateServiceAuthMethod(id: string, data: Partial<InsertServiceAuthMethod>) { /* ... */ }
+```
+
+### 3. Unified Authentication Endpoint
 
 ```typescript
 // server/routes.ts
@@ -1094,11 +1176,11 @@ npm run db:push --force
 ```
 
 **Migration creates:**
-- `auth_methods` table with 6 global authentication method definitions
+- `auth_methods` table (auto-populated from strategy registry - initially 2 methods: Email + UUID)
 - `login_page_config` table with unique constraint on serviceId (nullable)
 - `service_auth_methods` junction table with unique constraint on (loginConfigId, authMethodId)
 - Default configuration row with serviceId = null (global/AuthHub config)
-- Default service_auth_methods entries linking all 6 auth methods to default config
+- Default service_auth_methods entries linking all registered auth methods to default config
 
 **Important Relationships:**
 - Each `login_page_config` can reference ONE `global_service` (or null for default)
@@ -1208,11 +1290,13 @@ const settingsItems = [
    2. Create concrete strategy implementations
       - Refactor existing auth to `EmailPasswordStrategy.ts`
       - Refactor existing auth to `UuidStrategy.ts`
-      - Create placeholder strategies (Nostr, BlueSky, WebAuthn, MagicLink)
+      - **DO NOT** create or register placeholder strategies yet
+      - Placeholders stay "Coming Soon" until actually implemented
    
    3. Create strategy registry
       - Implement `StrategyRegistry.ts`
-      - Register all strategies on startup
+      - Register ONLY Email and UUID strategies on startup
+      - Leave Nostr, BlueSky, WebAuthn, MagicLink as unregistered placeholders
    
    4. Create unified auth handler
       - Implement `AuthHandler.ts` with common post-auth hooks
