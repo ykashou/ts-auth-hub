@@ -6,6 +6,15 @@ Admins can customize every aspect of the login page: branding, enabled methods, 
 ## Architecture: Service-Specific Login Pages
 Login page configurations can be assigned to specific services, similar to RBAC models. Each service gets its own branded login experience with custom authentication methods, while a default configuration serves the main AuthHub login.
 
+## Architecture: Unified Authentication Strategy Pattern
+All authentication methods (UUID, Email, Nostr, BlueSky, WebAuthn, Magic Links) implement a common `AuthStrategy` interface. The `StrategyRegistry` serves as the single source of truth for available auth methods, eliminating code duplication and enabling auto-discovery. When a new strategy is registered, it automatically:
+- Appears in the login editor UI
+- Gets synced to the `auth_methods` database table
+- Is marked as `implemented: true`
+- Becomes available on the login page
+
+This unified approach ensures authentication methods are defined once and propagate everywhere automatically.
+
 ---
 
 ## Task: Login Page Editor & Configuration System - Full Stack
@@ -30,6 +39,306 @@ Login page configurations can be assigned to specific services, similar to RBAC 
 - Changes saved to database and applied immediately
 - Default configuration used when no service specified
 - Service-specific configuration overrides default when `service_id` query parameter present
+
+---
+
+## Strategy Pattern Architecture
+
+### Overview
+Before implementing database tables and UI, we establish a unified authentication system using the Strategy design pattern. This eliminates code duplication and creates a single source of truth for authentication methods.
+
+### 1. Strategy Interface & Metadata
+
+```typescript
+// server/auth/AuthStrategy.ts
+
+export interface AuthStrategyMetadata {
+  id: string;                    // Unique identifier: "uuid", "email", "nostr"
+  name: string;                  // Display name: "UUID Login", "Email Login"
+  description: string;           // User-facing description
+  icon: string;                  // Lucide icon name: "KeyRound", "Mail", "Zap"
+  buttonText: string;            // Default button text: "Login with Nostr"
+  buttonVariant: "default" | "outline" | "ghost";
+  helpText?: string;             // Optional help text shown to users
+  category: "primary" | "alternative";  // UI grouping
+}
+
+export interface AuthStrategy {
+  // Metadata (single source of truth - no duplication!)
+  readonly metadata: AuthStrategyMetadata;
+  
+  // Validate request data (using Zod schemas)
+  validateRequest(data: any): any;
+  
+  // Authenticate user and return result
+  authenticate(credentials: any): Promise<AuthResult>;
+}
+
+export interface AuthResult {
+  userId: string;
+  email: string | null;
+  role: "admin" | "user";
+  isNewUser: boolean;
+}
+```
+
+### 2. Concrete Strategy Implementations
+
+```typescript
+// server/auth/strategies/EmailPasswordStrategy.ts
+import { AuthStrategy, AuthStrategyMetadata, AuthResult } from "../AuthStrategy";
+import { loginSchema } from "@shared/schema";
+import bcrypt from "bcrypt";
+
+export class EmailPasswordStrategy implements AuthStrategy {
+  readonly metadata: AuthStrategyMetadata = {
+    id: "email",
+    name: "Email Login",
+    description: "Sign in with your email and password",
+    icon: "Mail",
+    buttonText: "Email Login",
+    buttonVariant: "default",
+    category: "primary",
+  };
+  
+  validateRequest(data: any) {
+    return loginSchema.parse(data);
+  }
+  
+  async authenticate(credentials: { email: string; password: string }): Promise<AuthResult> {
+    const user = await storage.getUserByEmail(credentials.email);
+    if (!user || !user.password) {
+      throw new Error("Invalid email or password");
+    }
+    
+    const isValid = await bcrypt.compare(credentials.password, user.password);
+    if (!isValid) {
+      throw new Error("Invalid email or password");
+    }
+    
+    return {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      isNewUser: false,
+    };
+  }
+}
+
+// server/auth/strategies/UuidStrategy.ts
+export class UuidStrategy implements AuthStrategy {
+  readonly metadata: AuthStrategyMetadata = {
+    id: "uuid",
+    name: "UUID Login",
+    description: "Use an existing Account ID or generate a new one for anonymous authentication",
+    icon: "KeyRound",
+    buttonText: "UUID Login",
+    buttonVariant: "default",
+    category: "primary",
+  };
+  
+  validateRequest(data: any) {
+    return uuidLoginSchema.parse(data);
+  }
+  
+  async authenticate(credentials: { uuid?: string }): Promise<AuthResult> {
+    let user;
+    let isNewUser = false;
+    
+    if (credentials.uuid) {
+      user = await storage.getUser(credentials.uuid);
+      if (!user) {
+        const userCount = await storage.getUserCount();
+        const role = userCount === 0 ? "admin" : "user";
+        user = await storage.createUserWithUuid(credentials.uuid, role);
+        isNewUser = true;
+      }
+    } else {
+      const userCount = await storage.getUserCount();
+      const role = userCount === 0 ? "admin" : "user";
+      user = await storage.createAnonymousUser(role);
+      isNewUser = true;
+    }
+    
+    return {
+      userId: user.id,
+      email: user.email || null,
+      role: user.role,
+      isNewUser,
+    };
+  }
+}
+
+// server/auth/strategies/NostrStrategy.ts
+export class NostrStrategy implements AuthStrategy {
+  readonly metadata: AuthStrategyMetadata = {
+    id: "nostr",
+    name: "Nostr",
+    description: "Authenticate using your Nostr public key with cryptographic signatures",
+    icon: "Zap",
+    buttonText: "Login with Nostr",
+    buttonVariant: "outline",
+    helpText: "Requires Nostr browser extension (Alby or nos2x)",
+    category: "alternative",
+  };
+  
+  validateRequest(data: any) {
+    return nostrLoginSchema.parse(data);
+  }
+  
+  async authenticate(credentials: { pubkey: string; signature: string }): Promise<AuthResult> {
+    // Verify Nostr signature
+    const isValid = await verifyNostrSignature(credentials.pubkey, credentials.signature);
+    if (!isValid) {
+      throw new Error("Invalid Nostr signature");
+    }
+    
+    // Find or create user by Nostr pubkey
+    let user = await storage.getUserByNostrPubkey(credentials.pubkey);
+    let isNewUser = false;
+    
+    if (!user) {
+      const userCount = await storage.getUserCount();
+      const role = userCount === 0 ? "admin" : "user";
+      user = await storage.createNostrUser(credentials.pubkey, role);
+      isNewUser = true;
+    }
+    
+    return {
+      userId: user.id,
+      email: null,
+      role: user.role,
+      isNewUser,
+    };
+  }
+}
+
+// Similar implementations for BlueSkyStrategy, WebAuthnStrategy, MagicLinkStrategy
+```
+
+### 3. Strategy Registry (Single Source of Truth)
+
+```typescript
+// server/auth/StrategyRegistry.ts
+import { AuthStrategy, AuthStrategyMetadata } from "./AuthStrategy";
+
+class StrategyRegistry {
+  private strategies = new Map<string, AuthStrategy>();
+  
+  register(strategy: AuthStrategy): void {
+    this.strategies.set(strategy.metadata.id, strategy);
+    console.log(`[StrategyRegistry] Registered: ${strategy.metadata.name} (${strategy.metadata.id})`);
+  }
+  
+  get(id: string): AuthStrategy | undefined {
+    return this.strategies.get(id);
+  }
+  
+  getAll(): AuthStrategy[] {
+    return Array.from(this.strategies.values());
+  }
+  
+  getAllMetadata(): AuthStrategyMetadata[] {
+    return this.getAll().map(s => s.metadata);
+  }
+  
+  isImplemented(id: string): boolean {
+    return this.strategies.has(id);
+  }
+  
+  getImplementedIds(): string[] {
+    return Array.from(this.strategies.keys());
+  }
+}
+
+// Singleton instance
+export const strategyRegistry = new StrategyRegistry();
+
+// Auto-register implemented strategies
+import { EmailPasswordStrategy } from "./strategies/EmailPasswordStrategy";
+import { UuidStrategy } from "./strategies/UuidStrategy";
+import { NostrStrategy } from "./strategies/NostrStrategy";
+// Import others as they're implemented...
+
+strategyRegistry.register(new EmailPasswordStrategy());
+strategyRegistry.register(new UuidStrategy());
+strategyRegistry.register(new NostrStrategy());
+// When you add WebAuthnStrategy, just import and register - that's it!
+```
+
+### 4. Unified Authentication Handler
+
+```typescript
+// server/auth/AuthHandler.ts
+import { strategyRegistry } from "./StrategyRegistry";
+import { generateAuthToken } from "../utils/jwt";
+
+export class AuthHandler {
+  async authenticate(
+    methodId: string,
+    credentials: any,
+    serviceId?: string
+  ): Promise<{ token: string; user: any }> {
+    // Get strategy from registry
+    const strategy = strategyRegistry.get(methodId);
+    if (!strategy) {
+      throw new Error(`Unknown authentication method: ${methodId}`);
+    }
+    
+    // Validate request
+    const validatedData = strategy.validateRequest(credentials);
+    
+    // Authenticate using strategy
+    const { userId, email, role, isNewUser } = await strategy.authenticate(validatedData);
+    
+    // Get full user details
+    const user = await storage.getUser(userId);
+    if (!user) throw new Error("User not found after authentication");
+    
+    // Run post-authentication hooks (same for ALL methods - no duplication!)
+    await this.runPostAuthHooks(user, isNewUser);
+    
+    // Generate JWT token (with service secret if provided)
+    const token = await generateAuthToken(user.id, email, role, serviceId);
+    
+    return {
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+    };
+  }
+  
+  private async runPostAuthHooks(user: any, isNewUser: boolean): Promise<void> {
+    // Auto-seed services if user has none
+    const userServices = await storage.getAllServicesByUser(user.id);
+    if (userServices.length === 0) {
+      await seedServices(user.id);
+    }
+    
+    // Seed RBAC models for first admin
+    if (user.role === 'admin' && isNewUser) {
+      await storage.seedDefaultRbacModels(user.id);
+    }
+  }
+}
+
+export const authHandler = new AuthHandler();
+```
+
+### 5. Benefits of Strategy Pattern
+
+✅ **Single Source of Truth** - Each auth method defined once in its strategy class  
+✅ **Zero Code Duplication** - Post-auth hooks (seeding, token generation) written once  
+✅ **Auto-Discovery** - New strategies automatically appear in login editor and database  
+✅ **Easy to Extend** - Add new auth method = create one strategy class + register it  
+✅ **Consistent API** - All methods use unified `/api/auth/authenticate` endpoint  
+✅ **Type-Safe** - TypeScript enforces strategy interface  
+✅ **Testable** - Each strategy can be unit tested independently  
+✅ **Maintainable** - Changes to auth flow apply to all methods automatically  
 
 ---
 
@@ -147,114 +456,171 @@ export type InsertServiceAuthMethod = z.infer<typeof insertServiceAuthMethodSche
 
 ## Backend Implementation
 
-### 1. Seed Default Configuration
+### 1. Auto-Sync Auth Methods from Strategy Registry
+
 ```typescript
 // server/storage.ts
-async seedLoginPageConfig() {
-  // Seed global authentication methods (if not already seeded)
-  const existingMethods = await db.select().from(authMethods).limit(1);
-  if (existingMethods.length === 0) {
-    const methods = [
-      {
-        id: "uuid",
-        name: "UUID Login",
-        description: "Use an existing Account ID or generate a new one for anonymous authentication",
-        icon: "KeyRound",
-        type: "uuid",
-        implemented: true,
-        defaultButtonText: "UUID Login",
-        defaultButtonVariant: "default",
-      },
-      {
-        id: "email",
-        name: "Email Login",
-        description: "Sign in with your email and password",
-        icon: "Mail",
-        type: "email",
-        implemented: true,
-        defaultButtonText: "Email Login",
-        defaultButtonVariant: "default",
-      },
-      {
-        id: "nostr",
-        name: "Nostr",
-        description: "Authenticate using your Nostr public key with cryptographic signatures",
-        icon: "Zap",
-        type: "nostr",
-        implemented: false,
-        defaultButtonText: "Login with Nostr",
-        defaultButtonVariant: "outline",
-        defaultHelpText: "Requires Nostr browser extension (Alby or nos2x)",
-      },
-      {
-        id: "bluesky",
-        name: "BlueSky",
-        description: "Sign in with your BlueSky ATProtocol identity",
-        icon: "Cloud",
-        type: "bluesky",
-        implemented: false,
-        defaultButtonText: "Login with BlueSky",
-        defaultButtonVariant: "outline",
-      },
-      {
-        id: "webauthn",
-        name: "WebAuthn",
-        description: "Passwordless authentication using biometrics or security keys",
-        icon: "Fingerprint",
-        type: "webauthn",
-        implemented: false,
-        defaultButtonText: "Login with WebAuthn",
-        defaultButtonVariant: "outline",
-      },
-      {
-        id: "magic_link",
-        name: "Magic Link",
-        description: "Receive a one-time login link via email",
-        icon: "Sparkles",
-        type: "magic_link",
-        implemented: false,
-        defaultButtonText: "Login with Magic Link",
-        defaultButtonVariant: "outline",
-      },
-    ];
-    
-    await db.insert(authMethods).values(methods);
-  }
+import { strategyRegistry } from "./auth/StrategyRegistry";
+
+/**
+ * Syncs auth_methods table with registered strategies
+ * Called on server startup to ensure database reflects code
+ */
+async syncAuthMethodsFromRegistry() {
+  const registeredStrategies = strategyRegistry.getAllMetadata();
   
-  // Seed default login page configuration (serviceId = null)
+  console.log(`[Storage] Syncing ${registeredStrategies.length} auth methods from strategy registry...`);
+  
+  for (const metadata of registeredStrategies) {
+    // Upsert to auth_methods table (insert or update if exists)
+    await db.insert(authMethods)
+      .values({
+        id: metadata.id,
+        name: metadata.name,
+        description: metadata.description,
+        icon: metadata.icon,
+        type: metadata.id as any,
+        implemented: true,  // If it's registered, it's implemented!
+        defaultButtonText: metadata.buttonText,
+        defaultButtonVariant: metadata.buttonVariant,
+        defaultHelpText: metadata.helpText,
+      })
+      .onConflictDoUpdate({
+        target: authMethods.id,
+        set: {
+          // Update metadata in case it changed
+          name: metadata.name,
+          description: metadata.description,
+          icon: metadata.icon,
+          implemented: true,  // Auto-mark as implemented
+          defaultButtonText: metadata.buttonText,
+          defaultButtonVariant: metadata.buttonVariant,
+          defaultHelpText: metadata.helpText,
+          updatedAt: new Date(),
+        },
+      });
+    
+    console.log(`[Storage] Synced: ${metadata.name} (${metadata.id})`);
+  }
+}
+
+/**
+ * Seeds default login page configuration
+ * Only runs if no default config exists
+ */
+async seedLoginPageConfig() {
+  // First, sync auth methods from strategy registry
+  await this.syncAuthMethodsFromRegistry();
+  
+  // Check if default login config exists (serviceId = null)
   const existingDefaultConfig = await db.select()
     .from(loginPageConfig)
     .where(isNull(loginPageConfig.serviceId))
     .limit(1);
     
-  if (existingDefaultConfig.length === 0) {
-    const [defaultConfig] = await db.insert(loginPageConfig).values({
-      serviceId: null, // Default configuration
-      title: "Welcome to AuthHub",
-      description: "Choose your preferred authentication method",
-      defaultMethod: "uuid",
-      methodOrder: ["uuid", "email", "nostr", "bluesky", "webauthn", "magic_link"],
-    }).returning();
-    
-    // Seed service auth methods for default config
-    const allMethods = await db.select().from(authMethods);
-    const serviceAuthMethodsData = allMethods.map((method, index) => ({
-      loginConfigId: defaultConfig.id,
-      authMethodId: method.id,
-      enabled: method.implemented, // Only enable implemented methods by default
-      showComingSoonBadge: !method.implemented, // Show badge for non-implemented
-      displayOrder: index,
-    }));
-    
+  if (existingDefaultConfig.length > 0) {
+    console.log("[Storage] Default login config already exists");
+    return;
+  }
+  
+  // Create default login page configuration
+  const implementedMethods = strategyRegistry.getImplementedIds();
+  
+  const [defaultConfig] = await db.insert(loginPageConfig).values({
+    serviceId: null, // Default/global configuration
+    title: "Welcome to AuthHub",
+    description: "Choose your preferred authentication method",
+    defaultMethod: implementedMethods[0] || "uuid", // Use first implemented method
+    methodOrder: implementedMethods, // Auto-ordered based on registered strategies
+  }).returning();
+  
+  console.log("[Storage] Created default login config");
+  
+  // Seed service auth methods for default config
+  const allMethods = await db.select().from(authMethods);
+  const serviceAuthMethodsData = allMethods.map((method, index) => ({
+    loginConfigId: defaultConfig.id,
+    authMethodId: method.id,
+    enabled: method.implemented, // Only enable implemented methods
+    showComingSoonBadge: false,  // No badges by default
+    displayOrder: index,
+  }));
+  
+  if (serviceAuthMethodsData.length > 0) {
     await db.insert(serviceAuthMethods).values(serviceAuthMethodsData);
+    console.log(`[Storage] Created ${serviceAuthMethodsData.length} default service auth methods`);
   }
 }
 ```
 
-### 2. API Endpoints
+**Key Improvements:**
+- ✅ No hardcoded arrays - auth methods come from strategy registry
+- ✅ Auto-discovery - new strategies automatically synced to database
+- ✅ Auto-implementation detection - registered = implemented
+- ✅ Upsert logic - safe to run multiple times, updates metadata if changed
+- ✅ Logging for visibility during startup
+
+### 2. Unified Authentication Endpoint
 
 ```typescript
 // server/routes.ts
+import { authHandler } from "./auth/AuthHandler";
+import { strategyRegistry } from "./auth/StrategyRegistry";
+
+// ==================== Authentication Routes ====================
+
+// Get all available authentication methods (auto-discovered from registry)
+app.get("/api/auth/methods", async (req, res) => {
+  try {
+    const methods = strategyRegistry.getAllMetadata();
+    res.json(methods);
+  } catch (error: any) {
+    console.error("Get auth methods error:", error);
+    res.status(500).json({ error: "Failed to fetch authentication methods" });
+  }
+});
+
+// Unified authentication endpoint (replaces separate /login, /uuid-login, etc.)
+app.post("/api/auth/authenticate", async (req, res) => {
+  try {
+    const { method, serviceId, ...credentials } = req.body;
+    
+    if (!method) {
+      return res.status(400).json({ error: "Authentication method is required" });
+    }
+    
+    // Authenticate using strategy pattern
+    const result = await authHandler.authenticate(method, credentials, serviceId);
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error("Authentication error:", error);
+    res.status(401).json({ error: error.message || "Authentication failed" });
+  }
+});
+
+// Legacy endpoints for backward compatibility (optional - can redirect to unified endpoint)
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { serviceId, ...credentials } = req.body;
+    const result = await authHandler.authenticate("email", credentials, serviceId);
+    res.json(result);
+  } catch (error: any) {
+    console.error("Login error:", error);
+    res.status(401).json({ error: error.message || "Login failed" });
+  }
+});
+
+app.post("/api/auth/uuid-login", async (req, res) => {
+  try {
+    const { serviceId, ...credentials } = req.body;
+    const result = await authHandler.authenticate("uuid", credentials, serviceId);
+    res.json(result);
+  } catch (error: any) {
+    console.error("UUID login error:", error);
+    res.status(401).json({ error: error.message || "UUID login failed" });
+  }
+});
 
 // ==================== Login Page Configuration Routes ====================
 
@@ -758,40 +1124,57 @@ const settingsItems = [
 
 ## Acceptance Criteria
 
+✅ **Strategy Pattern Implementation:**
+- All auth methods implement `AuthStrategy` interface
+- Strategy registry singleton manages all strategies
+- Each strategy defines metadata once (no duplication)
+- Unified `/api/auth/authenticate` endpoint handles all methods
+- Post-auth hooks (seeding, JWT) execute for all methods without duplication
+- Legacy endpoints work for backward compatibility
+- `GET /api/auth/methods` returns auto-discovered strategies
+- Database auto-syncs from registry on startup
+- Adding new auth method requires only creating strategy class + registering
+
 ✅ **Configuration Management:**
 - Admin can view current login page configuration
 - All settings saved to database (not hardcoded)
 - Changes persist across server restarts
+- Service-specific configurations supported
+- Default configuration serves as fallback
 
 ✅ **Branding Customization:**
-- Admin can change title and description
-- Admin can upload/set custom logo
-- Admin can customize primary color
+- Admin can change title and description per service
+- Admin can upload/set custom logo per service
+- Admin can customize primary color per service
 - All branding changes appear in live preview
+- Service selector dropdown shows all global services
 
 ✅ **Authentication Method Control:**
-- Admin can enable/disable any auth method
+- Admin can enable/disable any auth method per service
 - Admin can reorder methods via drag-and-drop
-- Admin can customize button text and help text
-- Admin can toggle "Coming Soon" badges
+- Admin can customize button text and help text per service
 - Method order and enabled state saved correctly
+- Only implemented strategies appear (auto-detected)
 
 ✅ **Live Preview:**
 - Preview updates in real-time as changes are made
 - Preview accurately reflects actual login page
 - Preview is responsive (shows desktop/tablet/mobile views)
+- Preview reflects service-specific configurations
 
 ✅ **User Experience:**
-- Login page fetches and applies configuration on load
-- Only enabled methods shown to users
+- Login page fetches configuration via `?service_id=...` parameter
+- Only enabled methods shown to users for that service
 - Methods appear in configured order
 - Default method tab is selected on page load
-- No hardcoded values - all driven by configuration
+- No hardcoded values - all driven by configuration and strategy registry
+- Login page uses unified `/api/auth/authenticate` endpoint
 
 ✅ **Security:**
 - All configuration endpoints require admin authentication
 - Public endpoint only returns enabled methods
 - No sensitive data exposed in public endpoint
+- Service-specific configs cascade delete with service
 
 ✅ **Responsiveness:**
 - Editor works on desktop, tablet, and mobile
@@ -802,45 +1185,85 @@ const settingsItems = [
 - Validation prevents invalid configurations
 - Reset to defaults works correctly
 - Unsaved changes warning prevents data loss
-- Database seeding creates sensible defaults
+- Database seeding creates sensible defaults from registry
+- Upsert logic ensures safe multi-run syncing
+
+✅ **Extensibility:**
+- Adding new auth method is straightforward (one class + registration)
+- Strategy metadata propagates everywhere automatically
+- No need to update multiple files when adding auth methods
+- Type safety enforced via TypeScript interfaces
 
 ---
 
 ## Implementation Order
 
-1. **Phase 1: Database & Backend**
-   - Add schema tables
-   - Implement storage methods
-   - Create API endpoints
-   - Seed default configuration
+### **Phase 0: Strategy Pattern Refactor (Foundation)**
+   **Critical: Must be done first before other phases**
+   
+   1. Create strategy interface and types
+      - Create `server/auth/AuthStrategy.ts` with interfaces
+      - Define `AuthStrategyMetadata`, `AuthStrategy`, `AuthResult`
+   
+   2. Create concrete strategy implementations
+      - Refactor existing auth to `EmailPasswordStrategy.ts`
+      - Refactor existing auth to `UuidStrategy.ts`
+      - Create placeholder strategies (Nostr, BlueSky, WebAuthn, MagicLink)
+   
+   3. Create strategy registry
+      - Implement `StrategyRegistry.ts`
+      - Register all strategies on startup
+   
+   4. Create unified auth handler
+      - Implement `AuthHandler.ts` with common post-auth hooks
+      - Replace duplicate logic in routes
+   
+   5. Update API routes
+      - Add `POST /api/auth/authenticate` unified endpoint
+      - Keep legacy endpoints for backward compatibility
+      - Add `GET /api/auth/methods` for auto-discovery
+   
+   6. Test strategy pattern
+      - Verify email/password login works via unified endpoint
+      - Verify UUID login works via unified endpoint
+      - Verify all post-auth hooks still execute
 
-2. **Phase 2: Login Page Updates**
+### **Phase 1: Database & Backend**
+   - Add schema tables (login_page_config, service_auth_methods)
+   - Implement auto-sync from strategy registry
+   - Create login config API endpoints
+   - Seed default configuration from registry
+
+### **Phase 2: Login Page Updates**
    - Add config fetching to login page
-   - Make login page render dynamic based on config
-   - Test with hardcoded config first
+   - Make login page render dynamically based on config
+   - Support service_id query parameter
+   - Update to use unified `/api/auth/authenticate` endpoint
 
-3. **Phase 3: Admin Editor UI**
-   - Create login editor page
+### **Phase 3: Admin Editor UI**
+   - Create login editor page with service selector
    - Build branding tab
-   - Build authentication methods tab
+   - Build authentication methods tab (shows registry data)
    - Implement live preview panel
 
-4. **Phase 4: Drag & Drop**
+### **Phase 4: Drag & Drop**
    - Install dnd-kit library
    - Implement sortable auth methods list
    - Wire up reordering logic
 
-5. **Phase 5: Save/Reset Logic**
+### **Phase 5: Save/Reset Logic**
    - Implement save mutations
    - Add reset to defaults
    - Add unsaved changes detection
+   - Copy from another service feature
 
-6. **Phase 6: Polish & Testing**
+### **Phase 6: Polish & Testing**
    - Add loading states
    - Add error handling
    - Add validation
-   - Test all scenarios
+   - Test all scenarios (especially service-specific configs)
    - Mobile optimization
+   - Test strategy extensibility (add a new auth method)
 
 ---
 
@@ -910,10 +1333,77 @@ Both login page configurations and RBAC models are assigned to services independ
 
 ## Notes
 
-- This feature gives admins complete control without requiring code changes
+### Admin Experience
+- Admins have complete control over login pages without requiring code changes
 - Each service can have its own branded login experience
 - Services can enable different authentication methods (e.g., one service allows Nostr, another doesn't)
 - The login page becomes a "product" that can be customized per service/customer
 - Default configuration serves as both the AuthHub login and fallback for unconfigured services
 - Configuration is database-driven and environment-specific (dev/staging/prod can differ)
 - Service-specific configs are automatically deleted when the service is deleted (cascade)
+
+### Developer Experience (Strategy Pattern Benefits)
+- **Adding a new auth method is trivial:**
+  1. Create one strategy class (e.g., `WebAuthnStrategy.ts`)
+  2. Register it: `strategyRegistry.register(new WebAuthnStrategy())`
+  3. **DONE!** It automatically:
+     - Appears in login editor UI
+     - Syncs to database with `implemented: true`
+     - Becomes available on login page
+     - Works with service-specific configurations
+     - Inherits all post-auth hooks (seeding, JWT, etc.)
+
+- **Zero code duplication:**
+  - Post-auth logic (service seeding, RBAC seeding, JWT generation) written once
+  - All auth methods share the same flow via `AuthHandler`
+  - Unified `/api/auth/authenticate` endpoint handles all methods
+
+- **Type-safe and maintainable:**
+  - TypeScript enforces `AuthStrategy` interface
+  - Each strategy is independently testable
+  - Changes to auth flow automatically apply to all methods
+
+- **Auto-discovery:**
+  - `GET /api/auth/methods` returns live data from registry
+  - Login editor shows only registered strategies
+  - Database auto-syncs on startup
+
+### Example: Adding WebAuthn Support
+
+**Old way (without Strategy Pattern):**
+```typescript
+// 1. Add to database seed (hardcoded array)
+// 2. Create /api/auth/webauthn-login endpoint
+// 3. Duplicate all post-auth logic (seeding, JWT, etc.)
+// 4. Update frontend to handle new endpoint
+// 5. Update login editor manually
+// Total: ~200 lines of duplicated code
+```
+
+**New way (with Strategy Pattern):**
+```typescript
+// server/auth/strategies/WebAuthnStrategy.ts
+export class WebAuthnStrategy implements AuthStrategy {
+  readonly metadata = {
+    id: "webauthn",
+    name: "WebAuthn",
+    icon: "Fingerprint",
+    // ... other metadata
+  };
+  
+  async authenticate(credentials) {
+    // WebAuthn-specific logic only
+  }
+}
+
+// server/auth/StrategyRegistry.ts
+strategyRegistry.register(new WebAuthnStrategy());
+
+// Total: ~50 lines, zero duplication, auto-integrated everywhere
+```
+
+### Migration from Existing Code
+- Phase 0 refactors existing email/UUID auth to use Strategy pattern
+- Legacy endpoints (`/api/auth/login`, `/api/auth/uuid-login`) remain for backward compatibility
+- Frontend can migrate to unified endpoint gradually
+- All existing tests should continue to pass
