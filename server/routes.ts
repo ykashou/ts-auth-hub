@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, type User } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, type User } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { seedServices } from "./seed";
@@ -834,6 +834,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Verify secret error:", error);
       res.status(500).json({ error: "Failed to verify secret" });
+    }
+  });
+
+  // ==================== Global Services Routes (Admin Only) ====================
+
+  // Create new global service (admin only)
+  app.post("/api/admin/global-services", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertGlobalServiceSchema.parse(req.body);
+      
+      // Generate a unique secret for the service (for JWT signing and widget authentication)
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      // Encrypt the secret before storing
+      const encryptedSecret = encryptSecret(plaintextSecret);
+      
+      // Create truncated preview for display (e.g., "sk_abc123...def789")
+      const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
+      
+      // Set redirect URL to service URL if not provided
+      const redirectUrl = validatedData.redirectUrl || validatedData.url;
+      
+      const service = await storage.createGlobalService({
+        ...validatedData,
+        redirectUrl,
+        secret: encryptedSecret, // Store encrypted secret
+        secretPreview,
+      });
+      
+      // Return service with plaintext secret (only time it's shown in full)
+      res.status(201).json({
+        ...service,
+        plaintextSecret,
+      });
+    } catch (error: any) {
+      console.error("Create global service error:", error);
+      res.status(400).json({ error: error.message || "Failed to create global service" });
+    }
+  });
+
+  // Get all global services (admin only)
+  app.get("/api/admin/global-services", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const services = await storage.getAllGlobalServices();
+      res.json(services);
+    } catch (error: any) {
+      console.error("Get global services error:", error);
+      res.status(500).json({ error: "Failed to fetch global services" });
+    }
+  });
+
+  // Get single global service by ID (admin only)
+  app.get("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const service = await storage.getGlobalService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Global service not found" });
+      }
+      
+      res.json(service);
+    } catch (error: any) {
+      console.error("Get global service error:", error);
+      res.status(500).json({ error: "Failed to fetch global service" });
+    }
+  });
+
+  // Update global service (admin only)
+  app.patch("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const service = await storage.getGlobalService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Global service not found" });
+      }
+
+      // Use partial schema to allow partial updates
+      const validatedData = insertGlobalServiceSchema.partial().parse(req.body);
+      
+      // Set default color only if color field is explicitly provided but empty
+      if ("color" in validatedData && (!validatedData.color || validatedData.color.trim() === '')) {
+        validatedData.color = 'hsl(var(--primary))';
+      }
+      
+      // Preserve the existing secrets - they should never be updated via PATCH
+      const updateData = {
+        ...validatedData,
+        secret: service.secret,
+        secretPreview: service.secretPreview,
+      };
+      
+      const updatedService = await storage.updateGlobalService(req.params.id, updateData);
+      
+      res.json(updatedService);
+    } catch (error: any) {
+      console.error("Update global service error:", error);
+      res.status(400).json({ error: error.message || "Failed to update global service" });
+    }
+  });
+
+  // Delete global service (admin only)
+  app.delete("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const service = await storage.getGlobalService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Global service not found" });
+      }
+
+      await storage.deleteGlobalService(req.params.id);
+      
+      res.json({ success: true, message: "Global service deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete global service error:", error);
+      res.status(500).json({ error: "Failed to delete global service" });
+    }
+  });
+
+  // Rotate global service secret (admin only)
+  app.post("/api/admin/global-services/:id/rotate-secret", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const service = await storage.getGlobalService(req.params.id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Global service not found" });
+      }
+
+      // Generate a new plaintext secret
+      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+      
+      // Encrypt the secret before storing
+      const encryptedSecret = encryptSecret(plaintextSecret);
+      
+      // Create truncated preview for display
+      const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
+      
+      // Update the service with the new encrypted secret and preview
+      await storage.updateGlobalService(req.params.id, { secret: encryptedSecret, secretPreview });
+      
+      res.json({
+        success: true,
+        message: "Secret rotated successfully",
+        plaintextSecret, // Show the new secret once
+      });
+    } catch (error: any) {
+      console.error("Rotate global service secret error:", error);
+      res.status(500).json({ error: "Failed to rotate secret" });
     }
   });
 
