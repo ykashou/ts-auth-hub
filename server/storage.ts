@@ -1,5 +1,5 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole } from "@shared/schema";
+import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -29,6 +29,13 @@ export interface IStorage {
   getAllServicesByUser(userId: string): Promise<Service[]>;
   updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
   deleteService(id: string, userId: string): Promise<void>;
+
+  // Global Service operations (admin-managed, no userId)
+  createGlobalService(service: InsertGlobalService & { secret?: string; secretPreview?: string }): Promise<GlobalService>;
+  getGlobalService(id: string): Promise<GlobalService | undefined>;
+  getAllGlobalServices(): Promise<GlobalService[]>;
+  updateGlobalService(id: string, service: Partial<GlobalService>): Promise<GlobalService>;
+  deleteGlobalService(id: string): Promise<void>;
 
   // RBAC Model operations
   createRbacModel(model: InsertRbacModel & { createdBy: string }): Promise<RbacModel>;
