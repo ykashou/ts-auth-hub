@@ -15,6 +15,7 @@ import AdminUsersPage from "@/pages/admin-users";
 import AdminRbacPage from "@/pages/admin-rbac";
 import AdminRbacDetailPage from "@/pages/admin-rbac-detail";
 import AdminRoleAssignmentsPage from "@/pages/admin-role-assignments";
+import AdminGlobalServicesPage from "@/pages/admin-global-services";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/admin/rbac/:id" component={AdminRbacDetailPage} />
       <Route path="/admin/rbac" component={AdminRbacPage} />
       <Route path="/admin/role-assignments" component={AdminRoleAssignmentsPage} />
+      <Route path="/admin/global-services" component={AdminGlobalServicesPage} />
       <Route path="/services" component={ServicesPage} />
       <Route path="/config" component={ConfigPage} />
       <Route path="/api-docs" component={ApiDocsPage} />
