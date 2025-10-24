@@ -1593,16 +1593,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== LOGIN PAGE CONFIGURATION ROUTES ====================
 
-  // Public endpoint: Get login page configuration for a specific service
+  // Public endpoint: Get login page configuration
+  // - With serviceId: Returns service-specific config (for OAuth redirect flow)
+  // - Without serviceId: Returns default AuthHub login config
   app.get("/api/login-config", async (req, res) => {
     try {
       const { serviceId } = req.query;
       
-      if (!serviceId) {
-        return res.status(400).json({ error: "serviceId parameter is required" });
+      let config;
+      if (serviceId) {
+        // Get service-specific config for OAuth redirect flow
+        config = await storage.getLoginPageConfigByServiceId(serviceId as string);
+      } else {
+        // Get default AuthHub login config (serviceId is null)
+        config = await storage.getDefaultLoginPageConfig();
       }
-      
-      const config = await storage.getLoginPageConfigByServiceId(serviceId as string);
       
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
