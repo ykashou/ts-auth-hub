@@ -35,7 +35,6 @@ export default function Navbar() {
     { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
     { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
     { path: "/admin/global-services", label: "Global Services", icon: Globe, testId: "button-global-services" },
-    { path: "/admin/login-editor", label: "Login Editor", icon: Layout, testId: "button-login-editor" },
   ];
 
   const documentationItems = [

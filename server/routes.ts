@@ -575,6 +575,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.user.id, // Associate service with authenticated user
       });
       
+      // Automatically create login page configuration for this service
+      await storage.seedLoginPageConfigForService(service.id);
+      
       // Return service with plaintext secret (only time it's shown in full)
       res.status(201).json({
         ...service,
@@ -1590,17 +1593,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== LOGIN PAGE CONFIGURATION ROUTES ====================
 
-  // Public endpoint: Get login page configuration for a service (or default)
+  // Public endpoint: Get login page configuration for a specific service
   app.get("/api/login-config", async (req, res) => {
     try {
       const { serviceId } = req.query;
       
-      let config;
-      if (serviceId) {
-        config = await storage.getLoginPageConfigByServiceId(serviceId as string);
-      } else {
-        config = await storage.getDefaultLoginPageConfig();
+      if (!serviceId) {
+        return res.status(400).json({ error: "serviceId parameter is required" });
       }
+      
+      const config = await storage.getLoginPageConfigByServiceId(serviceId as string);
       
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });

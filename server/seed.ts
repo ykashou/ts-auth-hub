@@ -3,6 +3,7 @@ import { services } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { encryptSecret } from "./crypto";
+import { storage } from "./storage";
 
 interface DefaultService {
   name: string;
@@ -94,13 +95,16 @@ export async function seedServices(userId: string) {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
 
       // Create service with redirect URL defaulting to service URL
-      await db.insert(services).values({
+      const [newService] = await db.insert(services).values({
         ...defaultService,
         userId,
         secret: encryptedSecret,
         secretPreview,
         redirectUrl: defaultService.url,
-      });
+      }).returning();
+
+      // Create login configuration for this service
+      await storage.seedLoginPageConfigForService(newService.id);
 
       console.log(`✅ Created service: "${defaultService.name}"`);
       console.log(`   Secret: ${plaintextSecret}`);
