@@ -256,19 +256,57 @@ class StrategyRegistry {
 // Singleton instance
 export const strategyRegistry = new StrategyRegistry();
 
-// Auto-register ONLY implemented strategies
+// Register implemented strategies
 import { EmailPasswordStrategy } from "./strategies/EmailPasswordStrategy";
 import { UuidStrategy } from "./strategies/UuidStrategy";
 
 strategyRegistry.register(new EmailPasswordStrategy());
 strategyRegistry.register(new UuidStrategy());
 
-// DO NOT register placeholder strategies (Nostr, BlueSky, WebAuthn, Magic Links)
-// They remain "Coming Soon" on the login page until actually implemented
-// When you implement WebAuthnStrategy:
-//   1. Create the strategy class
-//   2. Import it here
-//   3. Register it - that's it! It auto-syncs everywhere.
+// Define metadata for placeholder methods (not yet implemented)
+// This allows admins to design the login experience before implementation
+export const placeholderMethods: AuthStrategyMetadata[] = [
+  {
+    id: "nostr",
+    name: "Nostr",
+    description: "Authenticate using your Nostr public key",
+    icon: "Zap",
+    buttonText: "Login with Nostr",
+    buttonVariant: "outline",
+    helpText: "Requires Nostr browser extension (Alby or nos2x)",
+    category: "alternative",
+  },
+  {
+    id: "bluesky",
+    name: "BlueSky",
+    description: "Authenticate using BlueSky ATProtocol",
+    icon: "Cloud",
+    buttonText: "Login with BlueSky",
+    buttonVariant: "outline",
+    helpText: "Use your BlueSky DID for authentication",
+    category: "alternative",
+  },
+  {
+    id: "webauthn",
+    name: "WebAuthn",
+    description: "Authenticate using biometrics or security keys",
+    icon: "Fingerprint",
+    buttonText: "Login with WebAuthn",
+    buttonVariant: "outline",
+    helpText: "Use fingerprint, Face ID, or hardware key",
+    category: "standard",
+  },
+  {
+    id: "magic_link",
+    name: "Magic Link",
+    description: "Passwordless authentication via email",
+    icon: "Sparkles",
+    buttonText: "Send Magic Link",
+    buttonVariant: "outline",
+    helpText: "Receive a one-time login link via email",
+    category: "standard",
+  },
+];
 ```
 
 ### 4. Unified Authentication Handler
@@ -457,16 +495,18 @@ export type InsertServiceAuthMethod = z.infer<typeof insertServiceAuthMethodSche
 import { strategyRegistry } from "./auth/StrategyRegistry";
 
 /**
- * Syncs auth_methods table with registered strategies
- * Called on server startup to ensure database reflects code
+ * Syncs auth_methods table with registered strategies + placeholders
+ * Called on server startup to ensure database reflects all available methods
  */
 async syncAuthMethodsFromRegistry() {
   const registeredStrategies = strategyRegistry.getAllMetadata();
+  const allMethods = [...registeredStrategies, ...placeholderMethods];
   
-  console.log(`[Storage] Syncing ${registeredStrategies.length} auth methods from strategy registry...`);
+  console.log(`[Storage] Syncing ${allMethods.length} auth methods (${registeredStrategies.length} implemented, ${placeholderMethods.length} placeholders)...`);
   
-  for (const metadata of registeredStrategies) {
-    // Upsert to auth_methods table (insert or update if exists)
+  for (const metadata of allMethods) {
+    const isImplemented = strategyRegistry.isImplemented(metadata.id);
+    
     await db.insert(authMethods)
       .values({
         id: metadata.id,
@@ -474,7 +514,7 @@ async syncAuthMethodsFromRegistry() {
         description: metadata.description,
         icon: metadata.icon,
         category: metadata.category,
-        implemented: true,  // If it's registered, it's implemented!
+        implemented: isImplemented,  // true for registered, false for placeholders
         defaultButtonText: metadata.buttonText,
         defaultButtonVariant: metadata.buttonVariant,
         defaultHelpText: metadata.helpText,
@@ -482,12 +522,11 @@ async syncAuthMethodsFromRegistry() {
       .onConflictDoUpdate({
         target: authMethods.id,
         set: {
-          // Update metadata in case it changed
           name: metadata.name,
           description: metadata.description,
           icon: metadata.icon,
           category: metadata.category,
-          implemented: true,  // Auto-mark as implemented
+          implemented: isImplemented,  // Updates when placeholder becomes implemented
           defaultButtonText: metadata.buttonText,
           defaultButtonVariant: metadata.buttonVariant,
           defaultHelpText: metadata.helpText,
@@ -495,7 +534,7 @@ async syncAuthMethodsFromRegistry() {
         },
       });
     
-    console.log(`[Storage] Synced: ${metadata.name} (${metadata.id})`);
+    console.log(`[Storage] Synced: ${metadata.name} (${metadata.id}) - ${isImplemented ? 'IMPLEMENTED' : 'PLACEHOLDER'}`);
   }
 }
 
@@ -535,8 +574,8 @@ async seedLoginPageConfig() {
   const serviceAuthMethodsData = allMethods.map((method, index) => ({
     loginConfigId: defaultConfig.id,
     authMethodId: method.id,
-    enabled: method.implemented, // Only enable implemented methods
-    showComingSoonBadge: false,  // No badges by default
+    enabled: true,  // All methods enabled by default (placeholders show "Coming Soon")
+    showComingSoonBadge: !method.implemented,  // Show badge for unimplemented methods
     displayOrder: index,
   }));
   
@@ -548,10 +587,12 @@ async seedLoginPageConfig() {
 ```
 
 **Key Improvements:**
-- ✅ No hardcoded arrays - auth methods come from strategy registry
+- ✅ All 6 methods available in database from day one (2 implemented + 4 placeholders)
+- ✅ Admins can design complete login UX before implementation
+- ✅ Placeholders show "Coming Soon" badge until implemented
 - ✅ Auto-discovery - new strategies automatically synced to database
-- ✅ Auto-implementation detection - registered = implemented
-- ✅ Upsert logic - safe to run multiple times, updates metadata if changed
+- ✅ Auto-implementation detection - `implemented` flag differentiates functional vs placeholder
+- ✅ Upsert logic - safe to run multiple times, updates when placeholder becomes implemented
 - ✅ Logging for visibility during startup
 
 ### 2. Storage Methods for Login Configuration
@@ -1176,11 +1217,17 @@ npm run db:push --force
 ```
 
 **Migration creates:**
-- `auth_methods` table (auto-populated from strategy registry - initially 2 methods: Email + UUID)
+- `auth_methods` table (auto-populated with all 6 methods: 2 implemented + 4 placeholders)
+  - Email (implemented: true)
+  - UUID (implemented: true)
+  - Nostr (implemented: false)
+  - BlueSky (implemented: false)
+  - WebAuthn (implemented: false)
+  - Magic Link (implemented: false)
 - `login_page_config` table with unique constraint on serviceId (nullable)
 - `service_auth_methods` junction table with unique constraint on (loginConfigId, authMethodId)
 - Default configuration row with serviceId = null (global/AuthHub config)
-- Default service_auth_methods entries linking all registered auth methods to default config
+- Default service_auth_methods entries linking all 6 methods to default config (placeholders have "Coming Soon" badge)
 
 **Important Relationships:**
 - Each `login_page_config` can reference ONE `global_service` (or null for default)
@@ -1290,13 +1337,12 @@ const settingsItems = [
    2. Create concrete strategy implementations
       - Refactor existing auth to `EmailPasswordStrategy.ts`
       - Refactor existing auth to `UuidStrategy.ts`
-      - **DO NOT** create or register placeholder strategies yet
-      - Placeholders stay "Coming Soon" until actually implemented
    
-   3. Create strategy registry
+   3. Create strategy registry and placeholders
       - Implement `StrategyRegistry.ts`
-      - Register ONLY Email and UUID strategies on startup
-      - Leave Nostr, BlueSky, WebAuthn, MagicLink as unregistered placeholders
+      - Register Email and UUID strategies on startup
+      - Define `placeholderMethods` array with metadata for Nostr, BlueSky, WebAuthn, MagicLink
+      - Placeholders sync to database with `implemented: false` flag
    
    4. Create unified auth handler
       - Implement `AuthHandler.ts` with common post-auth hooks
@@ -1323,6 +1369,8 @@ const settingsItems = [
    - Make login page render dynamically based on config
    - Support service_id query parameter
    - Update to use unified `/api/auth/authenticate` endpoint
+   - Render placeholder methods with "Coming Soon" badge when `implemented: false`
+   - Disable placeholder method buttons (non-clickable until implemented)
 
 ### **Phase 3: Admin Editor UI**
    - Create login editor page with service selector
