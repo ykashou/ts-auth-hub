@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, RotateCcw, Globe, GripVertical } from "lucide-react";
 import { getUserRole } from "@/lib/auth";
 import type { GlobalService } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   DndContext,
   closestCenter,
@@ -132,6 +134,7 @@ export default function LoginEditorPage() {
   const [, setLocation] = useLocation();
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("branding");
+  const { toast } = useToast();
   
   // Check admin authorization
   const userRole = getUserRole();
@@ -182,22 +185,115 @@ export default function LoginEditorPage() {
 
   const [methodsState, setMethodsState] = useState<AuthMethod[]>([]);
 
+  // Original data for dirty state tracking
+  const [originalFormData, setOriginalFormData] = useState(formData);
+  const [originalMethodsState, setOriginalMethodsState] = useState<AuthMethod[]>([]);
+
   // Sync form data when config loads
   useEffect(() => {
     if (configData) {
-      setFormData({
+      const newFormData = {
         title: configData.config.title,
         description: configData.config.description,
         logoUrl: configData.config.logoUrl || "",
         defaultMethod: configData.config.defaultMethod,
-      });
+      };
+      setFormData(newFormData);
+      setOriginalFormData(newFormData);
+      
       // Sort methods by displayOrder
       const sortedMethods = [...configData.methods].sort((a, b) => a.displayOrder - b.displayOrder);
       setMethodsState(sortedMethods);
+      setOriginalMethodsState(sortedMethods);
     }
   }, [configData]);
 
   const isLoading = servicesLoading || configsLoading || configDataLoading;
+
+  // Check if data has changed (dirty state)
+  const isDirty = (() => {
+    if (!configData) return false;
+    
+    // Check branding changes
+    const brandingChanged = 
+      formData.title !== originalFormData.title ||
+      formData.description !== originalFormData.description ||
+      formData.logoUrl !== originalFormData.logoUrl ||
+      formData.defaultMethod !== originalFormData.defaultMethod;
+    
+    // Check methods changes (enabled/disabled or order)
+    const methodsChanged = JSON.stringify(methodsState) !== JSON.stringify(originalMethodsState);
+    
+    return brandingChanged || methodsChanged;
+  })();
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!configData) throw new Error("No config data");
+      
+      // Update branding
+      await apiRequest(
+        "PATCH",
+        `/api/admin/login-config/${configData.config.id}`,
+        {
+          title: formData.title,
+          description: formData.description,
+          logoUrl: formData.logoUrl || null,
+          defaultMethod: formData.defaultMethod,
+        }
+      );
+
+      // Update methods (enabled/disabled and order)
+      for (const method of methodsState) {
+        const original = originalMethodsState.find(m => m.id === method.id);
+        if (!original || 
+            method.enabled !== original.enabled || 
+            method.displayOrder !== original.displayOrder) {
+          await apiRequest(
+            "PATCH",
+            `/api/admin/service-auth-method/${method.id}`,
+            {
+              enabled: method.enabled,
+              displayOrder: method.displayOrder,
+            }
+          );
+        }
+      }
+    },
+    onSuccess: () => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config", configId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/login-config"] });
+      
+      toast({
+        title: "Changes saved",
+        description: "Login page configuration has been updated successfully.",
+      });
+
+      // Update original data to match current state
+      setOriginalFormData(formData);
+      setOriginalMethodsState(methodsState);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save failed",
+        description: error.message || "Failed to save changes. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reset function
+  const handleReset = () => {
+    setFormData(originalFormData);
+    setMethodsState(originalMethodsState);
+    
+    toast({
+      title: "Changes discarded",
+      description: "All changes have been reset to the last saved state.",
+    });
+  };
 
   // Handle drag end
   function handleDragEnd(event: DragEndEvent) {
@@ -422,11 +518,24 @@ export default function LoginEditorPage() {
           {/* Action Buttons */}
           {!isLoading && configData && (
             <div className="flex gap-2">
-              <Button data-testid="button-save" disabled>
-                <Save className="h-4 w-4 mr-2" />
+              <Button 
+                data-testid="button-save" 
+                disabled={!isDirty || saveMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+              >
+                {saveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
                 Save Changes
               </Button>
-              <Button variant="outline" data-testid="button-reset" disabled>
+              <Button 
+                variant="outline" 
+                data-testid="button-reset" 
+                disabled={!isDirty || saveMutation.isPending}
+                onClick={handleReset}
+              >
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Reset
               </Button>
