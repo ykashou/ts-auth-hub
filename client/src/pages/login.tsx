@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Shield, Mail, KeyRound, Loader2 } from "lucide-react";
+import { Shield, Mail, KeyRound, Loader2, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { setToken, setUserRole } from "@/lib/auth";
@@ -385,6 +385,28 @@ export default function LoginPage() {
               </form>
             </Form>
           )}
+
+          <Separator className="my-4" />
+
+          {/* Nostr Login Placeholder */}
+          <div className="space-y-2">
+            <p className="text-xs text-center text-muted-foreground">
+              OR AUTHENTICATE WITH
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 relative"
+              disabled
+              data-testid="button-nostr-login"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Login with Nostr
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-muted px-2 py-0.5 rounded">
+                Coming Soon
+              </span>
+            </Button>
+          </div>
 
           <Separator className="my-4" />
 
