@@ -32,6 +32,7 @@ function Router() {
       <Route path="/admin/rbac" component={AdminRbacPage} />
       <Route path="/admin/role-assignments" component={AdminRoleAssignmentsPage} />
       <Route path="/admin/global-services" component={AdminGlobalServicesPage} />
+      <Route path="/admin/login-editor/:configId" component={AdminLoginEditorPage} />
       <Route path="/admin/login-editor" component={AdminLoginEditorPage} />
       <Route path="/admin/login-configs" component={AdminLoginConfigsPage} />
       <Route path="/services" component={ServicesPage} />

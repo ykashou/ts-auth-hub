@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -471,6 +471,7 @@ function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
 
 export default function LoginEditor() {
   const [location, setLocation] = useLocation();
+  const [, params] = useRoute("/admin/login-editor/:configId");
   const userRole = getUserRole();
   const { toast } = useToast();
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -500,14 +501,15 @@ export default function LoginEditor() {
     }
   }, [userRole, toast, setLocation]);
 
-  // First, fetch all configs to get the ID
+  // Get configId from URL params, or fetch all configs to get the first one
   const { data: allConfigs } = useQuery<any[]>({
     queryKey: ["/api/admin/login-configs"],
-    enabled: userRole === 'admin',
+    enabled: userRole === 'admin' && !params?.configId,
   });
 
-  // Then fetch the specific config with methods
-  const configId = allConfigs?.[0]?.id;
+  // Use configId from URL params if available, otherwise use first config from list
+  const configId = params?.configId || allConfigs?.[0]?.id;
+  
   const { data: loginConfigData, isLoading, refetch } = useQuery<LoginConfigResponse>({
     queryKey: ["/api/admin/login-config", configId],
     enabled: userRole === 'admin' && !!configId,

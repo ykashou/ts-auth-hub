@@ -57,7 +57,14 @@ export default function LoginConfigurations() {
             </p>
           </div>
           <Button
-            onClick={() => setLocation("/admin/login-editor")}
+            onClick={() => {
+              // Navigate to the first config if available, or to editor without ID to create new
+              if (configs.length > 0) {
+                setLocation(`/admin/login-editor/${configs[0].id}`);
+              } else {
+                setLocation("/admin/login-editor");
+              }
+            }}
             data-testid="button-create-config"
           >
             <Edit className="w-4 h-4 mr-2" />
@@ -111,7 +118,7 @@ export default function LoginConfigurations() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setLocation("/admin/login-editor")}
+                        onClick={() => setLocation(`/admin/login-editor/${config.id}`)}
                         className="ml-auto"
                         data-testid={`button-edit-${config.id}`}
                       >
@@ -141,7 +148,7 @@ export default function LoginConfigurations() {
                     <Button
                       className="w-full mt-4"
                       variant="outline"
-                      onClick={() => setLocation("/admin/login-editor")}
+                      onClick={() => setLocation(`/admin/login-editor/${config.id}`)}
                       data-testid={`button-manage-${config.id}`}
                     >
                       <Edit className="w-4 h-4 mr-2" />
