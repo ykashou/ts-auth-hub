@@ -285,6 +285,7 @@ export class DatabaseStorage implements IStorage {
       color: AUTHHUB_SERVICE.color,
       secret: encryptedSecret,
       secretPreview,
+      isSystem: true, // Mark as system service - cannot be deleted
     });
     
     console.log("[Storage] Created AuthHub service");
