@@ -247,36 +247,38 @@ function LoginPagePreview({
 
         <CardContent className="space-y-6">
           {/* Primary Method Tabs - Draggable */}
-          {primaryMethods.length > 1 && (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleMethodDragEnd}
-            >
-              <SortableContext
-                items={primaryMethods.map(m => m.id)}
-                strategy={verticalListSortingStrategy}
+          {primaryMethods.length > 0 && (
+            <>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleMethodDragEnd}
               >
-                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }}>
-                  {primaryMethods.map((method) => (
-                    <SortableMethodButton
-                      key={method.id}
-                      method={method}
-                      isDefault={defaultMethod === method.authMethodId}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-              {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText && (
-                <p className="text-xs text-center text-muted-foreground">
-                  {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText ||
-                   primaryMethods.find(m => m.authMethodId === defaultMethod)?.defaultHelpText}
-                </p>
-              )}
-            </DndContext>
-          )}
+                <SortableContext
+                  items={primaryMethods.map(m => m.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className={primaryMethods.length > 1 ? "grid gap-2" : ""} style={primaryMethods.length > 1 ? { gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` } : {}}>
+                    {primaryMethods.map((method) => (
+                      <SortableMethodButton
+                        key={method.id}
+                        method={method}
+                        isDefault={defaultMethod === method.authMethodId}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+                {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText ||
+                     primaryMethods.find(m => m.authMethodId === defaultMethod)?.defaultHelpText}
+                  </p>
+                )}
+              </DndContext>
 
-          <Separator />
+              <Separator />
+            </>
+          )}
 
           {/* Active Method Form - Non-interactive Preview */}
           {defaultMethod === "uuid" && (
