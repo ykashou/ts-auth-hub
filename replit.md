@@ -19,14 +19,23 @@ AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme (lig
 3.  **Admin Dashboard**: Provides an overview of key metrics, service management, quick actions, recent activity logs, and a searchable user directory. Admin-only sections are hidden from regular users.
 4.  **User Management (Admin)**: A dedicated admin page (`/admin/users`) allows administrators to manage users, including sorting, filtering, searching, bulk selection, editing, and deleting. Backend protection prevents deletion or demotion of the last admin.
 5.  **RBAC Model Management (Admin)**: Admins can create custom RBAC models defining roles and permissions for external services. This includes a card-based grid for management, a detail page with tabs for roles and permissions, and a visualization tab (Permission Matrix, Tree View, JSON, YAML). Initial admin registration seeds three comprehensive RBAC models. Admins can assign RBAC models to services.
-6.  **Login Page Configuration**: Admins can customize login page experiences via a full-screen CMS-like editor at `/admin/login-editor`. Features include:
-    *   **Full-Screen Split Layout**: CMS-style interface with editor controls on left (384px) and live preview on right
-    *   **Service Selection**: Choose between default configuration or service-specific login pages
-    *   **Branding Tab**: Customize title, description, logo upload, and default authentication method
-    *   **Authentication Methods Tab**: Enable/disable methods, drag-and-drop reordering with visual feedback
-    *   **Live Preview**: Pixel-perfect 100% accurate preview of actual login page, auto-refreshes after saves
+6.  **Login Page Configuration**: Admins can customize login page experiences via a full-screen CMS-like editor at `/admin/login-editor`. Configurations are standalone named entities that can be attached to services. Features include:
+    *   **Full-Screen Split Layout**: CMS-style interface with editor controls on left (384px) and interactive preview on right
+    *   **Ad-Hoc Branding Edits**: Title, description, and logo are edited directly on the preview (no separate branding tab)
+        - Title and description appear as text but are editable input/textarea fields with transparent borders
+        - Borders become visible on hover/focus for intuitive inline editing
+        - Logo shows upload/delete buttons on hover
+    *   **Authentication Methods Panel**: Single left panel section for method configuration
+        - Enable/disable methods with toggle switches
+        - Drag-and-drop reordering with visual feedback
+        - No tabs - streamlined single-panel interface
+    *   **Interactive Live Preview**: Pixel-perfect 100% accurate preview of actual login page with inline editing
+        - Direct manipulation of branding elements (click to edit)
+        - Auto-refreshes after saves to show persisted changes
+        - Non-interactive authentication form elements (pointer-events-none)
     *   **Save/Reset**: Persistent changes with dirty state tracking, auto-save status indicators (Saving.../Saved), and toast notifications
     *   **Standard Navigation**: Navbar retained at top for seamless navigation (prevents users from getting stuck)
+    *   **Standalone Configurations**: No service dropdown in editor - configurations are named entities attached to services from the services page
     *   Dynamic rendering of login pages fetches configurations from the database, applying branding, method order, and enabled/disabled states
 7.  **Dual Integration Patterns with RBAC**:
     *   **Popup Widget Flow**: JavaScript SDK with popup-based authentication using PostMessage.
