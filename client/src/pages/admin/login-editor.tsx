@@ -368,7 +368,6 @@ function SortableMethodButton({ method, isDefault }: SortableMethodButtonProps) 
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
-    cursor: 'grab',
   };
 
   const getIcon = (iconName: string): LucideIcon => {
@@ -379,16 +378,23 @@ function SortableMethodButton({ method, isDefault }: SortableMethodButtonProps) 
   const Icon = getIcon(method.icon);
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="relative group">
       <Button
         type="button"
         variant={isDefault ? "default" : "outline"}
-        className="w-full active:cursor-grabbing"
+        className="w-full pointer-events-none"
         data-testid={`preview-method-${method.authMethodId}`}
       >
         <Icon className="w-4 h-4 mr-2" />
         {method.name}
       </Button>
+      <div 
+        {...attributes} 
+        {...listeners}
+        className="absolute inset-0 cursor-grab active:cursor-grabbing flex items-center justify-start pl-2 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <GripVertical className="h-4 w-4 text-primary" />
+      </div>
     </div>
   );
 }
@@ -412,7 +418,6 @@ function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
-    cursor: 'grab',
   };
 
   const getIcon = (iconName: string): LucideIcon => {
@@ -423,11 +428,11 @@ function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
   const Icon = getIcon(method.icon);
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="relative group">
       <Button
         type="button"
         variant={method.buttonVariant as any || method.defaultButtonVariant as any}
-        className="w-full justify-start relative active:cursor-grabbing"
+        className="w-full justify-start relative pointer-events-none"
         data-testid={`preview-alt-method-${method.authMethodId}`}
       >
         <Icon className="w-4 h-4 mr-2" />
@@ -438,6 +443,13 @@ function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
           </Badge>
         )}
       </Button>
+      <div 
+        {...attributes} 
+        {...listeners}
+        className="absolute inset-0 cursor-grab active:cursor-grabbing flex items-center justify-start pl-2 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <GripVertical className="h-4 w-4 text-primary" />
+      </div>
     </div>
   );
 }
