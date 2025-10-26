@@ -117,7 +117,13 @@ function LoginPagePreview({
       setMethodsState((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
+        const reordered = arrayMove(items, oldIndex, newIndex);
+        
+        // Update displayOrder to match new positions for persistence
+        return reordered.map((method, index) => ({
+          ...method,
+          displayOrder: index,
+        }));
       });
     }
   };
@@ -560,9 +566,9 @@ export default function LoginEditor() {
       setOriginalFormData(formData);
       setOriginalMethodsState(methodsState);
       
-      // Invalidate all related queries
+      // Invalidate all related queries (match the actual query keys)
       queryClient.invalidateQueries({ queryKey: ["/api/login-config"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config", configId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/login-configs"] });
       
       // Trigger preview refresh
@@ -616,7 +622,13 @@ export default function LoginEditor() {
       setMethodsState((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
+        const reordered = arrayMove(items, oldIndex, newIndex);
+        
+        // Update displayOrder to match new positions
+        return reordered.map((method, index) => ({
+          ...method,
+          displayOrder: index,
+        }));
       });
     }
   };
