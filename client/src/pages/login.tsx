@@ -15,6 +15,7 @@ import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { setToken, setUserRole } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { AUTHHUB_SERVICE_ID } from "@shared/constants";
 
 const emailLoginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -72,7 +73,7 @@ export default function LoginPage() {
   const [userSelectedMethod, setUserSelectedMethod] = useState(false); // Track if user manually selected a method
   const [lastConfigId, setLastConfigId] = useState<string | null>(null); // Track config changes
   const [redirectUri, setRedirectUri] = useState<string | null>(null);
-  const [serviceId, setServiceId] = useState<string | null>(null);
+  const [serviceId, setServiceId] = useState<string>(AUTHHUB_SERVICE_ID); // Default to AuthHub service
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -91,8 +92,8 @@ export default function LoginPage() {
 
   // Fetch login configuration
   const { data: loginConfigData, isLoading: isLoadingConfig, isError, error } = useQuery<LoginConfigResponse>({
-    queryKey: serviceId ? ["/api/login-config", serviceId] : ["/api/login-config"],
-    enabled: true,
+    queryKey: ["/api/login-config", serviceId],
+    enabled: !!serviceId,
   });
 
   // Helper to get icon component from icon name

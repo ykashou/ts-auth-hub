@@ -9,6 +9,7 @@ import { seedServices } from "./seed";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
+import { AUTHHUB_SERVICE_ID } from "@shared/constants";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -694,6 +695,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      // Prevent deletion of AuthHub service
+      if (req.params.id === AUTHHUB_SERVICE_ID) {
+        return res.status(403).json({ error: "Cannot delete the AuthHub service" });
       }
 
       const service = await storage.getService(req.params.id, req.user.id);

@@ -2,8 +2,9 @@
 import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, isNull, asc } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
+import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID, AUTHHUB_SYSTEM_USER_ID } from "@shared/constants";
 
 export interface IStorage {
   // User operations
@@ -88,6 +89,9 @@ export interface IStorage {
     permissions: Array<{ id: string; name: string; description: string | null }>;
     rbacModel: { id: string; name: string; description: string | null } | null;
   }>;
+
+  // AuthHub Service seeding
+  seedAuthHubService(): Promise<void>;
 
   // Login Page Configuration operations
   syncAuthMethodsFromRegistry(): Promise<void>;
@@ -232,6 +236,66 @@ export class DatabaseStorage implements IStorage {
 
   async deleteService(id: string, userId: string): Promise<void> {
     await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
+  }
+
+  /**
+   * Seeds the AuthHub service (the application itself)
+   * Creates system user and AuthHub service with login configuration
+   */
+  async seedAuthHubService(): Promise<void> {
+    // First, ensure system user exists
+    const existingUser = await this.getUser(AUTHHUB_SYSTEM_USER_ID);
+    if (!existingUser) {
+      await db.insert(users).values({
+        id: AUTHHUB_SYSTEM_USER_ID,
+        email: null,
+        password: null,
+        role: "admin", // System user is admin
+      });
+      console.log("[Storage] Created AuthHub system user");
+    }
+
+    // Check if AuthHub service already exists
+    const existingService = await this.getServiceById(AUTHHUB_SERVICE_ID);
+    if (existingService) {
+      console.log("[Storage] AuthHub service already exists");
+      
+      // Ensure login config exists for AuthHub
+      await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
+      return;
+    }
+
+    // Generate and encrypt secret for AuthHub service
+    const secret = `sk_${randomBytes(32).toString('hex')}`;
+    const secretPreview = `${secret.substring(0, 10)}...${secret.substring(secret.length - 4)}`;
+    
+    // Encrypt secret (AES-256-GCM)
+    const encryptionKey = process.env.SECRET_ENCRYPTION_KEY || 'default-key-change-in-production-32b';
+    const iv = randomBytes(16);
+    const cipher = createCipheriv('aes-256-gcm', Buffer.from(encryptionKey.padEnd(32, '0').slice(0, 32)), iv);
+    let encrypted = cipher.update(secret, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag();
+    const encryptedSecret = `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+
+    // Create AuthHub service
+    await db.insert(services).values({
+      id: AUTHHUB_SERVICE_ID,
+      userId: AUTHHUB_SYSTEM_USER_ID,
+      name: AUTHHUB_SERVICE.name,
+      description: AUTHHUB_SERVICE.description,
+      url: AUTHHUB_SERVICE.url,
+      redirectUrl: AUTHHUB_SERVICE.redirectUrl,
+      icon: AUTHHUB_SERVICE.icon,
+      color: AUTHHUB_SERVICE.color,
+      secret: encryptedSecret,
+      secretPreview,
+    });
+    
+    console.log("[Storage] Created AuthHub service");
+
+    // Create login configuration for AuthHub
+    await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
   }
 
   // Global Service operations (admin-managed, no userId)

@@ -50,8 +50,13 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Note: Login page configurations are now created per-service when services are created
-  // No global login configuration needed
+  // Seed AuthHub service (the application itself) on startup
+  try {
+    await storage.seedAuthHubService();
+    log("[Server] AuthHub service seeded successfully");
+  } catch (error) {
+    console.error("[Server] Failed to seed AuthHub service:", error);
+  }
 
   // Serve the widget SDK file
   app.use('/authhub-widget.js', express.static('client/public/authhub-widget.js'));
