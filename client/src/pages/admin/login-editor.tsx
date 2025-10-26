@@ -494,17 +494,24 @@ export default function LoginEditor() {
     }
   }, [userRole, toast, setLocation]);
 
-  // Fetch login configuration
-  const { data: loginConfigData, isLoading, refetch } = useQuery<LoginConfigResponse>({
+  // First, fetch all configs to get the ID
+  const { data: allConfigs } = useQuery<any[]>({
     queryKey: ["/api/admin/login-configs"],
     enabled: userRole === 'admin',
+  });
+
+  // Then fetch the specific config with methods
+  const configId = allConfigs?.[0]?.id;
+  const { data: loginConfigData, isLoading, refetch } = useQuery<LoginConfigResponse>({
+    queryKey: ["/api/admin/login-config", configId],
+    enabled: userRole === 'admin' && !!configId,
   });
 
   // Initialize form data when config loads
   useEffect(() => {
     if (loginConfigData) {
-      const config = Array.isArray(loginConfigData) ? loginConfigData[0] : loginConfigData.config;
-      const methods = Array.isArray(loginConfigData) ? [] : loginConfigData.methods;
+      const config = loginConfigData.config;
+      const methods = loginConfigData.methods || [];
       
       if (config) {
         const newFormData = {
@@ -517,7 +524,7 @@ export default function LoginEditor() {
         setOriginalFormData(newFormData);
       }
       
-      if (methods && methods.length > 0) {
+      if (methods.length > 0) {
         setMethodsState(methods);
         setOriginalMethodsState(methods);
       }
@@ -529,7 +536,7 @@ export default function LoginEditor() {
     mutationFn: async () => {
       if (!loginConfigData) throw new Error("No config data available");
       
-      const config = Array.isArray(loginConfigData) ? loginConfigData[0] : loginConfigData.config;
+      const config = loginConfigData.config;
       
       // Update config
       await apiRequest("PATCH", `/api/admin/login-config/${config.id}`, formData);
@@ -635,7 +642,7 @@ export default function LoginEditor() {
     return null;
   }
 
-  const config = loginConfigData && !Array.isArray(loginConfigData) ? loginConfigData.config : null;
+  const config = loginConfigData?.config || null;
 
   return (
     <div className="h-screen flex flex-col">
