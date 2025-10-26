@@ -3,6 +3,7 @@ import { services } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { encryptSecret } from "./crypto";
+import { AUTHHUB_SERVICE } from "@shared/constants";
 
 interface DefaultService {
   name: string;
@@ -10,9 +11,18 @@ interface DefaultService {
   url: string;
   icon: string;
   color: string;
+  isSystem?: boolean; // Flag to mark system services
 }
 
 const DEFAULT_SERVICES: DefaultService[] = [
+  {
+    name: AUTHHUB_SERVICE.name,
+    description: AUTHHUB_SERVICE.description,
+    url: AUTHHUB_SERVICE.url,
+    icon: AUTHHUB_SERVICE.icon,
+    color: AUTHHUB_SERVICE.color,
+    isSystem: true, // Non-deletable system service
+  },
   {
     name: "Git Garden",
     description: "Git-based portfolio-as-a-service platform",
@@ -95,11 +105,16 @@ export async function seedServices(userId: string) {
 
       // Create service with redirect URL defaulting to service URL
       await db.insert(services).values({
-        ...defaultService,
+        name: defaultService.name,
+        description: defaultService.description,
+        url: defaultService.url,
+        icon: defaultService.icon,
+        color: defaultService.color,
         userId,
         secret: encryptedSecret,
         secretPreview,
         redirectUrl: defaultService.url,
+        isSystem: defaultService.isSystem || false, // Mark system services as non-deletable
       });
 
       console.log(`✅ Created service: "${defaultService.name}"`);

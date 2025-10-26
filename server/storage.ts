@@ -136,8 +136,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserCount(): Promise<number> {
+    // Exclude system user from count (system user is used for AuthHub service ownership)
     const allUsers = await db.select().from(users);
-    return allUsers.length;
+    const regularUsers = allUsers.filter(user => user.id !== AUTHHUB_SYSTEM_USER_ID);
+    return regularUsers.length;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
