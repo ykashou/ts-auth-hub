@@ -83,24 +83,32 @@ export default function LoginConfigurations() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <div className="text-center py-12">
+                  <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading configurations...</p>
                 </div>
               ) : configs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No login configurations yet</p>
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                  <h3 className="text-lg font-medium text-foreground mb-1">No configurations yet</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Get started by adding your first login configuration
+                  </p>
+                  <Button onClick={() => setLocation("/admin/login-editor")} data-testid="button-add-first-config">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Configuration
+                  </Button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="rounded-lg border border-border overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Configuration</TableHead>
-                        <TableHead>Service</TableHead>
-                        <TableHead>Methods</TableHead>
-                        <TableHead>Default Method</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold">Configuration</TableHead>
+                        <TableHead className="font-semibold">Service</TableHead>
+                        <TableHead className="font-semibold">Methods</TableHead>
+                        <TableHead className="font-semibold">Default Method</TableHead>
+                        <TableHead className="font-semibold text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -109,7 +117,10 @@ export default function LoginConfigurations() {
                           <TableRow key={config.id} data-testid={`row-config-${config.id}`}>
                             <TableCell>
                               <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary">
+                                <div 
+                                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  style={{ backgroundColor: "hsl(var(--primary))" }}
+                                >
                                   {config.logoUrl ? (
                                     <img
                                       src={config.logoUrl}
