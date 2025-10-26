@@ -196,19 +196,6 @@ export default function AdminLoginEditor() {
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [authMethods, setAuthMethods] = useState<ServiceAuthMethod[]>([]);
 
-  // Check authentication and admin role
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      setLocation("/login");
-    } else if (getUserRole() !== 'admin') {
-      setLocation("/dashboard");
-    }
-  }, [setLocation]);
-
-  if (!isAuthenticated() || getUserRole() !== 'admin') {
-    return null;
-  }
-
   // Fetch all services
   const { data: services = [], isLoading: isLoadingServices } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -226,6 +213,19 @@ export default function AdminLoginEditor() {
       setAuthMethods([...loginConfig.methods].sort((a, b) => a.displayOrder - b.displayOrder));
     }
   }, [loginConfig]);
+
+  // Check authentication and admin role
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setLocation("/login");
+    } else if (getUserRole() !== 'admin') {
+      setLocation("/dashboard");
+    }
+  }, [setLocation]);
+
+  if (!isAuthenticated() || getUserRole() !== 'admin') {
+    return null;
+  }
 
   // Find system service
   const systemService = services.find(s => (s as any).isSystemService);
