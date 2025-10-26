@@ -594,12 +594,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("Getting services for user:", req.user.id);
-      const services = await storage.getAllServicesByUser(req.user.id);
-      console.log("Found services:", services.length);
+      const userServices = await storage.getAllServicesByUser(req.user.id);
+      const globalServices = await storage.getAllGlobalServices();
+      
+      // Combine user-specific services with global services
+      // Global services don't have userId, so we add it for consistency
+      const combinedServices = [
+        ...userServices,
+        ...globalServices.map(gs => ({
+          ...gs,
+          userId: req.user!.id, // Add userId for consistency in response
+          isSystem: false, // Global services are not system services
+        }))
+      ];
+      
+      console.log("Found services:", combinedServices.length, "(", userServices.length, "user +", globalServices.length, "global)");
       
       // Fetch RBAC model for each service
       const servicesWithRbacModels = await Promise.all(
-        services.map(async (service) => {
+        combinedServices.map(async (service) => {
           const rbacModel = await storage.getRbacModelForService(service.id);
           return {
             ...service,
