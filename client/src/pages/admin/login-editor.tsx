@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Save, RotateCcw, Globe, GripVertical, Undo2, Redo2, Monitor, Smartphone, Tablet, Upload, Check, X, Palette, Settings, Shield, Mail, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Loader2, Save, RotateCcw, Globe, GripVertical, Undo2, Redo2, Monitor, Smartphone, Tablet, Upload, Check, X, Palette, Settings, Shield, Mail, KeyRound, Eye, EyeOff, Plus } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -508,6 +508,8 @@ export default function LoginEditor() {
   const [methodsState, setMethodsState] = useState<AuthMethod[]>([]);
   const [originalFormData, setOriginalFormData] = useState(formData);
   const [originalMethodsState, setOriginalMethodsState] = useState<AuthMethod[]>([]);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [configName, setConfigName] = useState("");
 
   // Redirect if not admin
   useEffect(() => {
@@ -562,28 +564,47 @@ export default function LoginEditor() {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!loginConfigData) throw new Error("No config data available");
-      
-      const config = loginConfigData.config;
-      
-      // Update config
-      await apiRequest("PATCH", `/api/admin/login-config/${config.id}`, formData);
-      
-      // Update methods order
-      const orderUpdates = methodsState.map((method, index) => ({
-        id: method.id,
-        displayOrder: index,
-        enabled: method.enabled,
-      }));
-      
-      await apiRequest("PUT", "/api/admin/service-auth-methods/order", {
-        updates: orderUpdates,
-      });
+      if (isCreatingNew) {
+        // Create new configuration
+        if (!configName.trim()) {
+          throw new Error("Configuration name is required");
+        }
+        
+        const newConfig = await apiRequest("POST", "/api/admin/login-config", {
+          serviceId: "550e8400-e29b-41d4-a716-446655440000", // AuthHub service ID
+          title: formData.title,
+          description: formData.description,
+          logoUrl: formData.logoUrl,
+          defaultMethod: formData.defaultMethod,
+        });
+        
+        // Methods will be auto-created by the backend
+        return newConfig;
+      } else {
+        // Update existing configuration
+        if (!loginConfigData) throw new Error("No config data available");
+        
+        const config = loginConfigData.config;
+        
+        // Update config
+        await apiRequest("PATCH", `/api/admin/login-config/${config.id}`, formData);
+        
+        // Update methods order
+        const orderUpdates = methodsState.map((method, index) => ({
+          id: method.id,
+          displayOrder: index,
+          enabled: method.enabled,
+        }));
+        
+        await apiRequest("PUT", "/api/admin/service-auth-methods/order", {
+          updates: orderUpdates,
+        });
+      }
     },
     onMutate: () => {
       setAutoSaveStatus("saving");
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setAutoSaveStatus("saved");
       setOriginalFormData(formData);
       setOriginalMethodsState(methodsState);
@@ -596,10 +617,21 @@ export default function LoginEditor() {
       // Trigger preview refresh
       setRefreshTrigger(prev => prev + 1);
       
-      toast({
-        title: "Saved",
-        description: "Login page configuration updated successfully",
-      });
+      if (isCreatingNew) {
+        toast({
+          title: "Created",
+          description: "New login page configuration created successfully",
+        });
+        // Navigate to the new config
+        setLocation(`/admin/login-editor/${data.id}`);
+        setIsCreatingNew(false);
+        setConfigName("");
+      } else {
+        toast({
+          title: "Saved",
+          description: "Login page configuration updated successfully",
+        });
+      }
       
       setTimeout(() => setAutoSaveStatus("idle"), 2000);
     },
@@ -706,27 +738,93 @@ export default function LoginEditor() {
               </div>
             </div>
 
+            {/* Configuration Selector */}
+            <div className="space-y-2 mb-2">
+              <Label className="text-xs">Configuration</Label>
+              {isCreatingNew ? (
+                <div className="space-y-2">
+                  <Input
+                    value={configName}
+                    onChange={(e) => setConfigName(e.target.value)}
+                    placeholder="Enter configuration name"
+                    className="h-8 text-sm"
+                    data-testid="input-config-name"
+                  />
+                  <Button
+                    onClick={() => {
+                      setIsCreatingNew(false);
+                      setConfigName("");
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full h-7 text-xs"
+                    data-testid="button-cancel-new"
+                  >
+                    Cancel New Configuration
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Select
+                    value={configId || ""}
+                    onValueChange={(value) => setLocation(`/admin/login-editor/${value}`)}
+                  >
+                    <SelectTrigger className="flex-1 h-8 text-sm" data-testid="select-config">
+                      <SelectValue placeholder="Select configuration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allConfigs?.map((cfg) => (
+                        <SelectItem key={cfg.id} value={cfg.id}>
+                          {cfg.title || "Untitled"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={() => {
+                      setIsCreatingNew(true);
+                      setConfigName("New Configuration");
+                      setFormData({
+                        title: "New Login Page",
+                        description: "Sign in to continue",
+                        logoUrl: null,
+                        defaultMethod: "uuid",
+                      });
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    data-testid="button-new-config"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
             {/* Action Buttons */}
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2">
               <Button
                 onClick={handleSave}
-                disabled={!isDirty || saveMutation.isPending}
+                disabled={(!isDirty && !isCreatingNew) || saveMutation.isPending || (isCreatingNew && !configName.trim())}
                 size="sm"
                 className="flex-1"
                 data-testid="button-save"
               >
                 <Save className="h-3.5 w-3.5 mr-1.5" />
-                Save Changes
+                {isCreatingNew ? "Create Configuration" : "Save Changes"}
               </Button>
-              <Button
-                onClick={handleReset}
-                disabled={!isDirty}
-                variant="outline"
-                size="sm"
-                data-testid="button-reset"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
+              {!isCreatingNew && (
+                <Button
+                  onClick={handleReset}
+                  disabled={!isDirty}
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-reset"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           </div>
 
