@@ -11,9 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Save, RotateCcw, Globe, GripVertical, Undo2, Redo2, Monitor, Smartphone, Tablet, Upload, Check, X, Palette, Settings, Shield, Mail, KeyRound } from "lucide-react";
+import { Loader2, Save, RotateCcw, Globe, GripVertical, Undo2, Redo2, Monitor, Smartphone, Tablet, Upload, Check, X, Palette, Settings, Shield, Mail, KeyRound, Eye, EyeOff } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -80,31 +81,186 @@ interface LoginConfigResponse {
   methods: AuthMethod[];
 }
 
-interface VisualSortableMethodItemProps {
-  method: AuthMethod;
-  editingMethodId: string | null;
-  setEditingMethodId: (id: string | null) => void;
-  tempMethodConfig: { buttonText: string; buttonVariant: string };
-  setTempMethodConfig: (config: { buttonText: string; buttonVariant: string }) => void;
-  setAutoSaveStatus: (status: "idle" | "saving" | "saved") => void;
-  setMethodsState: (methods: AuthMethod[] | ((prev: AuthMethod[]) => AuthMethod[])) => void;
-  methodsState: AuthMethod[];
-  setOriginalMethodsState: (methods: AuthMethod[]) => void;
-  toast: any;
+// Live Preview Component that renders the actual login page
+function LoginPagePreview({ configId, refreshTrigger }: { configId: string | null; refreshTrigger: number }) {
+  const serviceIdParam = "550e8400-e29b-41d4-a716-446655440000"; // AuthHub service ID
+  
+  const { data: loginConfigData, isLoading, isError } = useQuery<LoginConfigResponse>({
+    queryKey: ["/api/login-config", serviceIdParam, refreshTrigger],
+    queryFn: async () => {
+      const response = await fetch(`/api/login-config?serviceId=${serviceIdParam}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch login configuration');
+      }
+      return response.json();
+    },
+    enabled: true,
+  });
+
+  const getIcon = (iconName: string): LucideIcon => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent || Shield;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError || !loginConfigData) {
+    return (
+      <div className="h-full flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">Configuration Error</CardTitle>
+            <CardDescription>Failed to load login configuration. Please try again later.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  const { config, methods } = loginConfigData;
+  const enabledMethods = methods.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
+  const primaryMethods = enabledMethods.filter(m => m.authMethodId === "email" || m.authMethodId === "uuid");
+  const alternativeMethods = enabledMethods.filter(m => m.authMethodId !== "email" && m.authMethodId !== "uuid");
+  const defaultMethod = config.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <Card className="w-full max-w-md" data-testid="preview-card">
+        <CardHeader className="text-center space-y-2">
+          {config.logoUrl ? (
+            <img
+              src={config.logoUrl}
+              alt="Logo"
+              className="mx-auto w-12 h-12 object-contain rounded-lg"
+              data-testid="preview-logo"
+            />
+          ) : (
+            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mx-auto" data-testid="preview-logo-default">
+              <Shield className="w-6 h-6 text-primary-foreground" />
+            </div>
+          )}
+          <CardTitle className="text-2xl font-semibold" data-testid="preview-title">{config.title}</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground" data-testid="preview-description">{config.description}</CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Primary Method Tabs */}
+          {primaryMethods.length > 1 && (
+            <>
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }}>
+                {primaryMethods.map((method) => {
+                  const Icon = getIcon(method.icon);
+                  return (
+                    <Button
+                      key={method.authMethodId}
+                      type="button"
+                      variant={defaultMethod === method.authMethodId ? "default" : "outline"}
+                      className="w-full pointer-events-none"
+                    >
+                      <Icon className="w-4 h-4 mr-2" />
+                      {method.name}
+                    </Button>
+                  );
+                })}
+              </div>
+              {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText && (
+                <p className="text-xs text-center text-muted-foreground">
+                  {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText ||
+                   primaryMethods.find(m => m.authMethodId === defaultMethod)?.defaultHelpText}
+                </p>
+              )}
+            </>
+          )}
+
+          <Separator />
+
+          {/* Active Method Form - Non-interactive Preview */}
+          {defaultMethod === "uuid" && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-3">GENERATE NEW ACCOUNT ID</p>
+                <Button type="button" className="w-full h-11 pointer-events-none" variant="default">
+                  Generate New Account ID
+                </Button>
+              </div>
+              <Separator />
+              <p className="text-xs text-center text-muted-foreground">OR USE EXISTING ACCOUNT ID</p>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Account ID (Optional)</Label>
+                  <Input placeholder="Enter your existing account ID" className="h-11 mt-1.5 pointer-events-none" readOnly />
+                </div>
+                <Button type="button" variant="outline" className="w-full h-11 pointer-events-none">
+                  Log In with Existing ID
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {defaultMethod === "email" && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Email</Label>
+                <Input type="email" placeholder="Enter your email" className="h-11 mt-1.5 pointer-events-none" readOnly />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Password</Label>
+                <Input type="password" placeholder="Enter your password" className="h-11 mt-1.5 pointer-events-none" readOnly />
+              </div>
+              <Button type="button" className="w-full h-11 pointer-events-none">
+                Log In
+              </Button>
+            </div>
+          )}
+
+          {alternativeMethods.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-3">
+                <p className="text-xs text-center text-muted-foreground">OR AUTHENTICATE WITH</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {alternativeMethods.map((method) => {
+                    const Icon = getIcon(method.icon);
+                    return (
+                      <Button
+                        key={method.authMethodId}
+                        type="button"
+                        variant={method.buttonVariant as any || method.defaultButtonVariant as any}
+                        className="w-full justify-start relative pointer-events-none"
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {method.buttonText || method.defaultButtonText}
+                        {method.showComingSoonBadge && (
+                          <Badge variant="secondary" className="absolute right-2 text-xs">
+                            Coming Soon
+                          </Badge>
+                        )}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
-function VisualSortableMethodItem({ 
-  method, 
-  editingMethodId,
-  setEditingMethodId,
-  tempMethodConfig,
-  setTempMethodConfig,
-  setAutoSaveStatus,
-  setMethodsState,
-  methodsState,
-  setOriginalMethodsState,
-  toast,
-}: VisualSortableMethodItemProps) {
+interface SortableMethodItemProps {
+  method: AuthMethod;
+  onToggle: () => void;
+  onUpdate: (updates: Partial<AuthMethod>) => void;
+}
+
+function SortableMethodItem({ method, onToggle, onUpdate }: SortableMethodItemProps) {
   const {
     attributes,
     listeners,
@@ -126,348 +282,167 @@ function VisualSortableMethodItem({
   };
 
   const Icon = getIcon(method.icon);
-  const buttonText = method.buttonText || method.defaultButtonText;
-  const buttonVariant = (method.buttonVariant || method.defaultButtonVariant) as any;
-  const showBadge = method.showComingSoonBadge || !method.implemented;
-  const isEditing = editingMethodId === method.id;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="relative group"
-      data-testid={`visual-method-${method.authMethodId}`}
+      className="flex items-center gap-2 p-3 bg-card border rounded-md"
+      data-testid={`method-item-${method.authMethodId}`}
     >
-      {/* Exact button appearance from login page */}
-      <Button
-        type="button"
-        variant={buttonVariant}
-        className="w-full h-11 relative"
-        disabled
-        data-testid={`button-auth-${method.authMethodId}`}
-      >
-        <Icon className="w-4 h-4 mr-2" />
-        {buttonText}
-        {showBadge && (
-          <Badge 
-            variant="secondary" 
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
-          >
-            Coming Soon
-          </Badge>
-        )}
-      </Button>
-
-      {/* Drag handle (visible on hover) */}
-      <div 
-        {...attributes}
-        {...listeners}
-        className="absolute left-2 top-1/2 -translate-y-1/2 p-1 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-60 transition-opacity bg-background/80 rounded backdrop-blur-sm"
-        data-testid={`drag-handle-${method.authMethodId}`}
-      >
-        <GripVertical className="h-3 w-3 text-foreground" />
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
-
-      {/* Settings button (visible on hover) */}
-      <Popover open={isEditing} onOpenChange={(open) => {
-        if (!open) setEditingMethodId(null);
-      }}>
-        <PopoverTrigger asChild>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={() => {
-              setEditingMethodId(method.id);
-              setTempMethodConfig({
-                buttonText: method.buttonText || method.defaultButtonText,
-                buttonVariant: method.buttonVariant || method.defaultButtonVariant,
-              });
-            }}
-            data-testid={`button-edit-method-${method.authMethodId}`}
-          >
-            <Settings className="h-3 w-3" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent side="left" className="w-80" data-testid={`popover-method-config-${method.authMethodId}`}>
-          <div className="space-y-4">
-            <h4 className="font-medium">Customize {method.name}</h4>
-            <div>
-              <Label>Button Text</Label>
-              <Input
-                value={tempMethodConfig.buttonText}
-                onChange={(e) => setTempMethodConfig({ ...tempMethodConfig, buttonText: e.target.value })}
-                placeholder={method.defaultButtonText}
-                data-testid="input-method-button-text"
-              />
-            </div>
-            <div>
-              <Label>Button Variant</Label>
-              <Select
-                value={tempMethodConfig.buttonVariant}
-                onValueChange={(value) => setTempMethodConfig({ ...tempMethodConfig, buttonVariant: value })}
-              >
-                <SelectTrigger data-testid="select-method-variant">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
-                  <SelectItem value="secondary">Secondary</SelectItem>
-                  <SelectItem value="ghost">Ghost</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={async () => {
-                  try {
-                    setAutoSaveStatus("saving");
-                    setEditingMethodId(null);
-                    
-                    await apiRequest(
-                      "PATCH",
-                      `/api/admin/service-auth-method/${method.id}`,
-                      {
-                        buttonText: tempMethodConfig.buttonText,
-                        buttonVariant: tempMethodConfig.buttonVariant,
-                      }
-                    );
-                    
-                    const updatedMethods = methodsState.map(m => 
-                      m.id === method.id 
-                        ? { ...m, buttonText: tempMethodConfig.buttonText, buttonVariant: tempMethodConfig.buttonVariant }
-                        : m
-                    );
-                    setMethodsState(updatedMethods);
-                    setOriginalMethodsState(updatedMethods);
-                    
-                    setAutoSaveStatus("saved");
-                    setTimeout(() => setAutoSaveStatus("idle"), 2000);
-                    
-                    queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config"] });
-                    
-                    toast({
-                      title: "Method updated",
-                      description: `${method.name} customization saved`,
-                    });
-                  } catch (error: any) {
-                    setAutoSaveStatus("idle");
-                    toast({
-                      title: "Save failed",
-                      description: error.message || "Failed to save method customization",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                data-testid="button-save-method-config"
-              >
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setEditingMethodId(null)}
-                data-testid="button-cancel-method-config"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{method.name}</p>
+        <p className="text-xs text-muted-foreground truncate">{method.description}</p>
+      </div>
+      <Switch checked={method.enabled} onCheckedChange={onToggle} data-testid={`switch-${method.authMethodId}`} />
     </div>
   );
 }
 
-export default function LoginEditorPage() {
-  const [, setLocation] = useLocation();
+export default function LoginEditor() {
+  const [location, setLocation] = useLocation();
+  const userRole = getUserRole();
   const { toast } = useToast();
-  
-  // Editor state
-  const [editingElement, setEditingElement] = useState<string | null>(null);
-  const [tempEditValue, setTempEditValue] = useState("");
-  const [responsiveView, setResponsiveView] = useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [primaryColor, setPrimaryColor] = useState("#1e40af");
-  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [editingMethodId, setEditingMethodId] = useState<string | null>(null);
-  const [tempMethodConfig, setTempMethodConfig] = useState({ buttonText: "", buttonVariant: "default" });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Service selector
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-
-  // Fetch global services
-  const { data: globalServices } = useQuery<GlobalService[]>({
-    queryKey: ["/api/admin/global-services"],
-  });
-
-  // Compute config ID
-  const configId = selectedServiceId || "default";
-
-  // Fetch login config
-  const { data: configData, isLoading } = useQuery<LoginConfigResponse>({
-    queryKey: ["/api/admin/login-config", configId],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (selectedServiceId) {
-        params.append("serviceId", selectedServiceId);
-      }
-      const response = await fetch(`/api/login-config?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch config");
-      return response.json();
-    },
-    enabled: !!configId,
-  });
-
-  // Local state for form
+  // Form state
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    logoUrl: "",
+    logoUrl: null as string | null,
     defaultMethod: "uuid",
-    primaryColor: "",
   });
 
   const [methodsState, setMethodsState] = useState<AuthMethod[]>([]);
-
-  // Original data for dirty state tracking
   const [originalFormData, setOriginalFormData] = useState(formData);
   const [originalMethodsState, setOriginalMethodsState] = useState<AuthMethod[]>([]);
 
-  // Sync form data when config loads
+  // Redirect if not admin
   useEffect(() => {
-    if (configData) {
-      const newFormData = {
-        title: configData.config.title,
-        description: configData.config.description,
-        logoUrl: configData.config.logoUrl || "",
-        defaultMethod: configData.config.defaultMethod,
-        primaryColor: configData.config.primaryColor || "#1e40af",
-      };
-      setFormData(newFormData);
-      setOriginalFormData(newFormData);
-      setPrimaryColor(configData.config.primaryColor || "#1e40af");
-      
-      const sortedMethods = [...configData.methods].sort((a, b) => a.displayOrder - b.displayOrder);
-      setMethodsState(sortedMethods);
-      setOriginalMethodsState(sortedMethods);
+    if (userRole !== 'admin') {
+      toast({
+        title: "Access denied",
+        description: "Only administrators can access the login editor",
+        variant: "destructive",
+      });
+      setLocation("/dashboard");
     }
-  }, [configData]);
+  }, [userRole, toast, setLocation]);
 
-  // Check if data has changed (dirty state)
-  const isDirty = (() => {
-    if (!configData) return false;
-    
-    const brandingChanged = 
-      formData.title !== originalFormData.title ||
-      formData.description !== originalFormData.description ||
-      formData.logoUrl !== originalFormData.logoUrl ||
-      formData.defaultMethod !== originalFormData.defaultMethod ||
-      formData.primaryColor !== originalFormData.primaryColor;
-    
-    const methodsChanged = JSON.stringify(methodsState) !== JSON.stringify(originalMethodsState);
-    
-    return brandingChanged || methodsChanged;
-  })();
+  // Fetch services for selection
+  const { data: services } = useQuery<GlobalService[]>({
+    queryKey: ["/api/services"],
+    enabled: userRole === 'admin',
+  });
 
-  // Auto-save mutation
+  // Fetch login configuration
+  const { data: loginConfigData, isLoading, refetch } = useQuery<LoginConfigResponse>({
+    queryKey: selectedServiceId ? ["/api/admin/login-config", selectedServiceId] : ["/api/admin/login-configs"],
+    enabled: userRole === 'admin',
+  });
+
+  // Initialize form data when config loads
+  useEffect(() => {
+    if (loginConfigData) {
+      const config = Array.isArray(loginConfigData) ? loginConfigData[0] : loginConfigData.config;
+      const methods = Array.isArray(loginConfigData) ? [] : loginConfigData.methods;
+      
+      if (config) {
+        const newFormData = {
+          title: config.title,
+          description: config.description,
+          logoUrl: config.logoUrl,
+          defaultMethod: config.defaultMethod,
+        };
+        setFormData(newFormData);
+        setOriginalFormData(newFormData);
+      }
+      
+      if (methods && methods.length > 0) {
+        setMethodsState(methods);
+        setOriginalMethodsState(methods);
+      }
+    }
+  }, [loginConfigData]);
+
+  // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!configData) throw new Error("No config data");
+      if (!loginConfigData) throw new Error("No config data available");
       
-      // Update branding
-      await apiRequest(
-        "PATCH",
-        `/api/admin/login-config/${configData.config.id}`,
-        {
-          title: formData.title,
-          description: formData.description,
-          logoUrl: formData.logoUrl || null,
-          defaultMethod: formData.defaultMethod,
-          primaryColor: formData.primaryColor || null,
-        }
-      );
-
-      // Update methods
-      for (const method of methodsState) {
-        const original = originalMethodsState.find(m => m.id === method.id);
-        if (!original || 
-            method.enabled !== original.enabled ||
-            method.displayOrder !== original.displayOrder ||
-            method.buttonText !== original.buttonText ||
-            method.buttonVariant !== original.buttonVariant) {
-          await apiRequest(
-            "PATCH",
-            `/api/admin/service-auth-method/${method.id}`,
-            {
-              enabled: method.enabled,
-              displayOrder: method.displayOrder,
-              buttonText: method.buttonText,
-              buttonVariant: method.buttonVariant,
-            }
-          );
-        }
-      }
+      const config = Array.isArray(loginConfigData) ? loginConfigData[0] : loginConfigData.config;
+      
+      // Update config
+      await apiRequest("PATCH", `/api/admin/login-config/${config.id}`, formData);
+      
+      // Update methods order
+      const orderUpdates = methodsState.map((method, index) => ({
+        id: method.id,
+        displayOrder: index,
+        enabled: method.enabled,
+      }));
+      
+      await apiRequest("PUT", "/api/admin/service-auth-methods/order", {
+        updates: orderUpdates,
+      });
+    },
+    onMutate: () => {
+      setAutoSaveStatus("saving");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config", configId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/login-config"] });
-      
-      toast({
-        title: "Changes saved",
-        description: "Login page configuration has been updated successfully.",
-      });
-
+      setAutoSaveStatus("saved");
       setOriginalFormData(formData);
       setOriginalMethodsState(methodsState);
       
-      setAutoSaveStatus("saved");
+      // Invalidate all related queries
+      queryClient.invalidateQueries({ queryKey: ["/api/login-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-configs"] });
+      
+      // Trigger preview refresh
+      setRefreshTrigger(prev => prev + 1);
+      
+      toast({
+        title: "Saved",
+        description: "Login page configuration updated successfully",
+      });
+      
       setTimeout(() => setAutoSaveStatus("idle"), 2000);
     },
     onError: (error: any) => {
+      setAutoSaveStatus("idle");
       toast({
-        title: "Save failed",
-        description: error.message || "Failed to save changes. Please try again.",
+        title: "Error",
+        description: error.message || "Failed to save configuration",
         variant: "destructive",
       });
-      setAutoSaveStatus("idle");
     },
   });
 
-  // Reset function
+  const handleSave = () => {
+    saveMutation.mutate();
+  };
+
   const handleReset = () => {
     setFormData(originalFormData);
     setMethodsState(originalMethodsState);
-    
     toast({
-      title: "Changes discarded",
-      description: "All changes have been reset to the last saved state.",
+      title: "Reset",
+      description: "Changes discarded",
     });
   };
 
-  // Handle drag end
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
+  const isDirty = 
+    JSON.stringify(formData) !== JSON.stringify(originalFormData) ||
+    JSON.stringify(methodsState) !== JSON.stringify(originalMethodsState);
 
-    if (over && active.id !== over.id) {
-      setMethodsState((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        
-        const reorderedItems = arrayMove(items, oldIndex, newIndex);
-        
-        return reorderedItems.map((item, index) => ({
-          ...item,
-          displayOrder: index,
-        }));
-      });
-    }
-  }
-
-  // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -475,687 +450,271 @@ export default function LoginEditorPage() {
     })
   );
 
-  // Handle logo upload
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setMethodsState((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const toggleMethod = (methodId: string) => {
+    setMethodsState(prev =>
+      prev.map(m => m.id === methodId ? { ...m, enabled: !m.enabled } : m)
+    );
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, logoUrl: reader.result as string });
-        setAutoSaveStatus("saving");
-        setTimeout(() => saveMutation.mutate(), 500);
+        setFormData(prev => ({ ...prev, logoUrl: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // Inline edit handlers
-  const startEditing = (element: string, currentValue: string) => {
-    setEditingElement(element);
-    setTempEditValue(currentValue);
-  };
+  if (userRole !== 'admin') {
+    return null;
+  }
 
-  const saveEdit = () => {
-    if (editingElement === "title") {
-      setFormData({ ...formData, title: tempEditValue });
-    } else if (editingElement === "description") {
-      setFormData({ ...formData, description: tempEditValue });
-    }
-    setEditingElement(null);
-    setAutoSaveStatus("saving");
-    setTimeout(() => saveMutation.mutate(), 500);
-  };
-
-  const cancelEdit = () => {
-    setEditingElement(null);
-    setTempEditValue("");
-  };
+  const config = loginConfigData && !Array.isArray(loginConfigData) ? loginConfigData.config : null;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen flex flex-col">
       <Navbar />
       
-      <div className="flex flex-1" style={{ height: "calc(100vh - 64px)" }}>
-        {/* Left Sidebar - Configuration Panel */}
-        <div className="w-80 border-r bg-card">
-          <ScrollArea className="h-full">
-            <div className="p-6 space-y-6">
-              {/* Service Selector */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm">Service</h3>
-                <Select 
-                  value={selectedServiceId || "default"} 
-                  onValueChange={(value) => setSelectedServiceId(value === "default" ? null : value)}
-                  data-testid="select-service"
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a service..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default" data-testid="option-default">
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4" />
-                        <span>Default Config</span>
-                      </div>
-                    </SelectItem>
-                    {globalServices?.map((service) => (
-                      <SelectItem 
-                        key={service.id} 
-                        value={service.id}
-                        data-testid={`option-service-${service.id}`}
-                      >
-                        {service.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+      {/* Full-screen CMS Editor */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Editor Controls */}
+        <div className="w-96 border-r bg-muted/30 flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b bg-card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Login Page Editor</h2>
+              <div className="flex items-center gap-2">
+                {autoSaveStatus === "saving" && (
+                  <Badge variant="secondary" className="gap-1" data-testid="badge-saving">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Saving...
+                  </Badge>
+                )}
+                {autoSaveStatus === "saved" && (
+                  <Badge variant="default" className="gap-1" data-testid="badge-saved">
+                    <Check className="h-3 w-3" />
+                    Saved
+                  </Badge>
+                )}
               </div>
+            </div>
 
-              <Separator />
-
-              {/* Branding Section */}
-              {configData && (
-                <>
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-sm">Branding</h3>
-                    
-                    <div>
-                      <Label htmlFor="title" className="text-xs">Page Title</Label>
-                      <Input
-                        id="title"
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        placeholder="Welcome to AuthHub"
-                        data-testid="input-title"
-                        className="mt-1"
-                      />
+            {/* Service Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Service</Label>
+              <Select value={selectedServiceId || "default"} onValueChange={(v) => setSelectedServiceId(v === "default" ? null : v)}>
+                <SelectTrigger data-testid="select-service">
+                  <SelectValue placeholder="Select service" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Default Configuration
                     </div>
+                  </SelectItem>
+                  {services?.map((service) => (
+                    <SelectItem key={service.id} value={service.id}>
+                      {service.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                    <div>
-                      <Label htmlFor="description" className="text-xs">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Choose your preferred authentication method"
-                        rows={3}
-                        data-testid="input-description"
-                        className="mt-1"
+            {/* Action Buttons */}
+            <div className="flex gap-2 mt-4">
+              <Button
+                onClick={handleSave}
+                disabled={!isDirty || saveMutation.isPending}
+                size="sm"
+                className="flex-1"
+                data-testid="button-save"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </Button>
+              <Button
+                onClick={handleReset}
+                disabled={!isDirty}
+                variant="outline"
+                size="sm"
+                data-testid="button-reset"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Editor Tabs */}
+          <ScrollArea className="flex-1">
+            <Tabs defaultValue="branding" className="w-full">
+              <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+                <TabsTrigger value="branding" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary" data-testid="tab-branding">
+                  <Palette className="h-4 w-4 mr-2" />
+                  Branding
+                </TabsTrigger>
+                <TabsTrigger value="methods" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary" data-testid="tab-methods">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Methods
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="branding" className="p-4 space-y-6">
+                {/* Logo */}
+                <div className="space-y-2">
+                  <Label>Logo</Label>
+                  <div className="flex items-center gap-4">
+                    {formData.logoUrl ? (
+                      <img
+                        src={formData.logoUrl}
+                        alt="Logo"
+                        className="w-16 h-16 object-contain rounded-lg border cursor-pointer hover:opacity-80"
+                        onClick={() => fileInputRef.current?.click()}
+                        data-testid="image-logo"
                       />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="logoUrl" className="text-xs">Logo URL</Label>
-                      <Input
-                        id="logoUrl"
-                        value={formData.logoUrl}
-                        onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-                        placeholder="https://example.com/logo.png"
-                        data-testid="input-logo-url"
-                        className="mt-1"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="defaultMethod" className="text-xs">Default Method</Label>
-                      <Select
-                        value={formData.defaultMethod}
-                        onValueChange={(value) => setFormData({ ...formData, defaultMethod: value })}
+                    ) : (
+                      <div
+                        className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center cursor-pointer hover:opacity-80"
+                        onClick={() => fileInputRef.current?.click()}
+                        data-testid="div-logo-default"
                       >
-                        <SelectTrigger id="defaultMethod" className="mt-1" data-testid="select-default-method">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {methodsState.filter(m => m.implemented && m.enabled).map((method) => (
-                            <SelectItem key={method.authMethodId} value={method.authMethodId}>
-                              {method.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <Shield className="w-8 h-8 text-primary-foreground" />
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      data-testid="button-upload-logo"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload
+                    </Button>
+                    {formData.logoUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFormData(prev => ({ ...prev, logoUrl: null }))}
+                        data-testid="button-remove-logo"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                      data-testid="input-logo-file"
+                    />
                   </div>
+                </div>
 
-                  <Separator />
+                {/* Title */}
+                <div className="space-y-2">
+                  <Label>Title</Label>
+                  <Input
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Welcome to AuthHub"
+                    data-testid="input-title"
+                  />
+                </div>
 
-                  {/* Authentication Methods */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-sm">Authentication Methods</h3>
-                    <p className="text-xs text-muted-foreground">Enable or disable methods</p>
-                    
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Choose your preferred authentication method"
+                    rows={3}
+                    data-testid="input-description"
+                  />
+                </div>
+
+                {/* Default Method */}
+                <div className="space-y-2">
+                  <Label>Default Method</Label>
+                  <Select value={formData.defaultMethod} onValueChange={(v) => setFormData(prev => ({ ...prev, defaultMethod: v }))}>
+                    <SelectTrigger data-testid="select-default-method">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {methodsState.filter(m => m.enabled && (m.authMethodId === "email" || m.authMethodId === "uuid")).map(method => (
+                        <SelectItem key={method.authMethodId} value={method.authMethodId}>
+                          {method.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="methods" className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Authentication Methods</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Drag to reorder, toggle to enable/disable methods
+                  </p>
+                </div>
+
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={methodsState.map(m => m.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
                     <div className="space-y-2">
                       {methodsState.map((method) => (
-                        <div key={method.id} className="flex items-center justify-between p-2 rounded border" data-testid={`method-toggle-${method.authMethodId}`}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">{method.name}</span>
-                            {!method.implemented && (
-                              <Badge variant="secondary" className="text-xs">Soon</Badge>
-                            )}
-                          </div>
-                          <Switch
-                            checked={method.enabled}
-                            onCheckedChange={(checked) => {
-                              setMethodsState(methodsState.map(m => 
-                                m.id === method.id ? { ...m, enabled: checked } : m
-                              ));
-                            }}
-                            data-testid={`switch-method-${method.authMethodId}`}
-                          />
-                        </div>
+                        <SortableMethodItem
+                          key={method.id}
+                          method={method}
+                          onToggle={() => toggleMethod(method.id)}
+                          onUpdate={(updates) => {
+                            setMethodsState(prev =>
+                              prev.map(m => m.id === method.id ? { ...m, ...updates } : m)
+                            );
+                          }}
+                        />
                       ))}
                     </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Save/Reset Buttons */}
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => saveMutation.mutate()}
-                      disabled={!isDirty || saveMutation.isPending}
-                      className="flex-1"
-                      data-testid="button-save"
-                    >
-                      {saveMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving
-                        </>
-                      ) : (
-                        <>
-                          <Save className="mr-2 h-4 w-4" />
-                          Save
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleReset}
-                      disabled={!isDirty}
-                      data-testid="button-reset"
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Reset
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {isLoading && (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              )}
-            </div>
+                  </SortableContext>
+                </DndContext>
+              </TabsContent>
+            </Tabs>
           </ScrollArea>
         </div>
 
-        {/* Main Canvas - Visual Preview */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
-          {configData && (
-            <>
-              {/* Toolbar */}
-              <div className="border-b bg-card p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {/* Responsive View Switcher */}
-                  <div className="flex items-center gap-1 p-1 bg-muted rounded-md">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant={responsiveView === "desktop" ? "default" : "ghost"}
-                            onClick={() => setResponsiveView("desktop")}
-                            data-testid="button-view-desktop"
-                            className="h-7 w-7"
-                          >
-                            <Monitor className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Desktop View</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant={responsiveView === "tablet" ? "default" : "ghost"}
-                            onClick={() => setResponsiveView("tablet")}
-                            data-testid="button-view-tablet"
-                            className="h-7 w-7"
-                          >
-                            <Tablet className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Tablet View</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant={responsiveView === "mobile" ? "default" : "ghost"}
-                            onClick={() => setResponsiveView("mobile")}
-                            data-testid="button-view-mobile"
-                            className="h-7 w-7"
-                          >
-                            <Smartphone className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Mobile View</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-
-                  {/* Color Picker */}
-                  <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
-                    <PopoverTrigger asChild>
-                      <Button size="sm" variant="outline" data-testid="button-color-picker">
-                        <Palette className="h-4 w-4 mr-2" />
-                        Primary Color
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto" data-testid="popover-color-picker">
-                      <div className="space-y-3">
-                        <HexColorPicker color={primaryColor} onChange={setPrimaryColor} />
-                        <Input
-                          value={primaryColor}
-                          onChange={(e) => setPrimaryColor(e.target.value)}
-                          placeholder="#1e40af"
-                          data-testid="input-color-hex"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={async () => {
-                              const newFormData = { ...formData, primaryColor };
-                              setFormData(newFormData);
-                              setShowColorPicker(false);
-                              setAutoSaveStatus("saving");
-                              
-                              try {
-                                await apiRequest(
-                                  "PATCH",
-                                  `/api/admin/login-config/${configData.config.id}`,
-                                  {
-                                    title: newFormData.title,
-                                    description: newFormData.description,
-                                    logoUrl: newFormData.logoUrl || null,
-                                    defaultMethod: newFormData.defaultMethod,
-                                    primaryColor: primaryColor || null,
-                                  }
-                                );
-                                
-                                setOriginalFormData(newFormData);
-                                setAutoSaveStatus("saved");
-                                setTimeout(() => setAutoSaveStatus("idle"), 2000);
-                                
-                                queryClient.invalidateQueries({ queryKey: ["/api/admin/login-config", configId] });
-                                
-                                toast({
-                                  title: "Color updated",
-                                  description: `Primary color set to ${primaryColor}`,
-                                });
-                              } catch (error: any) {
-                                setAutoSaveStatus("idle");
-                                toast({
-                                  title: "Save failed",
-                                  description: error.message || "Failed to save color",
-                                  variant: "destructive",
-                                });
-                              }
-                            }}
-                            data-testid="button-apply-color"
-                          >
-                            Apply
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowColorPicker(false)}
-                            data-testid="button-cancel-color"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Save Status */}
-                <div className="flex items-center gap-2">
-                  {autoSaveStatus === "saving" && (
-                    <span className="text-sm text-muted-foreground flex items-center gap-2" data-testid="text-saving">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Saving...
-                    </span>
-                  )}
-                  {autoSaveStatus === "saved" && (
-                    <span className="text-sm text-green-600 flex items-center gap-2" data-testid="text-saved">
-                      <Check className="h-3 w-3" />
-                      Saved
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Preview Canvas */}
-              <div className="flex-1 overflow-auto p-8 flex items-center justify-center bg-background">
-                <div
-                  className={`transition-all duration-300 ${
-                    responsiveView === "mobile"
-                      ? "w-[375px]"
-                      : responsiveView === "tablet"
-                      ? "w-[768px]"
-                      : "w-[1024px]"
-                  }`}
-                  data-testid="visual-editor-preview"
-                >
-                  {/* Exact Login Page Preview */}
-                  <Card className="w-full max-w-md mx-auto shadow-sm">
-                    <CardHeader className="space-y-2 text-center">
-                      {/* Logo */}
-                      <div className="flex justify-center mb-2">
-                        {formData.logoUrl ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div
-                                  className="cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded transition-all"
-                                  onClick={() => fileInputRef.current?.click()}
-                                  data-testid="logo-upload-trigger"
-                                >
-                                  <img 
-                                    src={formData.logoUrl} 
-                                    alt="Logo" 
-                                    className="w-12 h-12 rounded-lg object-cover"
-                                    data-testid="img-logo"
-                                  />
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>Click to change logo</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-                            <Shield className="w-6 h-6 text-primary-foreground" />
-                          </div>
-                        )}
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleLogoUpload}
-                          data-testid="input-logo-file"
-                        />
-                      </div>
-
-                      {/* Title */}
-                      {editingElement === "title" ? (
-                        <div className="flex flex-col gap-2">
-                          <Input
-                            value={tempEditValue}
-                            onChange={(e) => setTempEditValue(e.target.value)}
-                            className="text-center text-2xl font-semibold"
-                            autoFocus
-                            data-testid="input-edit-title"
-                          />
-                          <div className="flex gap-2 justify-center">
-                            <Button size="sm" onClick={saveEdit} data-testid="button-save-title">
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={cancelEdit} data-testid="button-cancel-title">
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <CardTitle
-                                className="text-2xl font-semibold cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded px-2 py-1 transition-all"
-                                onClick={() => startEditing("title", formData.title)}
-                                data-testid="text-title"
-                              >
-                                {formData.title}
-                              </CardTitle>
-                            </TooltipTrigger>
-                            <TooltipContent>Click to edit title</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-
-                      {/* Description */}
-                      {editingElement === "description" ? (
-                        <div className="flex flex-col gap-2">
-                          <Textarea
-                            value={tempEditValue}
-                            onChange={(e) => setTempEditValue(e.target.value)}
-                            className="text-center resize-none text-sm"
-                            rows={2}
-                            autoFocus
-                            data-testid="input-edit-description"
-                          />
-                          <div className="flex gap-2 justify-center">
-                            <Button size="sm" onClick={saveEdit} data-testid="button-save-description">
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={cancelEdit} data-testid="button-cancel-description">
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <CardDescription
-                                className="text-sm text-muted-foreground cursor-pointer hover:outline hover:outline-2 hover:outline-primary hover:outline-offset-2 rounded px-2 py-1 transition-all"
-                                onClick={() => startEditing("description", formData.description)}
-                                data-testid="text-description"
-                              >
-                                {formData.description}
-                              </CardDescription>
-                            </TooltipTrigger>
-                            <TooltipContent>Click to edit description</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                    </CardHeader>
-
-                    <CardContent className="space-y-6">
-                      {(() => {
-                        const getIcon = (iconName: string): LucideIcon => {
-                          const IconComponent = (LucideIcons as any)[iconName];
-                          return IconComponent || Shield;
-                        };
-
-                        const enabledMethods = methodsState
-                          .filter(m => m.enabled)
-                          .sort((a, b) => a.displayOrder - b.displayOrder);
-
-                        const primaryMethods = enabledMethods.filter(m => m.authMethodId === "email" || m.authMethodId === "uuid");
-                        const alternativeMethods = enabledMethods.filter(m => m.authMethodId !== "email" && m.authMethodId !== "uuid");
-                        const activeMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
-
-                        return (
-                          <>
-                            {/* Primary Method Tabs - Only if more than one */}
-                            {primaryMethods.length > 1 && (
-                              <>
-                                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }} data-testid="preview-primary-tabs">
-                                  {primaryMethods.map((method) => {
-                                    const Icon = getIcon(method.icon);
-                                    return (
-                                      <Button
-                                        key={method.authMethodId}
-                                        type="button"
-                                        variant={activeMethod === method.authMethodId ? "default" : "outline"}
-                                        className="w-full"
-                                        disabled
-                                        data-testid={`button-${method.authMethodId}-preview-tab`}
-                                      >
-                                        <Icon className="w-4 h-4 mr-2" />
-                                        {method.name}
-                                      </Button>
-                                    );
-                                  })}
-                                </div>
-
-                                {primaryMethods.find(m => m.authMethodId === activeMethod)?.helpText && (
-                                  <p className="text-xs text-center text-muted-foreground">
-                                    {primaryMethods.find(m => m.authMethodId === activeMethod)?.helpText ||
-                                     primaryMethods.find(m => m.authMethodId === activeMethod)?.defaultHelpText}
-                                  </p>
-                                )}
-                              </>
-                            )}
-
-                            <Separator />
-
-                            {/* Active Method Form - PREVIEW ONLY (non-functional) */}
-                            {activeMethod === "uuid" && (
-                              <div className="space-y-4" onClick={(e) => e.preventDefault()}>
-                                <div className="text-center">
-                                  <p className="text-xs text-muted-foreground mb-3">
-                                    GENERATE NEW ACCOUNT ID
-                                  </p>
-                                  <Button
-                                    type="button"
-                                    className="w-full h-11"
-                                    variant="default"
-                                    disabled
-                                    onClick={(e) => e.preventDefault()}
-                                  >
-                                    Generate New Account ID
-                                  </Button>
-                                </div>
-
-                                <Separator />
-
-                                <p className="text-xs text-center text-muted-foreground">
-                                  OR USE EXISTING ACCOUNT ID
-                                </p>
-
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label className="text-sm font-medium">Account ID (Optional)</Label>
-                                    <Input
-                                      placeholder="Enter your existing account ID"
-                                      className="h-11 mt-1.5"
-                                      disabled
-                                      readOnly
-                                    />
-                                  </div>
-
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full h-11"
-                                    disabled
-                                    onClick={(e) => e.preventDefault()}
-                                  >
-                                    Log In with Existing ID
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {activeMethod === "email" && (
-                              <div className="space-y-4" onClick={(e) => e.preventDefault()}>
-                                <div>
-                                  <Label className="text-sm font-medium">Email</Label>
-                                  <Input
-                                    type="email"
-                                    placeholder="Enter your email"
-                                    className="h-11 mt-1.5"
-                                    disabled
-                                    readOnly
-                                  />
-                                </div>
-
-                                <div>
-                                  <Label className="text-sm font-medium">Password</Label>
-                                  <Input
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    className="h-11 mt-1.5"
-                                    disabled
-                                    readOnly
-                                  />
-                                </div>
-
-                                <Button
-                                  type="button"
-                                  className="w-full h-11"
-                                  disabled
-                                  onClick={(e) => e.preventDefault()}
-                                >
-                                  Log In
-                                </Button>
-                              </div>
-                            )}
-
-                            <Separator className="my-4" />
-
-                            {/* Alternative Methods - Draggable */}
-                            {alternativeMethods.length > 0 && (
-                              <div className="space-y-3">
-                                <p className="text-xs text-center text-muted-foreground">
-                                  OR AUTHENTICATE WITH
-                                </p>
-
-                                <DndContext
-                                  sensors={sensors}
-                                  collisionDetection={closestCenter}
-                                  onDragEnd={handleDragEnd}
-                                >
-                                  <SortableContext
-                                    items={alternativeMethods.map(m => m.id)}
-                                    strategy={verticalListSortingStrategy}
-                                  >
-                                    <div className="grid grid-cols-1 gap-2" data-testid="visual-editor-methods">
-                                      {alternativeMethods.map((method) => (
-                                        <VisualSortableMethodItem
-                                          key={method.id}
-                                          method={method}
-                                          editingMethodId={editingMethodId}
-                                          setEditingMethodId={setEditingMethodId}
-                                          tempMethodConfig={tempMethodConfig}
-                                          setTempMethodConfig={setTempMethodConfig}
-                                          setAutoSaveStatus={setAutoSaveStatus}
-                                          setMethodsState={setMethodsState}
-                                          methodsState={methodsState}
-                                          setOriginalMethodsState={setOriginalMethodsState}
-                                          toast={toast}
-                                        />
-                                      ))}
-                                    </div>
-                                  </SortableContext>
-                                </DndContext>
-                              </div>
-                            )}
-
-                            <Separator className="my-4" />
-
-                            {/* Register Link */}
-                            <div className="text-center">
-                              <p className="text-sm text-muted-foreground">
-                                Don't have an account?{" "}
-                                <span className="text-primary font-medium">
-                                  Create new account
-                                </span>
-                              </p>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </>
+        {/* Right Panel - Live Preview */}
+        <div className="flex-1 bg-muted/10 overflow-auto">
+          {isLoading ? (
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <LoginPagePreview configId={config?.id || null} refreshTrigger={refreshTrigger} />
           )}
         </div>
       </div>
