@@ -4,7 +4,7 @@ import { type LoginPageConfig } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Loader2, FileText, Shield, Check } from "lucide-react";
+import { Edit, Loader2, FileText, Shield, Check, Plus } from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
@@ -58,17 +58,13 @@ export default function LoginConfigurations() {
           </div>
           <Button
             onClick={() => {
-              // Navigate to the first config if available, or to editor without ID to create new
-              if (configs.length > 0) {
-                setLocation(`/admin/login-editor/${configs[0].id}`);
-              } else {
-                setLocation("/admin/login-editor");
-              }
+              // Navigate to editor to create new configuration
+              setLocation("/admin/login-editor");
             }}
             data-testid="button-create-config"
           >
-            <Edit className="w-4 h-4 mr-2" />
-            Edit Configuration
+            <Plus className="w-4 h-4 mr-2" />
+            Add Configuration
           </Button>
         </div>
 
