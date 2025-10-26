@@ -3,7 +3,6 @@ import { services } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { encryptSecret } from "./crypto";
-import { storage } from "./storage";
 
 interface DefaultService {
   name: string;
@@ -95,16 +94,13 @@ export async function seedServices(userId: string) {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
 
       // Create service with redirect URL defaulting to service URL
-      const [newService] = await db.insert(services).values({
+      await db.insert(services).values({
         ...defaultService,
         userId,
         secret: encryptedSecret,
         secretPreview,
         redirectUrl: defaultService.url,
-      }).returning();
-
-      // Create login configuration for this service
-      await storage.seedLoginPageConfigForService(newService.id);
+      });
 
       console.log(`✅ Created service: "${defaultService.name}"`);
       console.log(`   Secret: ${plaintextSecret}`);
@@ -114,63 +110,4 @@ export async function seedServices(userId: string) {
   }
 
   console.log("\n✨ Database seeding completed for user!");
-}
-
-/**
- * Seeds the AuthHub system service (if it doesn't exist)
- * This is the service that represents AuthHub itself
- * It should be created once and is non-deletable
- */
-export async function seedAuthHubSystemService(userId: string) {
-  console.log("🔐 Checking for AuthHub system service...");
-
-  try {
-    // Check if AuthHub system service already exists
-    const existing = await db
-      .select()
-      .from(services)
-      .where(eq(services.isSystemService, true))
-      .limit(1);
-
-    if (existing.length > 0) {
-      console.log("✅ AuthHub system service already exists");
-      return existing[0].id;
-    }
-
-    // Generate secret for AuthHub
-    const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
-    const encryptedSecret = encryptSecret(plaintextSecret);
-    const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
-
-    // Get the current domain for redirect URL
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-      : "http://localhost:5000";
-
-    // Create AuthHub system service
-    const [authHubService] = await db.insert(services).values({
-      userId,
-      name: "AuthHub",
-      description: "Centralized Authentication System",
-      url: baseUrl,
-      redirectUrl: `${baseUrl}/dashboard`,
-      icon: "Shield",
-      color: "hsl(248, 100%, 28%)", // Arcane Blue
-      secret: encryptedSecret,
-      secretPreview,
-      isSystemService: true,
-    }).returning();
-
-    // Create login configuration for AuthHub
-    await storage.seedLoginPageConfigForService(authHubService.id);
-
-    console.log("✅ Created AuthHub system service");
-    console.log(`   Service ID: ${authHubService.id}`);
-    console.log(`   Secret: ${plaintextSecret}`);
-    
-    return authHubService.id;
-  } catch (error) {
-    console.error("❌ Failed to create AuthHub system service:", error);
-    throw error;
-  }
 }

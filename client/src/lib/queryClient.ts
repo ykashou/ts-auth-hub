@@ -53,8 +53,6 @@ export const getQueryFn: <T>(options: {
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
-    
-    console.log("[QueryClient] Fetching:", queryKey.join("/"), "Token:", token ? `${token.substring(0, 20)}...` : "NO TOKEN");
 
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",

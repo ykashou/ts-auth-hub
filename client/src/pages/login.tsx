@@ -76,12 +76,6 @@ export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Fetch AuthHub's system service ID
-  const { data: systemServiceData } = useQuery<{ id: string; name: string }>({
-    queryKey: ["/api/system-service"],
-    enabled: !serviceId, // Only fetch if serviceId not provided in URL
-  });
-
   // Read redirect_uri and service_id from URL parameters on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -95,20 +89,10 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Set serviceId to system service if no URL param provided
-  useEffect(() => {
-    if (!serviceId && systemServiceData?.id) {
-      setServiceId(systemServiceData.id);
-    }
-  }, [systemServiceData, serviceId]);
-
   // Fetch login configuration
   const { data: loginConfigData, isLoading: isLoadingConfig, isError, error } = useQuery<LoginConfigResponse>({
     queryKey: serviceId ? ["/api/login-config", serviceId] : ["/api/login-config"],
-    queryFn: serviceId 
-      ? () => fetch(`/api/login-config?serviceId=${serviceId}`).then(res => res.json())
-      : undefined,
-    enabled: !!serviceId,
+    enabled: true,
   });
 
   // Helper to get icon component from icon name
@@ -309,8 +293,8 @@ export default function LoginPage() {
     uuidLoginMutation.mutate(data);
   };
 
-  // Show loading state while fetching configuration or system service
-  if (isLoadingConfig || (!serviceId && !systemServiceData)) {
+  // Show loading state while fetching configuration
+  if (isLoadingConfig) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-sm">

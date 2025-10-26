@@ -1,6 +1,6 @@
 import { strategyRegistry } from "./StrategyRegistry";
 import { storage } from "../storage";
-import { seedServices, seedAuthHubSystemService } from "../seed";
+import { seedServices } from "../seed";
 import jwt from "jsonwebtoken";
 import { decryptSecret } from "../crypto";
 
@@ -59,14 +59,6 @@ export class AuthHandler {
     } catch (seedError) {
       console.error("Failed to seed services for user:", seedError);
       // Continue even if seeding fails
-    }
-    
-    // Create AuthHub system service (once per app, not per user)
-    try {
-      await seedAuthHubSystemService(user.id);
-    } catch (seedError) {
-      console.error("Failed to create AuthHub system service:", seedError);
-      // Continue even if this fails
     }
     
     // If this is the first admin (during registration), seed default RBAC models

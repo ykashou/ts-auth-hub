@@ -16,7 +16,7 @@ import AdminRbacPage from "@/pages/admin-rbac";
 import AdminRbacDetailPage from "@/pages/admin-rbac-detail";
 import AdminRoleAssignmentsPage from "@/pages/admin-role-assignments";
 import AdminGlobalServicesPage from "@/pages/admin-global-services";
-import AdminLoginEditorPage from "@/pages/admin-login-editor";
+import AdminLoginEditorPage from "@/pages/admin/login-editor";
 import NotFound from "@/pages/not-found";
 
 function Router() {

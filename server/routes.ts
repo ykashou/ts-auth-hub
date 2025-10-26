@@ -1,13 +1,11 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
-import { db } from "./db";
-import { eq, and } from "drizzle-orm";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, services, type User } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, type User } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { seedServices, seedAuthHubSystemService } from "./seed";
+import { seedServices } from "./seed";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
@@ -184,14 +182,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
-      // Create AuthHub system service (for the first user only)
-      try {
-        await seedAuthHubSystemService(user.id);
-      } catch (seedError) {
-        console.error("Failed to create AuthHub system service:", seedError);
-        // Continue even if this fails
-      }
-
       // If this is the first admin, seed default RBAC models
       if (role === 'admin') {
         try {
@@ -268,26 +258,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Get auth methods error:", error);
       res.status(500).json({ error: "Failed to fetch authentication methods" });
-    }
-  });
-
-  // Get AuthHub's system service ID
-  app.get("/api/system-service", async (req, res) => {
-    try {
-      const systemService = await db
-        .select()
-        .from(services)
-        .where(eq(services.isSystemService, true))
-        .limit(1);
-
-      if (systemService.length === 0) {
-        return res.status(404).json({ error: "System service not found" });
-      }
-
-      res.json({ id: systemService[0].id, name: systemService[0].name });
-    } catch (error: any) {
-      console.error("Get system service error:", error);
-      res.status(500).json({ error: "Failed to fetch system service" });
     }
   });
 
@@ -509,22 +479,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Check if user owns the AuthHub system service
-      const systemServices = await db
-        .select()
-        .from(services)
-        .where(and(
-          eq(services.userId, id),
-          eq(services.isSystemService, true)
-        ))
-        .limit(1);
-
-      if (systemServices.length > 0) {
-        return res.status(403).json({ 
-          error: "Cannot delete user who owns the AuthHub system service. Transfer ownership first or contact support." 
-        });
-      }
-
       // If user is admin, check if this is the last admin
       if (user.role === 'admin') {
         const adminCount = await storage.getAdminCount();
@@ -620,9 +574,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secretPreview,
         userId: req.user.id, // Associate service with authenticated user
       });
-      
-      // Automatically create login page configuration for this service
-      await storage.seedLoginPageConfigForService(service.id);
       
       // Return service with plaintext secret (only time it's shown in full)
       res.status(201).json({
@@ -749,11 +700,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
-      }
-
-      // Prevent deletion of AuthHub system service
-      if (service.isSystemService) {
-        return res.status(403).json({ error: "Cannot delete system service (AuthHub)" });
       }
 
       await storage.deleteService(req.params.id, req.user.id);
@@ -1644,16 +1590,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== LOGIN PAGE CONFIGURATION ROUTES ====================
 
-  // Public endpoint: Get login page configuration for a specific service
+  // Public endpoint: Get login page configuration for a service (or default)
   app.get("/api/login-config", async (req, res) => {
     try {
       const { serviceId } = req.query;
       
-      if (!serviceId) {
-        return res.status(400).json({ error: "serviceId parameter is required" });
+      let config;
+      if (serviceId) {
+        config = await storage.getLoginPageConfigByServiceId(serviceId as string);
+      } else {
+        config = await storage.getDefaultLoginPageConfig();
       }
-      
-      const config = await storage.getLoginPageConfigByServiceId(serviceId as string);
       
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
@@ -1802,79 +1749,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Update auth methods order error:", error);
       res.status(500).json({ error: "Failed to update order" });
-    }
-  });
-
-  // ==================== SERVICE-CENTRIC LOGIN CONFIG ENDPOINTS ====================
-  
-  // Admin: Get login config by service ID with all auth methods
-  app.get("/api/services/:serviceId/login-config", verifyToken, requireAdmin, async (req, res) => {
-    try {
-      const { serviceId } = req.params;
-      
-      const config = await storage.getLoginPageConfigByServiceId(serviceId);
-      if (!config) {
-        return res.status(404).json({ error: "Configuration not found" });
-      }
-      
-      // Get all auth methods (both enabled and disabled) for this config with full auth method details
-      const methods = await storage.getServiceAuthMethods(config.id);
-      
-      res.json({ ...config, methods });
-    } catch (error: any) {
-      console.error("Get service login config error:", error);
-      res.status(500).json({ error: "Failed to fetch login configuration" });
-    }
-  });
-
-  // Admin: Update login config branding by service ID
-  app.patch("/api/services/:serviceId/login-config", verifyToken, requireAdmin, async (req, res) => {
-    try {
-      const { serviceId } = req.params;
-      
-      const config = await storage.getLoginPageConfigByServiceId(serviceId);
-      if (!config) {
-        return res.status(404).json({ error: "Configuration not found" });
-      }
-      
-      const validatedData = insertLoginPageConfigSchema.partial().parse(req.body);
-      const updated = await storage.updateLoginPageConfig(config.id, {
-        ...validatedData,
-        updatedBy: (req as any).user.id,
-      });
-      
-      res.json(updated);
-    } catch (error: any) {
-      console.error("Update service login config error:", error);
-      res.status(400).json({ error: error.message || "Failed to update configuration" });
-    }
-  });
-
-  // Admin: Update auth methods for a service (batch update with order)
-  app.patch("/api/services/:serviceId/login-config/methods", verifyToken, requireAdmin, async (req, res) => {
-    try {
-      const { serviceId } = req.params;
-      const { methods } = req.body;
-      
-      if (!Array.isArray(methods)) {
-        return res.status(400).json({ error: "methods must be an array" });
-      }
-      
-      const config = await storage.getLoginPageConfigByServiceId(serviceId);
-      if (!config) {
-        return res.status(404).json({ error: "Configuration not found" });
-      }
-      
-      // Batch update all methods
-      for (const method of methods) {
-        const { id, ...updateData } = method;
-        await storage.updateServiceAuthMethod(id, updateData);
-      }
-      
-      res.json({ success: true, message: "Auth methods updated successfully" });
-    } catch (error: any) {
-      console.error("Update service auth methods error:", error);
-      res.status(400).json({ error: error.message || "Failed to update auth methods" });
     }
   });
 

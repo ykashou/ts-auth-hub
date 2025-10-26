@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { storage } from "./storage";
-import { seedAuthHubSystemService } from "./seed";
 
 const app = express();
 
@@ -50,18 +49,6 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
-
-  // Initialize AuthHub system service on startup (if users exist)
-  try {
-    const users = await storage.getAllUsers();
-    if (users.length > 0) {
-      // Use the first user (likely the admin) to own the system service
-      await seedAuthHubSystemService(users[0].id);
-    }
-  } catch (error) {
-    console.error("Failed to initialize AuthHub system service:", error);
-    // Continue even if this fails - it will be created on next login/registration
-  }
 
   // Note: Login page configurations are now created per-service when services are created
   // No global login configuration needed
