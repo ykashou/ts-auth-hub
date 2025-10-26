@@ -2,9 +2,10 @@
 import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, isNull, asc } from "drizzle-orm";
-import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
+import { randomBytes } from "crypto";
 import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
 import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID, AUTHHUB_SYSTEM_USER_ID } from "@shared/constants";
+import { encryptSecret } from "./crypto";
 
 export interface IStorage {
   // User operations
@@ -269,14 +270,8 @@ export class DatabaseStorage implements IStorage {
     const secret = `sk_${randomBytes(32).toString('hex')}`;
     const secretPreview = `${secret.substring(0, 10)}...${secret.substring(secret.length - 4)}`;
     
-    // Encrypt secret (AES-256-GCM)
-    const encryptionKey = process.env.SECRET_ENCRYPTION_KEY || 'default-key-change-in-production-32b';
-    const iv = randomBytes(16);
-    const cipher = createCipheriv('aes-256-gcm', Buffer.from(encryptionKey.padEnd(32, '0').slice(0, 32)), iv);
-    let encrypted = cipher.update(secret, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag();
-    const encryptedSecret = `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+    // Encrypt secret using centralized crypto function
+    const encryptedSecret = encryptSecret(secret);
 
     // Create AuthHub service
     await db.insert(services).values({
