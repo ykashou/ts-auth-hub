@@ -81,9 +81,22 @@ interface LoginConfigResponse {
   methods: AuthMethod[];
 }
 
-// Live Preview Component that renders the actual login page
-function LoginPagePreview({ configId, refreshTrigger }: { configId: string | null; refreshTrigger: number }) {
+// Live Preview Component that renders the actual login page with inline editing
+function LoginPagePreview({ 
+  configId, 
+  refreshTrigger, 
+  formData, 
+  setFormData,
+  onLogoUpload 
+}: { 
+  configId: string | null; 
+  refreshTrigger: number;
+  formData: any;
+  setFormData: (data: any) => void;
+  onLogoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
   const serviceIdParam = "550e8400-e29b-41d4-a716-446655440000"; // AuthHub service ID
+  const logoInputRef = useRef<HTMLInputElement>(null);
   
   const { data: loginConfigData, isLoading, isError } = useQuery<LoginConfigResponse>({
     queryKey: ["/api/login-config", serviceIdParam, refreshTrigger],
@@ -131,22 +144,71 @@ function LoginPagePreview({ configId, refreshTrigger }: { configId: string | nul
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md" data-testid="preview-card">
+      <Card className="w-full max-w-md relative" data-testid="preview-card">
         <CardHeader className="text-center space-y-2">
-          {config.logoUrl ? (
-            <img
-              src={config.logoUrl}
-              alt="Logo"
-              className="mx-auto w-12 h-12 object-contain rounded-lg"
-              data-testid="preview-logo"
+          {/* Editable Logo */}
+          <div className="relative group mx-auto w-12 h-12">
+            {formData.logoUrl ? (
+              <img
+                src={formData.logoUrl}
+                alt="Logo"
+                className="w-12 h-12 object-contain rounded-lg"
+                data-testid="preview-logo"
+              />
+            ) : (
+              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center" data-testid="preview-logo-default">
+                <Shield className="w-6 h-6 text-primary-foreground" />
+              </div>
+            )}
+            <Button
+              size="icon"
+              variant="secondary"
+              className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+              onClick={() => logoInputRef.current?.click()}
+              data-testid="button-edit-logo"
+            >
+              <Upload className="h-3 w-3" />
+            </Button>
+            {formData.logoUrl && (
+              <Button
+                size="icon"
+                variant="destructive"
+                className="absolute -bottom-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                onClick={() => setFormData((prev: any) => ({ ...prev, logoUrl: null }))}
+                data-testid="button-remove-logo-preview"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onLogoUpload}
             />
-          ) : (
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mx-auto" data-testid="preview-logo-default">
-              <Shield className="w-6 h-6 text-primary-foreground" />
-            </div>
-          )}
-          <CardTitle className="text-2xl font-semibold" data-testid="preview-title">{config.title}</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground" data-testid="preview-description">{config.description}</CardDescription>
+          </div>
+
+          {/* Editable Title */}
+          <div className="relative group">
+            <Input
+              value={formData.title}
+              onChange={(e) => setFormData((prev: any) => ({ ...prev, title: e.target.value }))}
+              className="text-2xl font-semibold text-center border-transparent hover:border-input focus:border-input transition-colors bg-transparent"
+              data-testid="preview-title"
+            />
+          </div>
+
+          {/* Editable Description */}
+          <div className="relative group">
+            <Textarea
+              value={formData.description}
+              onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))}
+              className="text-sm text-center border-transparent hover:border-input focus:border-input transition-colors bg-transparent resize-none text-muted-foreground min-h-[40px]"
+              rows={2}
+              data-testid="preview-description"
+            />
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -307,10 +369,8 @@ export default function LoginEditor() {
   const [location, setLocation] = useLocation();
   const userRole = getUserRole();
   const { toast } = useToast();
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -336,15 +396,9 @@ export default function LoginEditor() {
     }
   }, [userRole, toast, setLocation]);
 
-  // Fetch services for selection
-  const { data: services } = useQuery<GlobalService[]>({
-    queryKey: ["/api/services"],
-    enabled: userRole === 'admin',
-  });
-
   // Fetch login configuration
   const { data: loginConfigData, isLoading, refetch } = useQuery<LoginConfigResponse>({
-    queryKey: selectedServiceId ? ["/api/admin/login-config", selectedServiceId] : ["/api/admin/login-configs"],
+    queryKey: ["/api/admin/login-configs"],
     enabled: userRole === 'admin',
   });
 
@@ -513,29 +567,6 @@ export default function LoginEditor() {
               </div>
             </div>
 
-            {/* Service Selector */}
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Service</Label>
-              <Select value={selectedServiceId || "default"} onValueChange={(v) => setSelectedServiceId(v === "default" ? null : v)}>
-                <SelectTrigger data-testid="select-service">
-                  <SelectValue placeholder="Select service" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      Default Configuration
-                    </div>
-                  </SelectItem>
-                  {services?.map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {service.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Action Buttons */}
             <div className="flex gap-2 mt-4">
               <Button
@@ -562,114 +593,17 @@ export default function LoginEditor() {
 
           {/* Editor Tabs */}
           <ScrollArea className="flex-1">
-            <Tabs defaultValue="branding" className="w-full">
-              <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-                <TabsTrigger value="branding" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary" data-testid="tab-branding">
-                  <Palette className="h-4 w-4 mr-2" />
-                  Branding
-                </TabsTrigger>
-                <TabsTrigger value="methods" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary" data-testid="tab-methods">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Methods
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="branding" className="p-4 space-y-6">
-                {/* Logo */}
-                <div className="space-y-2">
-                  <Label>Logo</Label>
-                  <div className="flex items-center gap-4">
-                    {formData.logoUrl ? (
-                      <img
-                        src={formData.logoUrl}
-                        alt="Logo"
-                        className="w-16 h-16 object-contain rounded-lg border cursor-pointer hover:opacity-80"
-                        onClick={() => fileInputRef.current?.click()}
-                        data-testid="image-logo"
-                      />
-                    ) : (
-                      <div
-                        className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center cursor-pointer hover:opacity-80"
-                        onClick={() => fileInputRef.current?.click()}
-                        data-testid="div-logo-default"
-                      >
-                        <Shield className="w-8 h-8 text-primary-foreground" />
-                      </div>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      data-testid="button-upload-logo"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload
-                    </Button>
-                    {formData.logoUrl && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setFormData(prev => ({ ...prev, logoUrl: null }))}
-                        data-testid="button-remove-logo"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                      data-testid="input-logo-file"
-                    />
+            <div className="w-full">
+              <div className="border-b bg-transparent p-0">
+                <div className="px-4 py-2 border-b-2 border-primary">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    <span className="font-medium">Authentication Methods</span>
                   </div>
                 </div>
+              </div>
 
-                {/* Title */}
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <Input
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Welcome to AuthHub"
-                    data-testid="input-title"
-                  />
-                </div>
-
-                {/* Description */}
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Choose your preferred authentication method"
-                    rows={3}
-                    data-testid="input-description"
-                  />
-                </div>
-
-                {/* Default Method */}
-                <div className="space-y-2">
-                  <Label>Default Method</Label>
-                  <Select value={formData.defaultMethod} onValueChange={(v) => setFormData(prev => ({ ...prev, defaultMethod: v }))}>
-                    <SelectTrigger data-testid="select-default-method">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {methodsState.filter(m => m.enabled && (m.authMethodId === "email" || m.authMethodId === "uuid")).map(method => (
-                        <SelectItem key={method.authMethodId} value={method.authMethodId}>
-                          {method.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="methods" className="p-4 space-y-4">
+              <div className="p-4 space-y-4">
                 <div className="space-y-2">
                   <Label>Authentication Methods</Label>
                   <p className="text-xs text-muted-foreground">
@@ -702,8 +636,8 @@ export default function LoginEditor() {
                     </div>
                   </SortableContext>
                 </DndContext>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </ScrollArea>
         </div>
 
@@ -714,7 +648,13 @@ export default function LoginEditor() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <LoginPagePreview configId={config?.id || null} refreshTrigger={refreshTrigger} />
+            <LoginPagePreview 
+              configId={config?.id || null} 
+              refreshTrigger={refreshTrigger}
+              formData={formData}
+              setFormData={setFormData}
+              onLogoUpload={handleLogoUpload}
+            />
           )}
         </div>
       </div>
