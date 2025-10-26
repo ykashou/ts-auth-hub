@@ -738,9 +738,24 @@ export default function LoginEditor() {
   };
 
   const changeMethodCategory = (methodId: string, category: string) => {
-    setMethodsState(prev =>
-      prev.map(m => m.id === methodId ? { ...m, methodCategory: category } : m)
-    );
+    setMethodsState(prev => {
+      // If setting to primary or secondary, demote any existing method with that category
+      if (category === "primary" || category === "secondary") {
+        return prev.map(m => {
+          if (m.id === methodId) {
+            return { ...m, methodCategory: category };
+          }
+          // Demote existing primary/secondary to alternative if we're setting a new one
+          if (m.methodCategory === category) {
+            return { ...m, methodCategory: "alternative" };
+          }
+          return m;
+        });
+      }
+      
+      // For alternative, just set it directly
+      return prev.map(m => m.id === methodId ? { ...m, methodCategory: category } : m);
+    });
   };
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
