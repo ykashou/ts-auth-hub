@@ -171,7 +171,8 @@ function LoginPagePreview({
   // Use methodsState from parent instead of fetched methods for real-time updates
   const enabledMethods = methodsState.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
   const primaryMethods = enabledMethods.filter(m => m.methodCategory === "primary" || m.methodCategory === "secondary");
-  const alternativeMethods = enabledMethods.filter(m => m.methodCategory === "alternative");
+  // Alternative methods are anything that's NOT primary or secondary
+  const alternativeMethods = enabledMethods.filter(m => m.methodCategory !== "primary" && m.methodCategory !== "secondary");
   const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
 
   return (
