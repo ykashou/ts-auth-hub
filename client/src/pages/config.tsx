@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertServiceSchema, type Service, type InsertService, type RbacModel } from "@shared/schema";
+import { insertServiceSchema, type Service, type InsertService, type RbacModel, type LoginPageConfig } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,29 @@ function ServiceRbacBadge({ serviceId }: { serviceId: string }) {
     <Badge variant="secondary" className="gap-1" data-testid={`badge-rbac-${serviceId}`}>
       <Shield className="w-3 h-3" />
       {rbacModel.name}
+    </Badge>
+  );
+}
+
+// Component to display login config badge for a service
+function ServiceLoginConfigBadge({ serviceId }: { serviceId: string }) {
+  const { data: configs = [], isLoading } = useQuery<LoginPageConfig[]>({
+    queryKey: ["/api/admin/login-configs"],
+  });
+
+  if (isLoading) {
+    return <span className="text-xs text-muted-foreground">Loading...</span>;
+  }
+
+  const assignedConfig = configs.find(config => config.serviceId === serviceId);
+
+  if (!assignedConfig) {
+    return <span className="text-xs text-muted-foreground">None</span>;
+  }
+
+  return (
+    <Badge variant="outline" className="gap-1" data-testid={`badge-login-config-${serviceId}`}>
+      {assignedConfig.title}
     </Badge>
   );
 }
@@ -594,6 +617,7 @@ export default function Config() {
                       <TableHead className="font-semibold">Description</TableHead>
                       <TableHead className="font-semibold">URL</TableHead>
                       <TableHead className="font-semibold">RBAC Model</TableHead>
+                      <TableHead className="font-semibold">Login Config</TableHead>
                       <TableHead className="font-semibold">Secret</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
@@ -632,6 +656,9 @@ export default function Config() {
                           </TableCell>
                           <TableCell>
                             <ServiceRbacBadge serviceId={service.id} />
+                          </TableCell>
+                          <TableCell>
+                            <ServiceLoginConfigBadge serviceId={service.id} />
                           </TableCell>
                           <TableCell>
                             {service.secretPreview ? (
