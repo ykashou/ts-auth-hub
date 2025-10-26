@@ -34,6 +34,7 @@ export default function Navbar() {
   const serviceManagementItems = [
     { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
     { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
+    { path: "/admin/login-configs", label: "Login Configurations", icon: Layout, testId: "button-login-configs" },
     { path: "/admin/login-editor", label: "Login Editor", icon: Layout, testId: "button-login-editor" },
   ];
 
