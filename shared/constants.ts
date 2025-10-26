@@ -1,8 +1,13 @@
 // AuthHub Application Service Constants
 // The AuthHub application itself is represented as a service
 
-export const AUTHHUB_SERVICE_ID = "00000000-0000-0000-0000-000000000001";
-export const AUTHHUB_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+// Proper UUID4 for AuthHub service (fixed constant, not auto-generated)
+// This UUID is used as a known reference point for the system's own authentication service
+export const AUTHHUB_SERVICE_ID = "550e8400-e29b-41d4-a716-446655440000";
+
+// System user UUID that owns the AuthHub service
+// Auto-generated UUID format for system operations
+export const AUTHHUB_SYSTEM_USER_ID = "550e8400-e29b-41d4-a716-446655440001";
 
 export const AUTHHUB_SERVICE = {
   id: AUTHHUB_SERVICE_ID,

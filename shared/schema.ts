@@ -37,6 +37,7 @@ export const services = pgTable("services", {
   color: text("color"),
   secret: text("secret"), // AES-256-GCM encrypted secret for JWT signing (encrypted at application layer)
   secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
+  isSystem: boolean("is_system").notNull().default(false), // System services cannot be deleted
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -135,6 +136,7 @@ export const insertServiceSchema = createInsertSchema(services).omit({
   createdAt: true,
   secret: true, // Secret is auto-generated, not provided by user
   secretPreview: true, // Preview is auto-generated from secret
+  isSystem: true, // System flag is controlled by application, not user
 }).extend({
   name: z.string().min(1, "Service name is required"),
   description: z.string().min(1, "Description is required"),
