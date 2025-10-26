@@ -453,7 +453,7 @@ function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
         {...listeners}
         className="absolute inset-0 cursor-grab active:cursor-grabbing flex items-center justify-start pl-2 opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        <GripVertical className="h-4 w-4 text-primary" />
+        <GripVertical className="h-4 w-4 mr-1 text-primary" />
       </div>
     </div>
   );
