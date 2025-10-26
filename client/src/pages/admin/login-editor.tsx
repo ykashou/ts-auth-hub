@@ -176,10 +176,11 @@ function LoginPagePreview({
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md relative" data-testid="preview-card">
-        <CardHeader className="text-center space-y-2">
+      <Card className="w-full max-w-md shadow-sm relative" data-testid="preview-card">
+        <CardHeader className="space-y-2 text-center">
           {/* Editable Logo */}
-          <div className="relative group mx-auto w-12 h-12">
+          <div className="flex justify-center mb-2">
+            <div className="relative group w-12 h-12">
             {formData.logoUrl ? (
               <img
                 src={formData.logoUrl}
@@ -192,33 +193,34 @@ function LoginPagePreview({
                 <Shield className="w-6 h-6 text-primary-foreground" />
               </div>
             )}
-            <Button
-              size="icon"
-              variant="secondary"
-              className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-              onClick={() => logoInputRef.current?.click()}
-              data-testid="button-edit-logo"
-            >
-              <Upload className="h-3 w-3" />
-            </Button>
-            {formData.logoUrl && (
               <Button
                 size="icon"
-                variant="destructive"
-                className="absolute -bottom-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                onClick={() => setFormData((prev: any) => ({ ...prev, logoUrl: null }))}
-                data-testid="button-remove-logo-preview"
+                variant="secondary"
+                className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                onClick={() => logoInputRef.current?.click()}
+                data-testid="button-edit-logo"
               >
-                <X className="h-3 w-3" />
+                <Upload className="h-3 w-3" />
               </Button>
-            )}
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={onLogoUpload}
-            />
+              {formData.logoUrl && (
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  className="absolute -bottom-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  onClick={() => setFormData((prev: any) => ({ ...prev, logoUrl: null }))}
+                  data-testid="button-remove-logo-preview"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onLogoUpload}
+              />
+            </div>
           </div>
 
           {/* Editable Title */}
@@ -226,7 +228,7 @@ function LoginPagePreview({
             <Input
               value={formData.title}
               onChange={(e) => setFormData((prev: any) => ({ ...prev, title: e.target.value }))}
-              className="text-2xl font-semibold text-center border-transparent hover:border-input focus:border-input transition-colors bg-transparent"
+              className="text-2xl font-semibold text-center border-transparent hover:border-input focus:border-input transition-colors bg-transparent p-0 h-auto"
               data-testid="preview-title"
             />
           </div>
@@ -236,7 +238,7 @@ function LoginPagePreview({
             <Textarea
               value={formData.description}
               onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))}
-              className="text-sm text-center border-transparent hover:border-input focus:border-input transition-colors bg-transparent resize-none text-muted-foreground min-h-[40px]"
+              className="text-sm text-center border-transparent hover:border-input focus:border-input transition-colors bg-transparent resize-none text-muted-foreground min-h-[40px] p-0"
               rows={2}
               data-testid="preview-description"
             />
