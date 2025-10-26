@@ -32,10 +32,9 @@ export default function Navbar() {
   ];
 
   const serviceManagementItems = [
-    { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
-    { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
-    { path: "/admin/login-configs", label: "Login Configurations", icon: Layout, testId: "button-login-configs" },
-    { path: "/admin/login-editor", label: "Login Editor", icon: Layout, testId: "button-login-editor" },
+    { path: "/services", label: "Service List", icon: Boxes, testId: "button-services" },
+    { path: "/config", label: "Service Configurations", icon: Settings2, testId: "button-config" },
+    { path: "/admin/login-configs", label: "Authentication Variants", icon: Layout, testId: "button-login-configs" },
   ];
 
   const documentationItems = [
