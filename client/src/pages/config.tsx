@@ -161,7 +161,7 @@ export default function Config() {
       
       // Invalidate the specific service's RBAC model badge query
       queryClient.invalidateQueries({ 
-        queryKey: ["/api/services", data.id, "rbac-model"],
+        queryKey: ["/api/services", id, "rbac-model"],
         refetchType: 'active'
       });
       
