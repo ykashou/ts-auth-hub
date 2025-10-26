@@ -1,7 +1,7 @@
 // Database storage implementation following javascript_database blueprint
 import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray, isNull, asc } from "drizzle-orm";
+import { eq, and, inArray, isNull, asc, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
 import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID, AUTHHUB_SYSTEM_USER_ID } from "@shared/constants";
@@ -1194,8 +1194,47 @@ export class DatabaseStorage implements IStorage {
     return config || undefined;
   }
 
-  async getAllLoginPageConfigs(): Promise<LoginPageConfig[]> {
-    return await db.select().from(loginPageConfig);
+  async getAllLoginPageConfigs(): Promise<any[]> {
+    // Fetch all configs with service information and method counts
+    const configs = await db
+      .select({
+        id: loginPageConfig.id,
+        serviceId: loginPageConfig.serviceId,
+        title: loginPageConfig.title,
+        description: loginPageConfig.description,
+        logoUrl: loginPageConfig.logoUrl,
+        primaryColor: loginPageConfig.primaryColor,
+        defaultMethod: loginPageConfig.defaultMethod,
+        createdAt: loginPageConfig.createdAt,
+        updatedAt: loginPageConfig.updatedAt,
+        serviceName: services.name,
+        serviceIcon: services.icon,
+        serviceColor: services.color,
+      })
+      .from(loginPageConfig)
+      .leftJoin(services, eq(loginPageConfig.serviceId, services.id));
+
+    // For each config, count the enabled methods
+    const configsWithCounts = await Promise.all(
+      configs.map(async (config) => {
+        const [result] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(serviceAuthMethods)
+          .where(
+            and(
+              eq(serviceAuthMethods.loginConfigId, config.id),
+              eq(serviceAuthMethods.enabled, true)
+            )
+          );
+        
+        return {
+          ...config,
+          enabledMethodsCount: result?.count || 0,
+        };
+      })
+    );
+
+    return configsWithCounts;
   }
 
   async createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig> {
