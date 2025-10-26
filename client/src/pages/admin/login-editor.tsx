@@ -87,16 +87,40 @@ function LoginPagePreview({
   refreshTrigger, 
   formData, 
   setFormData,
-  onLogoUpload 
+  onLogoUpload,
+  methodsState,
+  setMethodsState
 }: { 
   configId: string | null; 
   refreshTrigger: number;
   formData: any;
   setFormData: (data: any) => void;
   onLogoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  methodsState: AuthMethod[];
+  setMethodsState: (methods: AuthMethod[] | ((prev: AuthMethod[]) => AuthMethod[])) => void;
 }) {
   const serviceIdParam = "550e8400-e29b-41d4-a716-446655440000"; // AuthHub service ID
   const logoInputRef = useRef<HTMLInputElement>(null);
+  
+  // Drag and drop sensors for method reordering
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleMethodDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setMethodsState((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
   
   const { data: loginConfigData, isLoading, isError } = useQuery<LoginConfigResponse>({
     queryKey: ["/api/login-config", serviceIdParam, refreshTrigger],
@@ -136,11 +160,12 @@ function LoginPagePreview({
     );
   }
 
-  const { config, methods } = loginConfigData;
-  const enabledMethods = methods.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
+  const { config } = loginConfigData;
+  // Use methodsState from parent instead of fetched methods for real-time updates
+  const enabledMethods = methodsState.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
   const primaryMethods = enabledMethods.filter(m => m.authMethodId === "email" || m.authMethodId === "uuid");
   const alternativeMethods = enabledMethods.filter(m => m.authMethodId !== "email" && m.authMethodId !== "uuid");
-  const defaultMethod = config.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
+  const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -212,32 +237,34 @@ function LoginPagePreview({
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Primary Method Tabs */}
+          {/* Primary Method Tabs - Draggable */}
           {primaryMethods.length > 1 && (
-            <>
-              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }}>
-                {primaryMethods.map((method) => {
-                  const Icon = getIcon(method.icon);
-                  return (
-                    <Button
-                      key={method.authMethodId}
-                      type="button"
-                      variant={defaultMethod === method.authMethodId ? "default" : "outline"}
-                      className="w-full pointer-events-none"
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {method.name}
-                    </Button>
-                  );
-                })}
-              </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleMethodDragEnd}
+            >
+              <SortableContext
+                items={primaryMethods.map(m => m.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${primaryMethods.length}, 1fr)` }}>
+                  {primaryMethods.map((method) => (
+                    <SortableMethodButton
+                      key={method.id}
+                      method={method}
+                      isDefault={defaultMethod === method.authMethodId}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
               {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText && (
                 <p className="text-xs text-center text-muted-foreground">
                   {primaryMethods.find(m => m.authMethodId === defaultMethod)?.helpText ||
                    primaryMethods.find(m => m.authMethodId === defaultMethod)?.defaultHelpText}
                 </p>
               )}
-            </>
+            </DndContext>
           )}
 
           <Separator />
@@ -286,27 +313,25 @@ function LoginPagePreview({
               <Separator className="my-4" />
               <div className="space-y-3">
                 <p className="text-xs text-center text-muted-foreground">OR AUTHENTICATE WITH</p>
-                <div className="grid grid-cols-1 gap-2">
-                  {alternativeMethods.map((method) => {
-                    const Icon = getIcon(method.icon);
-                    return (
-                      <Button
-                        key={method.authMethodId}
-                        type="button"
-                        variant={method.buttonVariant as any || method.defaultButtonVariant as any}
-                        className="w-full justify-start relative pointer-events-none"
-                      >
-                        <Icon className="w-4 h-4 mr-2" />
-                        {method.buttonText || method.defaultButtonText}
-                        {method.showComingSoonBadge && (
-                          <Badge variant="secondary" className="absolute right-2 text-xs">
-                            Coming Soon
-                          </Badge>
-                        )}
-                      </Button>
-                    );
-                  })}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleMethodDragEnd}
+                >
+                  <SortableContext
+                    items={alternativeMethods.map(m => m.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 gap-2">
+                      {alternativeMethods.map((method) => (
+                        <SortableAltMethodButton
+                          key={method.id}
+                          method={method}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </>
           )}
@@ -316,13 +341,13 @@ function LoginPagePreview({
   );
 }
 
-interface SortableMethodItemProps {
+// Sortable Method Button for the Preview
+interface SortableMethodButtonProps {
   method: AuthMethod;
-  onToggle: () => void;
-  onUpdate: (updates: Partial<AuthMethod>) => void;
+  isDefault: boolean;
 }
 
-function SortableMethodItem({ method, onToggle, onUpdate }: SortableMethodItemProps) {
+function SortableMethodButton({ method, isDefault }: SortableMethodButtonProps) {
   const {
     attributes,
     listeners,
@@ -335,7 +360,8 @@ function SortableMethodItem({ method, onToggle, onUpdate }: SortableMethodItemPr
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.6 : 1,
+    cursor: 'grab',
   };
 
   const getIcon = (iconName: string): LucideIcon => {
@@ -346,15 +372,87 @@ function SortableMethodItem({ method, onToggle, onUpdate }: SortableMethodItemPr
   const Icon = getIcon(method.icon);
 
   return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Button
+        type="button"
+        variant={isDefault ? "default" : "outline"}
+        className="w-full active:cursor-grabbing"
+        data-testid={`preview-method-${method.authMethodId}`}
+      >
+        <Icon className="w-4 h-4 mr-2" />
+        {method.name}
+      </Button>
+    </div>
+  );
+}
+
+// Sortable Alternative Method Button
+interface SortableAltMethodButtonProps {
+  method: AuthMethod;
+}
+
+function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: method.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    cursor: 'grab',
+  };
+
+  const getIcon = (iconName: string): LucideIcon => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent || Shield;
+  };
+
+  const Icon = getIcon(method.icon);
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Button
+        type="button"
+        variant={method.buttonVariant as any || method.defaultButtonVariant as any}
+        className="w-full justify-start relative active:cursor-grabbing"
+        data-testid={`preview-alt-method-${method.authMethodId}`}
+      >
+        <Icon className="w-4 h-4 mr-2" />
+        {method.buttonText || method.defaultButtonText}
+        {method.showComingSoonBadge && (
+          <Badge variant="secondary" className="absolute right-2 text-xs pointer-events-none">
+            Coming Soon
+          </Badge>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+interface MethodToggleItemProps {
+  method: AuthMethod;
+  onToggle: () => void;
+}
+
+function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
+  const getIcon = (iconName: string): LucideIcon => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent || Shield;
+  };
+
+  const Icon = getIcon(method.icon);
+
+  return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 p-3 bg-card border rounded-md"
+      className="flex items-center gap-3 p-3 bg-card border rounded-md"
       data-testid={`method-item-${method.authMethodId}`}
     >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </div>
       <Icon className="h-4 w-4 text-muted-foreground" />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{method.name}</p>
@@ -605,37 +703,21 @@ export default function LoginEditor() {
 
               <div className="p-4 space-y-4">
                 <div className="space-y-2">
-                  <Label>Authentication Methods</Label>
+                  <Label>Enable/Disable Methods</Label>
                   <p className="text-xs text-muted-foreground">
-                    Drag to reorder, toggle to enable/disable methods
+                    Toggle methods on/off. Drag to reorder in the preview.
                   </p>
                 </div>
 
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={methodsState.map(m => m.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2">
-                      {methodsState.map((method) => (
-                        <SortableMethodItem
-                          key={method.id}
-                          method={method}
-                          onToggle={() => toggleMethod(method.id)}
-                          onUpdate={(updates) => {
-                            setMethodsState(prev =>
-                              prev.map(m => m.id === method.id ? { ...m, ...updates } : m)
-                            );
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                <div className="space-y-2">
+                  {methodsState.map((method) => (
+                    <MethodToggleItem
+                      key={method.id}
+                      method={method}
+                      onToggle={() => toggleMethod(method.id)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </ScrollArea>
@@ -654,6 +736,8 @@ export default function LoginEditor() {
               formData={formData}
               setFormData={setFormData}
               onLogoUpload={handleLogoUpload}
+              methodsState={methodsState}
+              setMethodsState={setMethodsState}
             />
           )}
         </div>
