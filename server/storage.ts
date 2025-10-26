@@ -1,7 +1,7 @@
 // Database storage implementation following javascript_database blueprint
 import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray, isNull, asc, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, asc } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
 
@@ -91,11 +91,9 @@ export interface IStorage {
 
   // Login Page Configuration operations
   syncAuthMethodsFromRegistry(): Promise<void>;
-  seedDefaultLoginPageConfig(): Promise<LoginPageConfig>;
   seedLoginPageConfigForService(serviceId: string): Promise<LoginPageConfig>;
   getEnabledServiceAuthMethods(loginConfigId: string): Promise<any[]>;
   getServiceAuthMethods(loginConfigId: string): Promise<any[]>;
-  getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined>;
   getLoginPageConfigByServiceId(serviceId: string): Promise<LoginPageConfig | undefined>;
   getLoginPageConfigById(id: string): Promise<LoginPageConfig | undefined>;
   getAllLoginPageConfigs(): Promise<LoginPageConfig[]>;
@@ -1009,50 +1007,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Seeds default login page configuration for AuthHub itself (serviceId is null)
-   * This is used when users login to AuthHub dashboard (not OAuth redirect flow)
-   */
-  async seedDefaultLoginPageConfig(): Promise<LoginPageConfig> {
-    // First, sync auth methods from strategy registry
-    await this.syncAuthMethodsFromRegistry();
-    
-    // Check if default config already exists
-    const existing = await this.getDefaultLoginPageConfig();
-    if (existing) {
-      return existing;
-    }
-    
-    // Create default login page configuration (no serviceId)
-    const implementedMethods = strategyRegistry.getImplementedIds();
-    
-    const [config] = await db.insert(loginPageConfig).values({
-      serviceId: null, // null means this is for AuthHub itself
-      title: "AuthHub",
-      description: "Centralized Authentication System",
-      defaultMethod: implementedMethods[0] || "uuid",
-    }).returning();
-    
-    console.log(`[Storage] Created default login config for AuthHub`);
-    
-    // Seed service auth methods for this config
-    const allAuthMethods = await db.select().from(authMethods);
-    const serviceAuthMethodsData = allAuthMethods.map((method, index) => ({
-      loginConfigId: config.id,
-      authMethodId: method.id,
-      enabled: true,
-      showComingSoonBadge: !method.implemented,
-      displayOrder: index,
-    }));
-    
-    if (serviceAuthMethodsData.length > 0) {
-      await db.insert(serviceAuthMethods).values(serviceAuthMethodsData);
-      console.log(`[Storage] Created ${serviceAuthMethodsData.length} service auth methods for default config`);
-    }
-    
-    return config;
-  }
-
-  /**
    * Seeds login page configuration for a specific service
    * Creates default configuration with all auth methods enabled
    */
@@ -1167,15 +1121,6 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(serviceAuthMethods.displayOrder));
       
     return results;
-  }
-
-  async getDefaultLoginPageConfig(): Promise<LoginPageConfig | undefined> {
-    const [config] = await db
-      .select()
-      .from(loginPageConfig)
-      .where(sql`${loginPageConfig.serviceId} IS NULL`)
-      .limit(1);
-    return config || undefined;
   }
 
   async getLoginPageConfigByServiceId(serviceId: string): Promise<LoginPageConfig | undefined> {

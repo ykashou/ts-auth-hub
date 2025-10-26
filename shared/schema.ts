@@ -226,12 +226,11 @@ export const authMethods = pgTable("auth_methods", {
 
 // Login Page Configuration table
 // Each service has its own login page configuration
-// NULL serviceId = default AuthHub login config (for dashboard access)
 export const loginPageConfig = pgTable("login_page_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
-  // Service Association - OPTIONAL (NULL = default AuthHub config, non-null = service-specific)
-  serviceId: varchar("service_id").references(() => services.id, { onDelete: "cascade" }).unique(),
+  // Service Association - REQUIRED (each configuration belongs to a service)
+  serviceId: varchar("service_id").notNull().references(() => services.id, { onDelete: "cascade" }).unique(),
   
   // Branding
   title: varchar("title").notNull().default("Welcome to AuthHub"),

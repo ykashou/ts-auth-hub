@@ -90,15 +90,12 @@ export default function LoginPage() {
   }, []);
 
   // Fetch login configuration
-  // - With serviceId: Get service-specific config (OAuth redirect flow)
-  // - Without serviceId: Get default AuthHub login config (dashboard access)
   const { data: loginConfigData, isLoading: isLoadingConfig, isError, error } = useQuery<LoginConfigResponse>({
     queryKey: serviceId ? ["/api/login-config", serviceId] : ["/api/login-config"],
-    queryFn: () => {
-      const url = serviceId ? `/api/login-config?serviceId=${serviceId}` : '/api/login-config';
-      return fetch(url).then(res => res.json());
-    },
-    enabled: true,
+    queryFn: serviceId 
+      ? () => fetch(`/api/login-config?serviceId=${serviceId}`).then(res => res.json())
+      : undefined,
+    enabled: !!serviceId,
   });
 
   // Helper to get icon component from icon name
@@ -298,6 +295,31 @@ export default function LoginPage() {
   const onUuidLogin = async (data: UuidLoginForm) => {
     uuidLoginMutation.mutate(data);
   };
+
+  // Show error if serviceId is missing
+  if (!serviceId) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-sm">
+          <CardHeader className="space-y-2 text-center">
+            <Shield className="w-12 h-12 mx-auto text-primary" />
+            <CardTitle className="text-2xl font-semibold">Service ID Required</CardTitle>
+            <CardDescription className="text-sm text-muted-foreground">
+              This login page requires a valid service ID. Please access this page from your application's login flow.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground text-center">
+              <p className="mb-2">Expected URL format:</p>
+              <code className="bg-muted px-2 py-1 rounded text-xs">
+                /login?service_id=YOUR_SERVICE_ID
+              </code>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Show loading state while fetching configuration
   if (isLoadingConfig) {
