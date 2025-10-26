@@ -177,7 +177,9 @@ export default function LoginPage() {
     mutationFn: async (data: EmailLoginForm) => {
       const response = await apiRequest("POST", "/api/auth/login", {
         ...data,
-        serviceId: serviceId || undefined,
+        // Only pass serviceId for OAuth redirect flows (when redirectUri exists)
+        // For internal AuthHub login, don't pass serviceId to use JWT_SECRET instead of service secret
+        serviceId: redirectUri ? serviceId : undefined,
       });
       return response;
     },
@@ -208,7 +210,8 @@ export default function LoginPage() {
     mutationFn: async (data: UuidLoginForm) => {
       const response = await apiRequest("POST", "/api/auth/uuid-login", { 
         uuid: data.accountId || undefined,
-        serviceId: serviceId || undefined,
+        // Only pass serviceId for OAuth redirect flows (when redirectUri exists)
+        serviceId: redirectUri ? serviceId : undefined,
       });
       return response;
     },
@@ -250,7 +253,8 @@ export default function LoginPage() {
     mutationFn: async () => {
       // Call without UUID to auto-generate
       const response = await apiRequest("POST", "/api/auth/uuid-login", {
-        serviceId: serviceId || undefined,
+        // Only pass serviceId for OAuth redirect flows (when redirectUri exists)
+        serviceId: redirectUri ? serviceId : undefined,
       });
       return response;
     },
