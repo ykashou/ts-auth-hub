@@ -92,7 +92,7 @@ export default function LoginPage() {
 
   // Fetch login configuration
   const { data: loginConfigData, isLoading: isLoadingConfig, isError, error } = useQuery<LoginConfigResponse>({
-    queryKey: ["/api/login-config", serviceId],
+    queryKey: [`/api/login-config?serviceId=${serviceId}`],
     enabled: !!serviceId,
   });
 

@@ -8,9 +8,7 @@ export const AUTHHUB_SERVICE = {
   id: AUTHHUB_SERVICE_ID,
   name: "AuthHub",
   description: "Centralized authentication and user management system",
-  url: process.env.REPLIT_DEV_DOMAIN 
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-    : "http://localhost:5000",
+  url: "http://localhost:5000",
   redirectUrl: null,
   icon: "Shield",
   color: "hsl(248, 100%, 28%)", // Arcane Blue
