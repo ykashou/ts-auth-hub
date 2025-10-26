@@ -1741,6 +1741,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Assign login config to service
+  app.post("/api/admin/login-config/:configId/assign-service", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { configId } = req.params;
+      const { serviceId } = req.body;
+      
+      // Validate configId exists
+      const config = await storage.getLoginPageConfigById(configId);
+      if (!config) {
+        return res.status(404).json({ error: "Login configuration not found" });
+      }
+      
+      // If assigning to a service (not null), check if service exists
+      if (serviceId) {
+        const service = await storage.getServiceById(serviceId);
+        if (!service) {
+          return res.status(404).json({ error: "Service not found" });
+        }
+        
+        // Check if another config is already assigned to this service
+        const existingConfig = await storage.getLoginConfigForService(serviceId);
+        if (existingConfig && existingConfig.id !== configId) {
+          // Unassign the existing config first
+          await storage.assignLoginConfigToService(existingConfig.id, null);
+        }
+      }
+      
+      // Assign the config to the service
+      const updated = await storage.assignLoginConfigToService(configId, serviceId);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Assign login config error:", error);
+      res.status(500).json({ error: "Failed to assign login configuration" });
+    }
+  });
+
   // Admin: Update service auth method (toggle enabled, change button text, etc.)
   app.patch("/api/admin/service-auth-method/:id", verifyToken, requireAdmin, async (req, res) => {
     try {

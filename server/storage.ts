@@ -106,6 +106,8 @@ export interface IStorage {
   createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig>;
   updateLoginPageConfig(id: string, data: Partial<LoginPageConfig>): Promise<LoginPageConfig>;
   deleteLoginPageConfig(id: string): Promise<void>;
+  assignLoginConfigToService(configId: string, serviceId: string | null): Promise<LoginPageConfig>;
+  getLoginConfigForService(serviceId: string): Promise<LoginPageConfig | undefined>;
   updateServiceAuthMethod(id: string, data: Partial<ServiceAuthMethod>): Promise<ServiceAuthMethod>;
   updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void>;
   getAllAuthMethods(): Promise<AuthMethod[]>;
@@ -1334,6 +1336,26 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(loginPageConfig)
       .where(eq(loginPageConfig.id, id));
+  }
+
+  async assignLoginConfigToService(configId: string, serviceId: string | null): Promise<LoginPageConfig> {
+    // First, clear any existing assignment for this config
+    // This ensures we don't have conflicts with the unique constraint
+    const [updated] = await db
+      .update(loginPageConfig)
+      .set({ serviceId: serviceId, updatedAt: new Date() })
+      .where(eq(loginPageConfig.id, configId))
+      .returning();
+    return updated;
+  }
+
+  async getLoginConfigForService(serviceId: string): Promise<LoginPageConfig | undefined> {
+    const [config] = await db
+      .select()
+      .from(loginPageConfig)
+      .where(eq(loginPageConfig.serviceId, serviceId))
+      .limit(1);
+    return config;
   }
 
   async getAllAuthMethods(): Promise<AuthMethod[]> {

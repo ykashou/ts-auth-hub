@@ -84,6 +84,8 @@ export default function Config() {
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
   const [selectedRbacModelId, setSelectedRbacModelId] = useState<string>("");
   const [previousRbacModelId, setPreviousRbacModelId] = useState<string>("");
+  const [selectedLoginConfigId, setSelectedLoginConfigId] = useState<string>("");
+  const [previousLoginConfigId, setPreviousLoginConfigId] = useState<string>("");
 
   // Check authentication and admin role
   useEffect(() => {
@@ -107,6 +109,11 @@ export default function Config() {
   // Fetch all RBAC models (admin endpoint)
   const { data: rbacModels = [] } = useQuery<RbacModel[]>({
     queryKey: ["/api/admin/rbac/models"],
+  });
+
+  // Fetch all login configs (admin endpoint)
+  const { data: loginConfigs = [] } = useQuery<LoginPageConfig[]>({
+    queryKey: ["/api/admin/login-configs"],
   });
 
   // Sort services alphabetically by name
@@ -164,14 +171,15 @@ export default function Config() {
       return await apiRequest("PATCH", `/api/services/${id}`, data);
     },
     onSuccess: async (_, { id }) => {
-      // Update RBAC model assignment if changed
+      // Update RBAC model assignment and login config if changed
       try {
         if (editingService) {
           await updateRbacModelAssignment(id);
+          await updateLoginConfigAssignment(id);
         }
-      } catch (rbacError) {
-        // RBAC assignment failed, but service update succeeded
-        console.error("[Config] RBAC assignment failed in onSuccess:", rbacError);
+      } catch (assignmentError) {
+        // Assignment failed, but service update succeeded
+        console.error("[Config] Assignment failed in onSuccess:", assignmentError);
         // Don't reset the form state so user can try again
         return;
       }
@@ -181,6 +189,9 @@ export default function Config() {
       
       // Invalidate RBAC model queries - both general list and specific model services
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models"] });
+      
+      // Invalidate login config queries
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-configs"] });
       
       // Invalidate the specific service's RBAC model badge query
       queryClient.invalidateQueries({ 
@@ -211,6 +222,8 @@ export default function Config() {
       setEditingService(null);
       setSelectedRbacModelId("");
       setPreviousRbacModelId("");
+      setSelectedLoginConfigId("");
+      setPreviousLoginConfigId("");
       form.reset();
     },
     onError: (error: any) => {
@@ -244,6 +257,34 @@ export default function Config() {
       toast({
         title: "RBAC model assignment failed",
         description: error.message || "Failed to update RBAC model assignment",
+        variant: "destructive",
+      });
+      throw error; // Re-throw to prevent success toast
+    }
+  };
+
+  // Helper function to update login config assignment
+  const updateLoginConfigAssignment = async (serviceId: string) => {
+    console.log("[Config] updateLoginConfigAssignment called with serviceId:", serviceId, "selectedLoginConfigId:", selectedLoginConfigId);
+    try {
+      if (selectedLoginConfigId) {
+        // Assign the selected login config to the service
+        console.log("[Config] Assigning login config:", selectedLoginConfigId, "to service:", serviceId);
+        const result = await apiRequest("POST", `/api/admin/login-config/${selectedLoginConfigId}/assign-service`, { serviceId });
+        console.log("[Config] Login config assignment result:", result);
+      } else if (previousLoginConfigId) {
+        // Unassign the previous login config
+        console.log("[Config] Removing login config from service:", serviceId);
+        await apiRequest("POST", `/api/admin/login-config/${previousLoginConfigId}/assign-service`, { serviceId: null });
+      } else {
+        console.log("[Config] No login config to assign or remove");
+      }
+    } catch (error: any) {
+      console.error("[Config] Failed to update login config assignment:", error);
+      // Show a toast for login config assignment failure
+      toast({
+        title: "Login config assignment failed",
+        description: error.message || "Failed to update login configuration assignment",
         variant: "destructive",
       });
       throw error; // Re-throw to prevent success toast
@@ -308,6 +349,12 @@ export default function Config() {
       setSelectedRbacModelId("");
       setPreviousRbacModelId("");
     }
+
+    // Fetch the login config for this service
+    const assignedConfig = loginConfigs.find(config => config.serviceId === service.id);
+    const configId = assignedConfig?.id || "";
+    setSelectedLoginConfigId(configId);
+    setPreviousLoginConfigId(configId); // Track the original config ID
   };
 
   const handleDelete = (id: string) => {
@@ -322,6 +369,8 @@ export default function Config() {
       setEditingService(null);
       setSelectedRbacModelId("");
       setPreviousRbacModelId("");
+      setSelectedLoginConfigId("");
+      setPreviousLoginConfigId("");
       form.reset();
     }
   };
@@ -561,6 +610,34 @@ export default function Config() {
                       </Select>
                       <p className="text-sm text-muted-foreground">
                         Assign an RBAC model to define roles and permissions for this service
+                      </p>
+                    </div>
+
+                    {/* Login Config Selector - shown for both create and edit */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Authentication Configuration (Optional)
+                      </label>
+                      <Select 
+                        value={selectedLoginConfigId || "none"} 
+                        onValueChange={(value) => setSelectedLoginConfigId(value === "none" ? "" : value)}
+                      >
+                        <SelectTrigger data-testid="select-login-config">
+                          <SelectValue placeholder="No authentication config assigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" data-testid="option-no-login-config">
+                            None
+                          </SelectItem>
+                          {loginConfigs.map((config) => (
+                            <SelectItem key={config.id} value={config.id} data-testid={`option-login-config-${config.id}`}>
+                              {config.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        Assign an authentication configuration to customize the login page for this service
                       </p>
                     </div>
 
