@@ -473,16 +473,16 @@ function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-3 p-3 bg-card border rounded-md"
+      className="flex items-center gap-2 p-2 bg-card border rounded-md"
       data-testid={`method-item-${method.authMethodId}`}
     >
       <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
-      <Icon className="h-4 w-4 text-muted-foreground" />
+      <Icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{method.name}</p>
-        <p className="text-xs text-muted-foreground truncate">{method.description}</p>
+        <p className="font-medium text-xs truncate leading-tight">{method.name}</p>
+        <p className="text-[10px] text-muted-foreground truncate leading-tight">{method.description}</p>
       </div>
       <Switch checked={method.enabled} onCheckedChange={onToggle} data-testid={`switch-${method.authMethodId}`} />
     </div>
@@ -687,19 +687,19 @@ export default function LoginEditor() {
         {/* Left Panel - Editor Controls */}
         <div className="w-96 border-r bg-muted/30 flex flex-col">
           {/* Header */}
-          <div className="p-4 border-b bg-card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Login Page Editor</h2>
-              <div className="flex items-center gap-2">
+          <div className="p-3 border-b bg-card">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-semibold">Login Page Editor</h2>
+              <div className="flex items-center gap-1.5">
                 {autoSaveStatus === "saving" && (
-                  <Badge variant="secondary" className="gap-1" data-testid="badge-saving">
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                  <Badge variant="secondary" className="gap-1 text-xs" data-testid="badge-saving">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
                     Saving...
                   </Badge>
                 )}
                 {autoSaveStatus === "saved" && (
-                  <Badge variant="default" className="gap-1" data-testid="badge-saved">
-                    <Check className="h-3 w-3" />
+                  <Badge variant="default" className="gap-1 text-xs" data-testid="badge-saved">
+                    <Check className="h-2.5 w-2.5" />
                     Saved
                   </Badge>
                 )}
@@ -707,7 +707,7 @@ export default function LoginEditor() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2 mt-4">
+            <div className="flex gap-2 mt-2">
               <Button
                 onClick={handleSave}
                 disabled={!isDirty || saveMutation.isPending}
@@ -715,7 +715,7 @@ export default function LoginEditor() {
                 className="flex-1"
                 data-testid="button-save"
               >
-                <Save className="h-4 w-4 mr-2" />
+                <Save className="h-3.5 w-3.5 mr-1.5" />
                 Save Changes
               </Button>
               <Button
@@ -725,7 +725,7 @@ export default function LoginEditor() {
                 size="sm"
                 data-testid="button-reset"
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -734,18 +734,18 @@ export default function LoginEditor() {
           <ScrollArea className="flex-1">
             <div className="w-full">
               <div className="border-b bg-transparent p-0">
-                <div className="px-4 py-2 border-b-2 border-primary">
-                  <div className="flex items-center gap-2">
-                    <Settings className="h-4 w-4" />
-                    <span className="font-medium">Authentication Methods</span>
+                <div className="px-3 py-1.5 border-b-2 border-primary">
+                  <div className="flex items-center gap-1.5">
+                    <Settings className="h-3.5 w-3.5" />
+                    <span className="font-medium text-sm">Authentication Methods</span>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <Label>Enable/Disable Methods</Label>
-                  <p className="text-xs text-muted-foreground">
+              <div className="p-3 space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Enable/Disable Methods</Label>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
                     Toggle methods on/off. Drag to reorder.
                   </p>
                 </div>
@@ -759,7 +759,7 @@ export default function LoginEditor() {
                     items={methodsState.map(m => m.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {methodsState.map((method) => (
                         <MethodToggleItem
                           key={method.id}
