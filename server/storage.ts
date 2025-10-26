@@ -1102,6 +1102,7 @@ export class DatabaseStorage implements IStorage {
       enabled: true,
       showComingSoonBadge: !method.implemented,
       displayOrder: index,
+      methodCategory: method.id === "uuid" ? "primary" : method.id === "email" ? "secondary" : "alternative",
     }));
     
     if (serviceAuthMethodsData.length > 0) {
@@ -1263,11 +1264,24 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void> {
+  async updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number; enabled?: boolean; methodCategory?: string }>): Promise<void> {
     for (const update of updates) {
+      const updateData: any = { 
+        displayOrder: update.displayOrder, 
+        updatedAt: new Date() 
+      };
+      
+      if (update.enabled !== undefined) {
+        updateData.enabled = update.enabled;
+      }
+      
+      if (update.methodCategory !== undefined) {
+        updateData.methodCategory = update.methodCategory;
+      }
+      
       await db
         .update(serviceAuthMethods)
-        .set({ displayOrder: update.displayOrder, updatedAt: new Date() })
+        .set(updateData)
         .where(eq(serviceAuthMethods.id, update.id));
     }
   }

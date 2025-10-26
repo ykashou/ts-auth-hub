@@ -62,6 +62,7 @@ interface AuthMethod {
   authMethodId: string;
   enabled: boolean;
   showComingSoonBadge: boolean;
+  methodCategory: string;
   buttonText: string | null;
   buttonVariant: string | null;
   helpText: string | null;
@@ -169,8 +170,8 @@ function LoginPagePreview({
   const { config } = loginConfigData;
   // Use methodsState from parent instead of fetched methods for real-time updates
   const enabledMethods = methodsState.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
-  const primaryMethods = enabledMethods.filter(m => m.authMethodId === "email" || m.authMethodId === "uuid");
-  const alternativeMethods = enabledMethods.filter(m => m.authMethodId !== "email" && m.authMethodId !== "uuid");
+  const primaryMethods = enabledMethods.filter(m => m.methodCategory === "primary" || m.methodCategory === "secondary");
+  const alternativeMethods = enabledMethods.filter(m => m.methodCategory === "alternative");
   const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
 
   return (
@@ -444,9 +445,10 @@ function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
 interface MethodToggleItemProps {
   method: AuthMethod;
   onToggle: () => void;
+  onCategoryChange: (category: string) => void;
 }
 
-function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
+function MethodToggleItem({ method, onToggle, onCategoryChange }: MethodToggleItemProps) {
   const {
     attributes,
     listeners,
@@ -468,21 +470,48 @@ function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
   };
 
   const Icon = getIcon(method.icon);
+  
+  const getCategoryBadge = (category: string) => {
+    switch (category) {
+      case "primary":
+        return <Badge variant="default" className="text-[9px] px-1 py-0">Primary</Badge>;
+      case "secondary":
+        return <Badge variant="secondary" className="text-[9px] px-1 py-0">Secondary</Badge>;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 p-2 bg-card border rounded-md"
+      className="flex items-start gap-2 p-2 bg-card border rounded-md"
       data-testid={`method-item-${method.authMethodId}`}
     >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing pt-0.5">
         <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
-      <Icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+      <Icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-xs truncate leading-tight">{method.name}</p>
-        <p className="text-[10px] text-muted-foreground truncate leading-tight">{method.description}</p>
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <p className="font-medium text-xs truncate leading-tight">{method.name}</p>
+          {getCategoryBadge(method.methodCategory)}
+        </div>
+        <p className="text-[10px] text-muted-foreground truncate leading-tight mb-1">{method.description}</p>
+        <Select
+          value={method.methodCategory}
+          onValueChange={onCategoryChange}
+        >
+          <SelectTrigger className="h-6 text-[10px] w-full" data-testid={`select-category-${method.authMethodId}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="primary">Primary Method</SelectItem>
+            <SelectItem value="secondary">Secondary Method</SelectItem>
+            <SelectItem value="alternative">Alternative Method</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <Switch checked={method.enabled} onCheckedChange={onToggle} data-testid={`switch-${method.authMethodId}`} />
     </div>
@@ -589,11 +618,12 @@ export default function LoginEditor() {
         // Update config
         await apiRequest("PATCH", `/api/admin/login-config/${config.id}`, formData);
         
-        // Update methods order
+        // Update methods order and categories
         const orderUpdates = methodsState.map((method, index) => ({
           id: method.id,
           displayOrder: index,
           enabled: method.enabled,
+          methodCategory: method.methodCategory,
         }));
         
         await apiRequest("PUT", "/api/admin/service-auth-methods/order", {
@@ -690,6 +720,12 @@ export default function LoginEditor() {
   const toggleMethod = (methodId: string) => {
     setMethodsState(prev =>
       prev.map(m => m.id === methodId ? { ...m, enabled: !m.enabled } : m)
+    );
+  };
+
+  const changeMethodCategory = (methodId: string, category: string) => {
+    setMethodsState(prev =>
+      prev.map(m => m.id === methodId ? { ...m, methodCategory: category } : m)
     );
   };
 
@@ -863,6 +899,7 @@ export default function LoginEditor() {
                           key={method.id}
                           method={method}
                           onToggle={() => toggleMethod(method.id)}
+                          onCategoryChange={(category) => changeMethodCategory(method.id, category)}
                         />
                       ))}
                     </div>

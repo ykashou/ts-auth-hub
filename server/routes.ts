@@ -1678,6 +1678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enabled: method.implemented,
         showComingSoonBadge: !method.implemented,
         displayOrder: index,
+        methodCategory: method.id === "uuid" ? "primary" : method.id === "email" ? "secondary" : "alternative",
       }));
       
       await storage.createServiceAuthMethods(serviceAuthMethodsData);

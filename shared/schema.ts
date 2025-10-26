@@ -260,6 +260,7 @@ export const serviceAuthMethods = pgTable("service_auth_methods", {
   // Service-specific settings
   enabled: boolean("enabled").notNull().default(true), // Is this method visible for this service?
   showComingSoonBadge: boolean("show_coming_soon_badge").notNull().default(false),
+  methodCategory: varchar("method_category").notNull().default("alternative"), // "primary" | "secondary" | "alternative"
   
   // Optional overrides (null = use defaults from auth_methods table)
   buttonText: varchar("button_text"), // Override default button text
