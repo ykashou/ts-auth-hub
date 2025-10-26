@@ -1805,6 +1805,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== SERVICE-CENTRIC LOGIN CONFIG ENDPOINTS ====================
+  
+  // Admin: Get login config by service ID with all auth methods
+  app.get("/api/services/:serviceId/login-config", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      
+      const config = await storage.getLoginPageConfigByServiceId(serviceId);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      // Get all auth methods (both enabled and disabled) for this config with full auth method details
+      const methods = await storage.getServiceAuthMethods(config.id);
+      
+      res.json({ ...config, methods });
+    } catch (error: any) {
+      console.error("Get service login config error:", error);
+      res.status(500).json({ error: "Failed to fetch login configuration" });
+    }
+  });
+
+  // Admin: Update login config branding by service ID
+  app.patch("/api/services/:serviceId/login-config", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      
+      const config = await storage.getLoginPageConfigByServiceId(serviceId);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      const validatedData = insertLoginPageConfigSchema.partial().parse(req.body);
+      const updated = await storage.updateLoginPageConfig(config.id, {
+        ...validatedData,
+        updatedBy: (req as any).user.id,
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update service login config error:", error);
+      res.status(400).json({ error: error.message || "Failed to update configuration" });
+    }
+  });
+
+  // Admin: Update auth methods for a service (batch update with order)
+  app.patch("/api/services/:serviceId/login-config/methods", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      const { methods } = req.body;
+      
+      if (!Array.isArray(methods)) {
+        return res.status(400).json({ error: "methods must be an array" });
+      }
+      
+      const config = await storage.getLoginPageConfigByServiceId(serviceId);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      // Batch update all methods
+      for (const method of methods) {
+        const { id, ...updateData } = method;
+        await storage.updateServiceAuthMethod(id, updateData);
+      }
+      
+      res.json({ success: true, message: "Auth methods updated successfully" });
+    } catch (error: any) {
+      console.error("Update service auth methods error:", error);
+      res.status(400).json({ error: error.message || "Failed to update auth methods" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
