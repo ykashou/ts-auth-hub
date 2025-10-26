@@ -76,6 +76,12 @@ export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // Fetch AuthHub's system service ID
+  const { data: systemServiceData } = useQuery<{ id: string; name: string }>({
+    queryKey: ["/api/system-service"],
+    enabled: !serviceId, // Only fetch if serviceId not provided in URL
+  });
+
   // Read redirect_uri and service_id from URL parameters on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -88,6 +94,13 @@ export default function LoginPage() {
       setServiceId(service);
     }
   }, []);
+
+  // Set serviceId to system service if no URL param provided
+  useEffect(() => {
+    if (!serviceId && systemServiceData?.id) {
+      setServiceId(systemServiceData.id);
+    }
+  }, [systemServiceData, serviceId]);
 
   // Fetch login configuration
   const { data: loginConfigData, isLoading: isLoadingConfig, isError, error } = useQuery<LoginConfigResponse>({
@@ -296,33 +309,8 @@ export default function LoginPage() {
     uuidLoginMutation.mutate(data);
   };
 
-  // Show error if serviceId is missing
-  if (!serviceId) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-sm">
-          <CardHeader className="space-y-2 text-center">
-            <Shield className="w-12 h-12 mx-auto text-primary" />
-            <CardTitle className="text-2xl font-semibold">Service ID Required</CardTitle>
-            <CardDescription className="text-sm text-muted-foreground">
-              This login page requires a valid service ID. Please access this page from your application's login flow.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground text-center">
-              <p className="mb-2">Expected URL format:</p>
-              <code className="bg-muted px-2 py-1 rounded text-xs">
-                /login?service_id=YOUR_SERVICE_ID
-              </code>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Show loading state while fetching configuration
-  if (isLoadingConfig) {
+  // Show loading state while fetching configuration or system service
+  if (isLoadingConfig || (!serviceId && !systemServiceData)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-sm">

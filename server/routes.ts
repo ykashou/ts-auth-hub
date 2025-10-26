@@ -1,11 +1,13 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, type User } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, services, type User } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { seedServices } from "./seed";
+import { seedServices, seedAuthHubSystemService } from "./seed";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
@@ -182,6 +184,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue even if seeding fails - user can create services manually
       }
 
+      // Create AuthHub system service (for the first user only)
+      try {
+        await seedAuthHubSystemService(user.id);
+      } catch (seedError) {
+        console.error("Failed to create AuthHub system service:", seedError);
+        // Continue even if this fails
+      }
+
       // If this is the first admin, seed default RBAC models
       if (role === 'admin') {
         try {
@@ -258,6 +268,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Get auth methods error:", error);
       res.status(500).json({ error: "Failed to fetch authentication methods" });
+    }
+  });
+
+  // Get AuthHub's system service ID
+  app.get("/api/system-service", async (req, res) => {
+    try {
+      const systemService = await db
+        .select()
+        .from(services)
+        .where(eq(services.isSystemService, true))
+        .limit(1);
+
+      if (systemService.length === 0) {
+        return res.status(404).json({ error: "System service not found" });
+      }
+
+      res.json({ id: systemService[0].id, name: systemService[0].name });
+    } catch (error: any) {
+      console.error("Get system service error:", error);
+      res.status(500).json({ error: "Failed to fetch system service" });
     }
   });
 
@@ -477,6 +507,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
+      }
+
+      // Check if user owns the AuthHub system service
+      const systemServices = await db
+        .select()
+        .from(services)
+        .where(and(
+          eq(services.userId, id),
+          eq(services.isSystemService, true)
+        ))
+        .limit(1);
+
+      if (systemServices.length > 0) {
+        return res.status(403).json({ 
+          error: "Cannot delete user who owns the AuthHub system service. Transfer ownership first or contact support." 
+        });
       }
 
       // If user is admin, check if this is the last admin
@@ -703,6 +749,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Prevent deletion of AuthHub system service
+      if (service.isSystemService) {
+        return res.status(403).json({ error: "Cannot delete system service (AuthHub)" });
       }
 
       await storage.deleteService(req.params.id, req.user.id);

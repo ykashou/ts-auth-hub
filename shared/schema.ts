@@ -37,6 +37,7 @@ export const services = pgTable("services", {
   color: text("color"),
   secret: text("secret"), // AES-256-GCM encrypted secret for JWT signing (encrypted at application layer)
   secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
+  isSystemService: boolean("is_system_service").notNull().default(false), // True for AuthHub itself (non-deletable)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
