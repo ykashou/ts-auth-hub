@@ -447,6 +447,21 @@ interface MethodToggleItemProps {
 }
 
 function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: method.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
   const getIcon = (iconName: string): LucideIcon => {
     const IconComponent = (LucideIcons as any)[iconName];
     return IconComponent || Shield;
@@ -456,9 +471,14 @@ function MethodToggleItem({ method, onToggle }: MethodToggleItemProps) {
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className="flex items-center gap-3 p-3 bg-card border rounded-md"
       data-testid={`method-item-${method.authMethodId}`}
     >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
       <Icon className="h-4 w-4 text-muted-foreground" />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{method.name}</p>
@@ -726,19 +746,30 @@ export default function LoginEditor() {
                 <div className="space-y-2">
                   <Label>Enable/Disable Methods</Label>
                   <p className="text-xs text-muted-foreground">
-                    Toggle methods on/off. Drag to reorder in the preview.
+                    Toggle methods on/off. Drag to reorder.
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  {methodsState.map((method) => (
-                    <MethodToggleItem
-                      key={method.id}
-                      method={method}
-                      onToggle={() => toggleMethod(method.id)}
-                    />
-                  ))}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={methodsState.map(m => m.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
+                      {methodsState.map((method) => (
+                        <MethodToggleItem
+                          key={method.id}
+                          method={method}
+                          onToggle={() => toggleMethod(method.id)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
           </ScrollArea>
