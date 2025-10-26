@@ -176,12 +176,12 @@ function LoginPagePreview({
   const alternativeMethods = enabledMethods.filter(m => m.methodCategory !== "primary" && m.methodCategory !== "secondary");
   const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
   
-  // Set initial active method when component mounts or when primaryMethods change
+  // Set initial active method when component mounts or when defaultMethod changes
   useEffect(() => {
     if (!activeMethodId && primaryMethods.length > 0) {
       setActiveMethodId(defaultMethod);
     }
-  }, [activeMethodId, primaryMethods.length, defaultMethod]);
+  }, [defaultMethod]); // Only depend on defaultMethod to avoid infinite loops
   
   // Use activeMethodId for showing forms, fallback to defaultMethod
   const displayMethod = activeMethodId || defaultMethod;

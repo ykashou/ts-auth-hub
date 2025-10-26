@@ -58,6 +58,14 @@ app.use((req, res, next) => {
     console.error("[Server] Failed to seed AuthHub service:", error);
   }
 
+  // Seed default global services on startup
+  try {
+    await storage.seedDefaultGlobalServices();
+    log("[Server] Default global services seeded successfully");
+  } catch (error) {
+    console.error("[Server] Failed to seed default global services:", error);
+  }
+
   // Serve the widget SDK file
   app.use('/authhub-widget.js', express.static('client/public/authhub-widget.js'));
 

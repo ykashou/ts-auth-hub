@@ -4,7 +4,7 @@ import { db } from "./db";
 import { eq, and, inArray, isNull, asc, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
-import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID, AUTHHUB_SYSTEM_USER_ID } from "@shared/constants";
+import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID, AUTHHUB_SYSTEM_USER_ID, DEFAULT_GLOBAL_SERVICES } from "@shared/constants";
 import { encryptSecret } from "./crypto";
 
 export interface IStorage {
@@ -93,6 +93,7 @@ export interface IStorage {
 
   // AuthHub Service seeding
   seedAuthHubService(): Promise<void>;
+  seedDefaultGlobalServices(): Promise<void>;
 
   // Login Page Configuration operations
   syncAuthMethodsFromRegistry(): Promise<void>;
@@ -294,6 +295,40 @@ export class DatabaseStorage implements IStorage {
 
     // Create login configuration for AuthHub
     await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
+  }
+
+  /**
+   * Seeds default global services (Git Garden, Quest Armory, etc.)
+   * These are admin-managed services that appear in the global service catalog
+   */
+  async seedDefaultGlobalServices(): Promise<void> {
+    for (const serviceConfig of DEFAULT_GLOBAL_SERVICES) {
+      // Check if service already exists
+      const existing = await this.getGlobalService(serviceConfig.id);
+      if (existing) {
+        continue; // Skip if already exists
+      }
+
+      // Generate and encrypt secret for service
+      const secret = `sk_${randomBytes(32).toString('hex')}`;
+      const secretPreview = `${secret.substring(0, 10)}...${secret.substring(secret.length - 4)}`;
+      const encryptedSecret = encryptSecret(secret);
+
+      // Create global service
+      await db.insert(globalServices).values({
+        id: serviceConfig.id,
+        name: serviceConfig.name,
+        description: serviceConfig.description,
+        url: serviceConfig.url,
+        redirectUrl: serviceConfig.redirectUrl,
+        icon: serviceConfig.icon,
+        color: serviceConfig.color,
+        secret: encryptedSecret,
+        secretPreview,
+      });
+
+      console.log(`[Storage] Created global service: ${serviceConfig.name}`);
+    }
   }
 
   // Global Service operations (admin-managed, no userId)
