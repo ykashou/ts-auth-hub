@@ -440,9 +440,9 @@ function SortableAltMethodButton({ method }: SortableAltMethodButtonProps) {
         data-testid={`preview-alt-method-${method.authMethodId}`}
       >
         <Icon className="w-4 h-4 mr-2" />
-        {method.buttonText || method.defaultButtonText}
+        <span className="flex-1 text-left">{method.buttonText || method.defaultButtonText}</span>
         {method.showComingSoonBadge && (
-          <Badge variant="secondary" className="absolute right-2 text-xs pointer-events-none">
+          <Badge variant="secondary" className="ml-auto text-xs pointer-events-none">
             Coming Soon
           </Badge>
         )}
@@ -516,16 +516,15 @@ function MethodToggleItem({ method, onToggle, onCategoryChange }: MethodToggleIt
         </div>
         <p className="text-[10px] text-muted-foreground truncate leading-tight mb-1">{method.description}</p>
         <Select
-          value={method.methodCategory}
+          value={method.methodCategory === "alternative" ? "" : method.methodCategory}
           onValueChange={onCategoryChange}
         >
           <SelectTrigger className="h-6 text-[10px] w-full" data-testid={`select-category-${method.authMethodId}`}>
-            <SelectValue />
+            <SelectValue placeholder="Not selected" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="primary">Primary Method</SelectItem>
             <SelectItem value="secondary">Secondary Method</SelectItem>
-            <SelectItem value="alternative">Alternative Method</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -615,8 +614,10 @@ export default function LoginEditor() {
           throw new Error("Configuration name is required");
         }
         
+        // New configurations are not tied to a service by default
+        // Only the default AuthHub login config is tied to the AuthHub service
         const newConfig = await apiRequest("POST", "/api/admin/login-config", {
-          serviceId: "550e8400-e29b-41d4-a716-446655440000", // AuthHub service ID
+          serviceId: null,
           title: formData.title,
           description: formData.description,
           logoUrl: formData.logoUrl,
