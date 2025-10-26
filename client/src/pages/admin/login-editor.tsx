@@ -102,6 +102,7 @@ function LoginPagePreview({
 }) {
   const serviceIdParam = "550e8400-e29b-41d4-a716-446655440000"; // AuthHub service ID
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [activeMethodId, setActiveMethodId] = useState<string | null>(null);
   
   // Drag and drop sensors for method reordering
   const sensors = useSensors(
@@ -174,6 +175,16 @@ function LoginPagePreview({
   // Alternative methods are anything that's NOT primary or secondary
   const alternativeMethods = enabledMethods.filter(m => m.methodCategory !== "primary" && m.methodCategory !== "secondary");
   const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
+  
+  // Set initial active method when component mounts or when primaryMethods change
+  useEffect(() => {
+    if (!activeMethodId && primaryMethods.length > 0) {
+      setActiveMethodId(defaultMethod);
+    }
+  }, [activeMethodId, primaryMethods.length, defaultMethod]);
+  
+  // Use activeMethodId for showing forms, fallback to defaultMethod
+  const displayMethod = activeMethodId || defaultMethod;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -265,6 +276,8 @@ function LoginPagePreview({
                         key={method.id}
                         method={method}
                         isDefault={defaultMethod === method.authMethodId}
+                        isActive={displayMethod === method.authMethodId}
+                        onClick={() => setActiveMethodId(method.authMethodId)}
                       />
                     ))}
                   </div>
@@ -282,7 +295,7 @@ function LoginPagePreview({
           )}
 
           {/* Active Method Form - Non-interactive Preview */}
-          {defaultMethod === "uuid" && (
+          {displayMethod === "uuid" && (
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-xs text-muted-foreground mb-3">GENERATE NEW ACCOUNT ID</p>
@@ -304,7 +317,7 @@ function LoginPagePreview({
             </div>
           )}
 
-          {defaultMethod === "email" && (
+          {displayMethod === "email" && (
             <div className="space-y-4">
               <div>
                 <Label className="text-sm font-medium">Email</Label>
@@ -357,9 +370,11 @@ function LoginPagePreview({
 interface SortableMethodButtonProps {
   method: AuthMethod;
   isDefault: boolean;
+  isActive: boolean;
+  onClick: () => void;
 }
 
-function SortableMethodButton({ method, isDefault }: SortableMethodButtonProps) {
+function SortableMethodButton({ method, isDefault, isActive, onClick }: SortableMethodButtonProps) {
   const {
     attributes,
     listeners,
@@ -386,8 +401,9 @@ function SortableMethodButton({ method, isDefault }: SortableMethodButtonProps) 
     <div ref={setNodeRef} style={style} className="relative group">
       <Button
         type="button"
-        variant={isDefault ? "default" : "outline"}
-        className="w-full pointer-events-none"
+        variant={isActive ? "default" : "outline"}
+        className="w-full"
+        onClick={onClick}
         data-testid={`preview-method-${method.authMethodId}`}
       >
         <Icon className="w-4 h-4 mr-2" />
@@ -396,7 +412,7 @@ function SortableMethodButton({ method, isDefault }: SortableMethodButtonProps) 
       <div 
         {...attributes} 
         {...listeners}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing flex items-center justify-start pl-2 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute inset-0 cursor-grab active:cursor-grabbing flex items-center justify-start pl-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
       >
         <GripVertical className="h-4 w-4 text-primary" />
       </div>
