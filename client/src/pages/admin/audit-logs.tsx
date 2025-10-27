@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Download, Search, AlertCircle, Shield, Info, AlertTriangle, XCircle } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, Search, AlertCircle, Shield, Info, AlertTriangle, XCircle, X } from "lucide-react";
 import { format } from "date-fns";
 import type { AuditLog } from "@shared/schema";
 import { PageHeader } from "@/components/PageHeader";
@@ -21,6 +23,36 @@ const SEVERITY_CONFIG = {
   critical: { label: "Critical", icon: AlertCircle, className: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
 };
 
+// Helper function to convert object to YAML-like format
+function toYAML(obj: any, indent = 0): string {
+  const spaces = "  ".repeat(indent);
+  let yaml = "";
+
+  if (obj === null || obj === undefined) {
+    return "null";
+  }
+
+  if (typeof obj !== "object") {
+    return JSON.stringify(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    obj.forEach((item) => {
+      yaml += `${spaces}- ${toYAML(item, indent + 1)}\n`;
+    });
+  } else {
+    Object.entries(obj).forEach(([key, value]) => {
+      if (typeof value === "object" && value !== null) {
+        yaml += `${spaces}${key}:\n${toYAML(value, indent + 1)}`;
+      } else {
+        yaml += `${spaces}${key}: ${JSON.stringify(value)}\n`;
+      }
+    });
+  }
+
+  return yaml;
+}
+
 export default function AuditLogsPage() {
   const [, navigate] = useLocation();
   const userRole = getUserRole();
@@ -29,6 +61,7 @@ export default function AuditLogsPage() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const pageSize = 50;
 
   // Redirect non-admins to dashboard
@@ -55,6 +88,7 @@ export default function AuditLogsPage() {
       if (!response.ok) throw new Error("Failed to fetch audit logs");
       return response.json();
     },
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   const handleExport = async () => {
@@ -201,7 +235,7 @@ export default function AuditLogsPage() {
                           <TableRow
                             key={log.id}
                             className="hover-elevate cursor-pointer"
-                            onClick={() => navigate(`/admin/audit-logs/${log.id}`)}
+                            onClick={() => setSelectedLog(log)}
                             data-testid={`row-log-${log.id}`}
                           >
                             <TableCell className="text-xs text-muted-foreground" data-testid={`text-timestamp-${log.id}`}>
@@ -260,6 +294,53 @@ export default function AuditLogsPage() {
           </Card>
         </div>
       </main>
+
+      {/* Sidebar Sheet for Log Details */}
+      <Sheet open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          {selectedLog && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={SEVERITY_CONFIG[selectedLog.severity as keyof typeof SEVERITY_CONFIG].className}
+                  >
+                    {SEVERITY_CONFIG[selectedLog.severity as keyof typeof SEVERITY_CONFIG].label}
+                  </Badge>
+                  {selectedLog.event}
+                </SheetTitle>
+                <SheetDescription>
+                  {format(new Date(selectedLog.createdAt), "PPpp")}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6">
+                <Tabs defaultValue="json" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="json" data-testid="tab-json">JSON</TabsTrigger>
+                    <TabsTrigger value="yaml" data-testid="tab-yaml">YAML</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="json" className="mt-4">
+                    <div className="bg-muted rounded-md p-4">
+                      <pre className="text-xs overflow-x-auto whitespace-pre-wrap break-words" data-testid="text-log-json">
+                        {JSON.stringify(selectedLog, null, 2)}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="yaml" className="mt-4">
+                    <div className="bg-muted rounded-md p-4">
+                      <pre className="text-xs overflow-x-auto whitespace-pre-wrap break-words" data-testid="text-log-yaml">
+                        {toYAML(selectedLog)}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
