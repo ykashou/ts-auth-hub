@@ -112,27 +112,9 @@ export default function AuditLogsPage() {
   });
 
   const handlePauseToggle = async () => {
-    const newPausedState = !isPaused;
-    
-    if (newPausedState) {
-      // Pausing - save current interval and stop refresh
-      setSavedInterval(refreshInterval);
-      setIsPaused(true);
-      
-      // Audit log the pause event
-      try {
-        await fetch("/api/admin/audit-logs/pause", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        });
-      } catch (error) {
-        console.error("Failed to log pause event:", error);
-      }
-    } else {
-      // Playing - restore interval
+    if (isPaused) {
+      // Currently paused, so resume streaming
+      console.log("[Audit] Resuming log streaming");
       setIsPaused(false);
       setRefreshInterval(savedInterval);
       
@@ -147,6 +129,24 @@ export default function AuditLogsPage() {
         });
       } catch (error) {
         console.error("Failed to log resume event:", error);
+      }
+    } else {
+      // Currently playing, so pause streaming
+      console.log("[Audit] Pausing log streaming");
+      setSavedInterval(refreshInterval);
+      setIsPaused(true);
+      
+      // Audit log the pause event
+      try {
+        await fetch("/api/admin/audit-logs/pause", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log pause event:", error);
       }
     }
   };

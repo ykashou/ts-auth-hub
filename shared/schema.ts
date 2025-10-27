@@ -285,6 +285,8 @@ export const auditLogEventEnum = pgEnum("audit_log_event", [
   "audit_log.filtered",
   "audit_log.detail_viewed",
   "audit_log.exported",
+  "audit_log.paused",
+  "audit_log.resumed",
   "admin.action",
 ]);
 
