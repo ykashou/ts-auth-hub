@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
+import { auditRegistration, auditFromRequest } from "./audit";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -175,6 +176,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
         role: role,
       });
+
+      // Audit the registration
+      await auditRegistration(user.id, user.email, user.role, req);
 
       // No per-user seeding needed - services and RBAC models are seeded globally on startup
 
@@ -447,6 +451,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.updateUser(id, updates);
       const { password, ...sanitizedUser } = updatedUser;
 
+      // Audit the update
+      await auditFromRequest(req, {
+        event: role && user.role !== role ? "user.role_changed" : "user.updated",
+        severity: role && user.role !== role ? "warning" : "info",
+        action: role && user.role !== role 
+          ? `User role changed from ${user.role} to ${role}: ${user.email || id}`
+          : `User updated: ${user.email || id}`,
+        targetType: "user",
+        targetId: id,
+        targetName: user.email || id,
+        details: { updates },
+      });
+
       res.json(sanitizedUser);
     } catch (error: any) {
       console.error("Update user error:", error);
@@ -472,6 +489,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Cannot delete the last admin" });
         }
       }
+
+      // Audit the deletion before deleting
+      await auditFromRequest(req, {
+        event: "user.deleted",
+        severity: "critical",
+        action: `User deleted: ${user.email || id}`,
+        targetType: "user",
+        targetId: id,
+        targetName: user.email || id,
+        details: { role: user.role },
+      });
 
       // Delete user (CASCADE will delete associated services)
       await storage.deleteUser(id);
@@ -894,6 +922,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
+
+      // Audit the deletion before deleting
+      await auditFromRequest(req, {
+        event: "service.deleted",
+        severity: "critical",
+        action: `Service deleted: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
+      });
 
       await db.delete(services).where(eq(services.id, req.params.id));
       
