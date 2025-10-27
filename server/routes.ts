@@ -250,14 +250,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Unified authentication endpoint (replaces separate /login, /uuid-login, etc.)
   app.post("/api/auth/authenticate", async (req, res) => {
     try {
-      const { method, serviceId, ...credentials } = req.body;
+      const { method, serviceId, credentials } = req.body;
       
       if (!method) {
         return res.status(400).json({ error: "Authentication method is required" });
       }
       
       // Authenticate using strategy pattern
-      const result = await authHandler.authenticate(method, credentials, serviceId);
+      const result = await authHandler.authenticate(method, credentials || {}, serviceId);
       
       res.json(result);
     } catch (error: any) {

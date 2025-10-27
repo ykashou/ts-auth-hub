@@ -6,11 +6,11 @@ export class UuidStrategy implements AuthStrategy {
   readonly metadata: AuthStrategyMetadata = {
     id: "uuid",
     name: "UUID Login",
-    description: "Anonymous authentication using unique identifier",
+    description: "Anonymous authentication with auto-generated UUID4",
     icon: "KeyRound",
     buttonText: "Login with UUID",
     buttonVariant: "outline",
-    helpText: "Generate or use your existing UUID",
+    helpText: "Generate a new UUID or login with existing one",
     category: "standard",
   };
   
@@ -23,20 +23,15 @@ export class UuidStrategy implements AuthStrategy {
     let isNewUser = false;
 
     if (credentials.uuid) {
-      // UUID provided - try to find it
+      // UUID provided - try to find existing user
       user = await storage.getUser(credentials.uuid);
       
-      // If UUID doesn't exist, auto-register it
       if (!user) {
-        // Check if this is the first user - if so, promote to admin
-        const userCount = await storage.getUserCount();
-        const role = userCount === 0 ? "admin" : "user";
-        user = await storage.createUserWithUuid(credentials.uuid, role);
-        isNewUser = true;
+        // UUID not found - this is an error, users cannot create their own UUIDs
+        throw new Error("User not found. Please generate a new UUID to create an account.");
       }
     } else {
-      // No UUID provided - generate new anonymous user
-      // Check if this is the first user - if so, promote to admin
+      // No UUID provided - generate new user with database-generated UUID4
       const userCount = await storage.getUserCount();
       const role = userCount === 0 ? "admin" : "user";
       user = await storage.createAnonymousUser(role);

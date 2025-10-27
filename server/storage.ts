@@ -13,7 +13,6 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   createAnonymousUser(role?: "admin" | "user"): Promise<User>;
-  createUserWithUuid(uuid: string, role?: "admin" | "user"): Promise<User>;
   getAllUsers(): Promise<User[]>;
   getUserCount(): Promise<number>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
@@ -157,19 +156,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAnonymousUser(role?: "admin" | "user"): Promise<User> {
-    // Create anonymous user with auto-generated UUID, no email/password
+    // Create anonymous user with auto-generated UUID4, no email/password
+    // Database generates proper UUID4 values via gen_random_uuid()
     const [user] = await db
       .insert(users)
       .values({ role: role || "user" })
-      .returning();
-    return user;
-  }
-
-  async createUserWithUuid(uuid: string, role?: "admin" | "user"): Promise<User> {
-    // Create user with specific UUID, no email/password
-    const [user] = await db
-      .insert(users)
-      .values({ id: uuid, role: role || "user" })
       .returning();
     return user;
   }
