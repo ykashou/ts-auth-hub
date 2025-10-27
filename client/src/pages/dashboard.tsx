@@ -255,7 +255,7 @@ export default function DashboardPage() {
                   variant="outline"
                   size="sm"
                   className="w-full mt-3"
-                  onClick={() => setLocation("/config")}
+                  onClick={() => setLocation("/admin/service-configs")}
                   data-testid="button-manage-services"
                 >
                   <Settings className="w-3 h-3 mr-2" />
@@ -277,7 +277,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="justify-start"
-                    onClick={() => setLocation("/config")}
+                    onClick={() => setLocation("/admin/service-configs")}
                     data-testid="button-add-service"
                   >
                     <Box className="w-4 h-4 mr-2" />
@@ -286,7 +286,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="justify-start"
-                    onClick={() => setLocation("/widget-docs")}
+                    onClick={() => setLocation("/docs/widget")}
                     data-testid="button-widget-docs"
                   >
                     <Code className="w-4 h-4 mr-2" />
@@ -295,7 +295,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="justify-start"
-                    onClick={() => setLocation("/api-docs")}
+                    onClick={() => setLocation("/docs/api")}
                     data-testid="button-api-docs"
                   >
                     <FileText className="w-4 h-4 mr-2" />

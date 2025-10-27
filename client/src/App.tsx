@@ -29,15 +29,15 @@ function Router() {
       <Route path="/admin/users" component={AdminUsersPage} />
       <Route path="/admin/rbac/:id" component={AdminRbacDetailPage} />
       <Route path="/admin/rbac" component={AdminRbacPage} />
-      <Route path="/admin/role-assignments" component={AdminRoleAssignmentsPage} />
+      <Route path="/admin/roles" component={AdminRoleAssignmentsPage} />
       <Route path="/admin/login-editor/:configId" component={AdminLoginEditorPage} />
       <Route path="/admin/login-editor" component={AdminLoginEditorPage} />
-      <Route path="/admin/login-configs" component={AdminLoginConfigsPage} />
+      <Route path="/admin/auth-configs" component={AdminLoginConfigsPage} />
       <Route path="/services" component={ServicesPage} />
-      <Route path="/config" component={ConfigPage} />
-      <Route path="/api-docs" component={ApiDocsPage} />
+      <Route path="/admin/service-configs" component={ConfigPage} />
+      <Route path="/docs/api" component={ApiDocsPage} />
       <Route path="/widget-login" component={WidgetLoginPage} />
-      <Route path="/widget-docs" component={WidgetDocsPage} />
+      <Route path="/docs/widget" component={WidgetDocsPage} />
       <Route component={NotFound} />
     </Switch>
   );
