@@ -196,14 +196,13 @@ function App() {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <PageHeader 
-          title="Widget Integration"
-          subtitle="Integrate AuthHub authentication into your website using our JavaScript SDK"
-        />
+        <div className="space-y-6">
+          <PageHeader 
+            title="Widget Integration"
+            subtitle="Integrate AuthHub authentication into your website using our JavaScript SDK"
+          />
         
-        {/* Introduction */}
-        <div className="mb-8">
-
+          {/* Introduction */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -247,12 +246,11 @@ function App() {
               </CardContent>
             </Card>
           </div>
-        </div>
 
-        <Separator className="my-8" />
+          <Separator className="my-8" />
 
         {/* Quick Start */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Code className="w-5 h-5" />
@@ -351,7 +349,7 @@ function App() {
         </Card>
 
         {/* Complete Example */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Complete HTML Example</CardTitle>
             <CardDescription>Full working example with login/logout functionality</CardDescription>
@@ -379,7 +377,7 @@ function App() {
         </Card>
 
         {/* React Example */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>React Integration Example</CardTitle>
             <CardDescription>Using the widget in a React application</CardDescription>
@@ -409,7 +407,7 @@ function App() {
         <Separator className="my-8" />
 
         {/* OAuth Redirect Flow Section */}
-        <div className="mb-8">
+        <div>
           <h2 className="text-2xl font-bold mb-3">OAuth Redirect Flow</h2>
           <p className="text-muted-foreground mb-4">
             For traditional web applications or when popup blockers are a concern, use the redirect-based OAuth flow.
@@ -418,7 +416,7 @@ function App() {
         </div>
 
         {/* Redirect Flow Example */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Redirect Flow Implementation</CardTitle>
             <CardDescription>Standard OAuth redirect pattern - works on all devices</CardDescription>
@@ -508,7 +506,7 @@ function handleAuthCallback() {
         </Card>
 
         {/* Flow Comparison */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Popup vs Redirect: Which to Choose?</CardTitle>
           </CardHeader>
@@ -539,7 +537,7 @@ function handleAuthCallback() {
         </Card>
 
         {/* API Usage */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Making Authenticated API Requests</CardTitle>
             <CardDescription>Use the JWT token to authenticate API calls</CardDescription>
@@ -567,7 +565,7 @@ function handleAuthCallback() {
         </Card>
 
         {/* Backend Token Verification - LOCAL VERIFICATION */}
-        <Card className="mb-6 border-primary/50">
+        <Card className="border-primary/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-primary">
               <Shield className="w-5 h-5" />
@@ -695,7 +693,7 @@ app.post('/api/auth/callback', async (req, res) => {
         {/* RBAC Integration Section */}
         <Separator className="my-8" />
         
-        <div className="mb-8">
+        <div>
           <h2 className="text-2xl font-bold mb-3 flex items-center gap-2">
             <Shield className="w-6 h-6" />
             Role-Based Access Control (RBAC)
@@ -707,7 +705,7 @@ app.post('/api/auth/callback', async (req, res) => {
         </div>
 
         {/* JWT Token Structure with RBAC */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>JWT Token Structure with RBAC</CardTitle>
             <CardDescription>
@@ -787,7 +785,7 @@ app.post('/api/auth/callback', async (req, res) => {
         </Card>
 
         {/* Permission Checking Examples */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Code className="w-5 h-5" />
@@ -1073,7 +1071,7 @@ function ContentEditor() {
         </Card>
 
         {/* RBAC Setup Instructions */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Setting Up RBAC for Your Service</CardTitle>
             <CardDescription>
@@ -1133,7 +1131,7 @@ function ContentEditor() {
         <Separator className="my-8" />
 
         {/* Configuration Options */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Configuration Options</CardTitle>
           </CardHeader>
@@ -1185,7 +1183,7 @@ function ContentEditor() {
         </Card>
 
         {/* Methods */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
             <CardTitle>Widget Methods</CardTitle>
           </CardHeader>
@@ -1233,6 +1231,7 @@ function ContentEditor() {
             </ul>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

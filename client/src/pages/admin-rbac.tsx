@@ -200,22 +200,23 @@ export default function AdminRbac() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto py-8 px-4 max-w-7xl">
-        <PageHeader 
-          title="RBAC Models"
-          subtitle="Create and manage role-based access control models"
-          action={
-            <Button 
-              onClick={() => setCreateDialogOpen(true)}
-              data-testid="button-create-model"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Model
-            </Button>
-          }
-        />
+        <div className="space-y-6">
+          <PageHeader 
+            title="RBAC Models"
+            subtitle="Create and manage role-based access control models"
+            action={
+              <Button 
+                onClick={() => setCreateDialogOpen(true)}
+                data-testid="button-create-model"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Model
+              </Button>
+            }
+          />
 
-        {/* Search Bar */}
-        <div className="mb-6">
+          {/* Search Bar */}
+        <div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -440,6 +441,7 @@ export default function AdminRbac() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </div>
     </div>
   );

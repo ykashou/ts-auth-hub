@@ -449,18 +449,19 @@ export default function Config() {
       <Navbar />
 
       <main className="container mx-auto px-6 py-8">
-        <PageHeader 
-          title="Service Configurations"
-          subtitle="Manage service cards that appear to authenticated users. Each service has a secret for widget authentication."
-          action={
-            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Service
-            </Button>
-          }
-        />
+        <div className="space-y-6">
+          <PageHeader 
+            title="Service Configurations"
+            subtitle="Manage service cards that appear to authenticated users. Each service has a secret for widget authentication."
+            action={
+              <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Service
+              </Button>
+            }
+          />
 
-        <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
+          <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
@@ -870,6 +871,7 @@ export default function Config() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </main>
     </div>
   );

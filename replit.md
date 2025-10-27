@@ -11,7 +11,9 @@ AuthHub is a centralized authentication service providing a single source of tru
 
 ## System Architecture
 ### UI/UX Decisions
-AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme (light mode: HSL 248° 100% 28%; dark mode: HSL 230° 75% 62%). It uses the Poppins font family and a consistent 0.8rem border radius for all components, emphasizing a clean, card-based layout with minimal shadows. A unified navigation system is present across all authenticated pages.
+AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme (light mode: HSL 248° 100% 28%; dark mode: HSL 230% 75% 62%). It uses the Poppins font family and a consistent 0.8rem border radius for all components, emphasizing a clean, card-based layout with minimal shadows. A unified navigation system is present across all authenticated pages.
+
+**PageHeader Component**: A standardized header component (`client/src/components/PageHeader.tsx`) provides consistent title, subtitle, and action button layout across admin pages. Pages use `space-y-6` containers to manage vertical spacing, eliminating hardcoded margins. Implementation requires all page content (headers, cards, forms, dialogs) to be wrapped in a single `space-y-6` container for uniform spacing rhythm.
 
 ### Technical Implementations & Feature Specifications
 1.  **User Authentication**: Supports anonymous UUID4-based authentication with auto-registration and traditional email/password login. All user UUIDs are database-generated using PostgreSQL's `gen_random_uuid()` to ensure RFC 4122 UUID4 compliance. Users can login with existing UUIDs but cannot provide custom UUIDs during registration (security measure to prevent non-compliant or predictable IDs). Uses JWT for session management and bcrypt for password hashing. The first registered user is assigned an "admin" role; subsequent users receive a "user" role. Services are automatically seeded on admin account creation.
