@@ -620,14 +620,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get service by ID (includes secret for display)
+  // Get service by ID (all services are global)
   app.get("/api/services/:id", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -938,7 +938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== Service-RBAC Model Assignment Routes ====================
   
-  // Assign RBAC model to a service
+  // Assign RBAC model to a service (all services are global)
   app.post("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
     try {
       const { id: serviceId } = req.params;
@@ -948,8 +948,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "rbacModelId is required" });
       }
 
-      // Verify the service belongs to the user
-      const service = await storage.getService(serviceId, req.user!.id);
+      // Verify the service exists (all services are global)
+      const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
@@ -972,13 +972,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Remove RBAC model from a service
+  // Remove RBAC model from a service (all services are global)
   app.delete("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
     try {
       const { id: serviceId } = req.params;
 
-      // Verify the service belongs to the user
-      const service = await storage.getService(serviceId, req.user!.id);
+      // Verify the service exists (all services are global)
+      const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
@@ -995,13 +995,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get RBAC model for a service
+  // Get RBAC model for a service (all services are global)
   app.get("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
     try {
       const { id: serviceId } = req.params;
 
-      // Verify the service belongs to the user
-      const service = await storage.getService(serviceId, req.user!.id);
+      // Verify the service exists (all services are global)
+      const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
