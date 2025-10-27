@@ -16,6 +16,7 @@ type LoginConfigWithService = LoginPageConfig & {
   serviceIcon?: string;
   serviceColor?: string;
   enabledMethodsCount?: number;
+  services?: Array<{ id: string; name: string }>;
 };
 
 export default function LoginConfigurations() {
@@ -105,7 +106,7 @@ export default function LoginConfigurations() {
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead className="font-semibold">Configuration</TableHead>
-                        <TableHead className="font-semibold">Service</TableHead>
+                        <TableHead className="font-semibold">Services</TableHead>
                         <TableHead className="font-semibold">Methods</TableHead>
                         <TableHead className="font-semibold">Default Method</TableHead>
                         <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -142,10 +143,14 @@ export default function LoginConfigurations() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {config.serviceName ? (
-                                <Badge variant="secondary" data-testid={`badge-service-${config.id}`}>
-                                  {config.serviceName}
-                                </Badge>
+                              {config.services && config.services.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {config.services.map((service: any) => (
+                                    <Badge key={service.id} variant="secondary" data-testid={`badge-service-${service.id}`}>
+                                      {service.name}
+                                    </Badge>
+                                  ))}
+                                </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Not assigned</span>
                               )}

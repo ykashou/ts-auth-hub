@@ -202,7 +202,7 @@ export const loginPageConfig = pgTable("login_page_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
   // Branding
-  title: varchar("title").notNull().default("Welcome to AuthHub"),
+  title: varchar("title").notNull().unique().default("Welcome to AuthHub"),
   description: varchar("description").notNull().default("Choose your preferred authentication method"),
   logoUrl: varchar("logo_url"), // Optional custom logo URL
   primaryColor: varchar("primary_color"), // CSS color value

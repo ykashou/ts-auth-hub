@@ -1454,7 +1454,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(loginPageConfig);
 
-    // For each config, count the enabled methods
+    // For each config, count the enabled methods and get assigned services
     const configsWithCounts = await Promise.all(
       configs.map(async (config) => {
         const [result] = await db
@@ -1467,9 +1467,19 @@ export class DatabaseStorage implements IStorage {
             )
           );
         
+        // Get all services using this config
+        const assignedServices = await db
+          .select({
+            id: services.id,
+            name: services.name,
+          })
+          .from(services)
+          .where(eq(services.loginConfigId, config.id));
+        
         return {
           ...config,
           enabledMethodsCount: result?.count || 0,
+          services: assignedServices,
         };
       })
     );
