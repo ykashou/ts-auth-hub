@@ -11,7 +11,7 @@ import jwt from "jsonwebtoken";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
-import { auditRegistration, auditFromRequest, auditLogin, auditFailedLogin } from "./audit";
+import { auditRegistration, auditFromRequest, auditLogin, auditFailedLogin, auditLogout } from "./audit";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -283,17 +283,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Logout endpoint (for audit logging purposes)
   // Note: JWT is stateless, so this doesn't invalidate the token server-side
   // It primarily exists for audit logging
-  app.post("/api/auth/logout", verifyToken, async (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     try {
-      // Audit the logout
+      console.log("[LOGOUT] Starting logout process");
+      // Try to verify token but don't fail if it's invalid/expired
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      console.log("[LOGOUT] Token present:", !!token);
+      
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          console.log("[LOGOUT] Token decoded successfully:", decoded.email || decoded.id);
+          // Attach user to request for audit logging
+          (req as any).user = {
+            id: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+          };
+        } catch (jwtError) {
+          // Token is invalid/expired, but we still want to log the logout attempt
+          console.log("[LOGOUT] Token verification failed:", jwtError);
+        }
+      }
+      
+      console.log("[LOGOUT] User attached to request:", !!(req as any).user);
+      // Audit the logout (will work even with expired tokens if we could decode them)
       await auditLogout(req);
+      console.log("[LOGOUT] Audit logout completed");
       
       res.json({ 
         success: true, 
         message: "Logged out successfully" 
       });
     } catch (error: any) {
-      console.error("Logout error:", error);
+      console.error("[LOGOUT ERROR]", error);
       res.status(500).json({ error: "Logout failed" });
     }
   });

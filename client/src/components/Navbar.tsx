@@ -19,6 +19,7 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       // Call backend logout endpoint for audit logging
+      // Important: Keep the token until after the request completes
       await fetch("/api/auth/logout", {
         method: "POST",
         headers: {
@@ -28,15 +29,15 @@ export default function Navbar() {
     } catch (error) {
       console.error("Logout audit failed:", error);
       // Continue with logout even if audit fails
-    } finally {
-      // Clear token and redirect
-      clearToken();
-      toast({
-        title: "Logged out",
-        description: "You have been logged out successfully",
-      });
-      setLocation("/login");
     }
+    
+    // Clear token and redirect AFTER the logout request completes
+    clearToken();
+    toast({
+      title: "Logged out",
+      description: "You have been logged out successfully",
+    });
+    setLocation("/login");
   };
 
   const userManagementItems = [
