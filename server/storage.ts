@@ -1,10 +1,10 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, globalServices, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type GlobalService, type InsertGlobalService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
+import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, inArray, isNull, asc, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, asc, sql, or } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { strategyRegistry, placeholderMethods } from "./auth/StrategyRegistry";
-import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID, AUTHHUB_SYSTEM_USER_ID, DEFAULT_GLOBAL_SERVICES } from "@shared/constants";
+import { AUTHHUB_SERVICE, AUTHHUB_SERVICE_ID } from "@shared/constants";
 import { encryptSecret } from "./crypto";
 
 export interface IStorage {
@@ -26,19 +26,13 @@ export interface IStorage {
   getAllApiKeys(): Promise<ApiKey[]>;
 
   // Service operations
-  createService(service: InsertService & { secret?: string; secretPreview?: string; userId: string }): Promise<Service>;
+  createService(service: InsertService & { secret?: string; secretPreview?: string; userId?: string | null }): Promise<Service>;
   getService(id: string, userId: string): Promise<Service | undefined>;
   getServiceById(id: string): Promise<Service | undefined>; // Get service by ID (for JWT signing and verification)
   getAllServicesByUser(userId: string): Promise<Service[]>;
+  getAllServices(userId: string): Promise<Service[]>; // Get all services (global + user-specific)
   updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
   deleteService(id: string, userId: string): Promise<void>;
-
-  // Global Service operations (admin-managed, no userId)
-  createGlobalService(service: InsertGlobalService & { secret?: string; secretPreview?: string }): Promise<GlobalService>;
-  getGlobalService(id: string): Promise<GlobalService | undefined>;
-  getAllGlobalServices(): Promise<GlobalService[]>;
-  updateGlobalService(id: string, service: Partial<GlobalService>): Promise<GlobalService>;
-  deleteGlobalService(id: string): Promise<void>;
 
   // RBAC Model operations
   createRbacModel(model: InsertRbacModel & { createdBy: string }): Promise<RbacModel>;
@@ -69,7 +63,7 @@ export interface IStorage {
   getRolePermissionMappingsForModel(rbacModelId: string): Promise<Array<{ roleId: string; permissions: Permission[] }>>;
 
   // RBAC Seeding
-  seedDefaultRbacModels(userId: string): Promise<void>;
+  seedDefaultRbacModels(): Promise<void>;
   getRbacModelCount(): Promise<number>;
 
   // Service-RBAC Model Assignment operations
@@ -91,9 +85,8 @@ export interface IStorage {
     rbacModel: { id: string; name: string; description: string | null } | null;
   }>;
 
-  // AuthHub Service seeding
-  seedAuthHubService(): Promise<void>;
-  seedDefaultGlobalServices(): Promise<void>;
+  // Seeding
+  seedDefaultServices(): Promise<void>;
 
   // Login Page Configuration operations
   syncAuthMethodsFromRegistry(): Promise<void>;
