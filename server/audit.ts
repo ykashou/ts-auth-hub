@@ -27,6 +27,11 @@ interface AuditLogParams {
  */
 export async function createAuditLog(params: AuditLogParams): Promise<void> {
   try {
+    // Skip logging audit_log.* events to prevent meta-logging
+    if (params.event.startsWith("audit_log.")) {
+      return;
+    }
+
     const logEntry: InsertAuditLog = {
       event: params.event,
       severity: params.severity || "info",

@@ -11,7 +11,7 @@ import jwt from "jsonwebtoken";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
-import { auditRegistration, auditFromRequest } from "./audit";
+import { auditRegistration, auditFromRequest, auditLogin, auditFailedLogin } from "./audit";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -253,9 +253,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Unified authentication endpoint (replaces separate /login, /uuid-login, etc.)
   app.post("/api/auth/authenticate", async (req, res) => {
+    const { method, serviceId, credentials } = req.body;
+    
     try {
-      const { method, serviceId, credentials } = req.body;
-      
       if (!method) {
         return res.status(400).json({ error: "Authentication method is required" });
       }
@@ -263,9 +263,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Authenticate using strategy pattern
       const result = await authHandler.authenticate(method, credentials || {}, serviceId);
       
+      // Audit the successful authentication
+      await auditLogin(result.user.id, result.user.email, req, method === "uuid" ? "uuid" : "email");
+      
       res.json(result);
     } catch (error: any) {
       console.error("Authentication error:", error);
+      
+      // Audit failed login if credentials were provided
+      if (credentials?.email || credentials?.uuid) {
+        const identifier = credentials.email || credentials.uuid || "unknown";
+        await auditFailedLogin(identifier, error.message || "Authentication failed", req);
+      }
+      
       res.status(401).json({ error: error.message || "Authentication failed" });
     }
   });
