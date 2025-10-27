@@ -2208,6 +2208,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pause audit log streaming
+  app.post("/api/admin/audit-logs/pause", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      await auditFromRequest(req, {
+        event: "audit_log.paused",
+        severity: "info",
+        action: "Admin paused audit log streaming",
+        details: { 
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      res.json({ success: true, message: "Audit log streaming paused" });
+    } catch (error: any) {
+      console.error("Pause audit logs error:", error);
+      res.status(500).json({ error: "Failed to pause audit logs" });
+    }
+  });
+
+  // Resume audit log streaming
+  app.post("/api/admin/audit-logs/resume", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      await auditFromRequest(req, {
+        event: "audit_log.resumed",
+        severity: "info",
+        action: "Admin resumed audit log streaming",
+        details: { 
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      res.json({ success: true, message: "Audit log streaming resumed" });
+    } catch (error: any) {
+      console.error("Resume audit logs error:", error);
+      res.status(500).json({ error: "Failed to resume audit logs" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

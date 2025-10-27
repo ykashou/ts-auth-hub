@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, Search, AlertCircle, Shield, Info, AlertTriangle, XCircle, X, RefreshCw } from "lucide-react";
+import { Download, Search, AlertCircle, Shield, Info, AlertTriangle, XCircle, X, RefreshCw, Pause, Play } from "lucide-react";
 import { format } from "date-fns";
 import type { AuditLog } from "@shared/schema";
 import { PageHeader } from "@/components/PageHeader";
@@ -80,6 +80,8 @@ export default function AuditLogsPage() {
   const [page, setPage] = useState(0);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<number | false>(5000);
+  const [isPaused, setIsPaused] = useState(false);
+  const [savedInterval, setSavedInterval] = useState<number | false>(5000);
   const pageSize = 50;
 
   // Redirect non-admins to dashboard
@@ -106,8 +108,48 @@ export default function AuditLogsPage() {
       if (!response.ok) throw new Error("Failed to fetch audit logs");
       return response.json();
     },
-    refetchInterval: refreshInterval,
+    refetchInterval: isPaused ? false : refreshInterval,
   });
+
+  const handlePauseToggle = async () => {
+    const newPausedState = !isPaused;
+    
+    if (newPausedState) {
+      // Pausing - save current interval and stop refresh
+      setSavedInterval(refreshInterval);
+      setIsPaused(true);
+      
+      // Audit log the pause event
+      try {
+        await fetch("/api/admin/audit-logs/pause", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log pause event:", error);
+      }
+    } else {
+      // Playing - restore interval
+      setIsPaused(false);
+      setRefreshInterval(savedInterval);
+      
+      // Audit log the play/resume event
+      try {
+        await fetch("/api/admin/audit-logs/resume", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to log resume event:", error);
+      }
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -160,11 +202,23 @@ export default function AuditLogsPage() {
             subtitle="View and export security and activity logs"
             action={
               <div className="flex items-center gap-2">
+                <Button
+                  onClick={handlePauseToggle}
+                  variant="outline"
+                  data-testid="button-pause-play"
+                  title={isPaused ? "Resume auto-refresh" : "Pause auto-refresh"}
+                >
+                  {isPaused ? (
+                    <Play className="h-4 w-4" />
+                  ) : (
+                    <Pause className="h-4 w-4" />
+                  )}
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" data-testid="button-refresh-rate">
                       <RefreshCw className="h-4 w-4 mr-2" />
-                      {REFRESH_INTERVALS.find(i => i.value === refreshInterval)?.label || "Refresh"}
+                      {REFRESH_INTERVALS.find(i => i.value === (isPaused ? savedInterval : refreshInterval))?.label || "Refresh"}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -173,7 +227,10 @@ export default function AuditLogsPage() {
                     {REFRESH_INTERVALS.map((interval) => (
                       <DropdownMenuItem
                         key={interval.label}
-                        onClick={() => setRefreshInterval(interval.value)}
+                        onClick={() => {
+                          setRefreshInterval(interval.value);
+                          setSavedInterval(interval.value);
+                        }}
                         data-testid={`refresh-interval-${interval.label}`}
                       >
                         {interval.label}
