@@ -11,7 +11,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Search, AlertCircle, Shield, Info, AlertTriangle, XCircle, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Download, Search, AlertCircle, Shield, Info, AlertTriangle, XCircle, X, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import type { AuditLog } from "@shared/schema";
 import { PageHeader } from "@/components/PageHeader";
@@ -53,6 +61,15 @@ function toYAML(obj: any, indent = 0): string {
   return yaml;
 }
 
+const REFRESH_INTERVALS: { label: string; value: number | false }[] = [
+  { label: "Off", value: false as false },
+  { label: "3s", value: 3000 },
+  { label: "5s", value: 5000 },
+  { label: "10s", value: 10000 },
+  { label: "30s", value: 30000 },
+  { label: "1m", value: 60000 },
+];
+
 export default function AuditLogsPage() {
   const [, navigate] = useLocation();
   const userRole = getUserRole();
@@ -62,6 +79,7 @@ export default function AuditLogsPage() {
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [refreshInterval, setRefreshInterval] = useState<number | false>(5000);
   const pageSize = 50;
 
   // Redirect non-admins to dashboard
@@ -88,7 +106,7 @@ export default function AuditLogsPage() {
       if (!response.ok) throw new Error("Failed to fetch audit logs");
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: refreshInterval,
   });
 
   const handleExport = async () => {
@@ -141,14 +159,37 @@ export default function AuditLogsPage() {
             title="Audit Logs"
             subtitle="View and export security and activity logs"
             action={
-              <Button
-                onClick={handleExport}
-                variant="outline"
-                data-testid="button-export-logs"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" data-testid="button-refresh-rate">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      {REFRESH_INTERVALS.find(i => i.value === refreshInterval)?.label || "Refresh"}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Auto-Refresh Rate</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {REFRESH_INTERVALS.map((interval) => (
+                      <DropdownMenuItem
+                        key={interval.label}
+                        onClick={() => setRefreshInterval(interval.value)}
+                        data-testid={`refresh-interval-${interval.label}`}
+                      >
+                        {interval.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  onClick={handleExport}
+                  variant="outline"
+                  data-testid="button-export-logs"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </div>
             }
           />
 
