@@ -448,7 +448,7 @@ export default function Config() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="container mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           <PageHeader 
             title="Service Configurations"

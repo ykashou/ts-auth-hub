@@ -466,7 +466,7 @@ export default function AdminRbacDetail() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <Button
             variant="outline"
@@ -1201,7 +1201,7 @@ export default function AdminRbacDetail() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </main>
     </div>
   );
 }

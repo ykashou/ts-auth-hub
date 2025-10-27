@@ -199,7 +199,7 @@ export default function AdminRbac() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           <PageHeader 
             title="RBAC Models"
@@ -442,7 +442,7 @@ export default function AdminRbac() {
           </AlertDialogContent>
         </AlertDialog>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
