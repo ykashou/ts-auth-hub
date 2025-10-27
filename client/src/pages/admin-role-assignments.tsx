@@ -12,6 +12,7 @@ import { isAuthenticated, getUserRole } from "@/lib/auth";
 import { Plus, Trash2, ShieldCheck, User as UserIcon, Box, Search } from "lucide-react";
 import type { User, Service, Role, UserServiceRole } from "@shared/schema";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 // Extended types for joined data
 interface UserServiceRoleWithDetails extends UserServiceRole {
@@ -253,24 +254,19 @@ export default function AdminRoleAssignments() {
     <>
       <Navbar />
       <div className="container mx-auto p-6 space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight" data-testid="heading-role-assignments">
-            Role Assignments
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Assign users to roles within services
-          </p>
-        </div>
-        <Button
-          onClick={() => setIsAssignDialogOpen(true)}
-          data-testid="button-add-assignment"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Assign Role
-        </Button>
-      </div>
+      <PageHeader 
+        title="Role Assignments"
+        subtitle="Assign users to roles within services"
+        action={
+          <Button
+            onClick={() => setIsAssignDialogOpen(true)}
+            data-testid="button-add-assignment"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Assign Role
+          </Button>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">

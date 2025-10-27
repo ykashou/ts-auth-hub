@@ -9,6 +9,7 @@ import * as Icons from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 // Extended service type with RBAC model
 type ServiceWithRbacModel = Service & {
@@ -52,6 +53,11 @@ export default function Services() {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
+        <PageHeader 
+          title="Service List"
+          subtitle="Browse and access all available services"
+        />
+        
         {isLoading ? (
           <div className="text-center py-20">
             <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-muted-foreground" />
