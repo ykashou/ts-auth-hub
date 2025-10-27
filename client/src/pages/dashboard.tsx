@@ -97,28 +97,28 @@ export default function DashboardPage() {
           <PageHeader 
             title="Dashboard"
             subtitle={isAdmin ? 'Monitor user activity and system overview' : 'Your account dashboard'}
-            action={
-              <Badge 
-                variant={isAdmin ? 'default' : 'secondary'}
-                className="text-sm px-3 py-1"
-                data-testid="badge-user-role"
-              >
-                {isAdmin ? 'Admin' : 'User'}
-              </Badge>
-            }
           />
 
           {/* Current User Account Info - Always shown */}
           {currentUser && (
             <Card className="border-primary/50" data-testid="card-current-user">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-primary" />
-                  Your Account
-                </CardTitle>
-                <CardDescription>
-                  {currentUser.email ? 'Your account information' : '⚠️ Save your UUID - this is your only way to log back in!'}
-                </CardDescription>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-primary" />
+                    Your Account
+                  </CardTitle>
+                  <CardDescription>
+                    {currentUser.email ? 'Your account information' : '⚠️ Save your UUID - this is your only way to log back in!'}
+                  </CardDescription>
+                </div>
+                <Badge 
+                  variant={isAdmin ? 'default' : 'secondary'}
+                  className="text-sm px-3 py-1"
+                  data-testid="badge-user-role"
+                >
+                  {isAdmin ? 'Admin' : 'User'}
+                </Badge>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
