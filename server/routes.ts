@@ -640,25 +640,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update service
+  // Update service (all services are global)
   app.patch("/api/services/:id", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      // Get service by ID (works for both user services and global services)
+      // Get service by ID (all services are global)
       const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
-      }
-
-      // Check if user has access to this service:
-      // 1. User owns the service (userId matches), OR
-      // 2. It's a global service (userId is null)
-      if (service.userId !== null && service.userId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
       }
 
       // Use partial schema to allow partial updates
@@ -678,12 +671,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secretPreview: service.secretPreview, // Preserve existing secret preview
       };
       
-      // Update service - for global services, pass null as userId
-      const updatedService = await storage.updateService(
-        req.params.id, 
-        service.userId, 
-        updateData
-      );
+      // Update service (all services are global)
+      const updatedService = await storage.updateService(req.params.id, updateData);
       
       res.json(updatedService);
     } catch (error: any) {
@@ -692,14 +681,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete service
+  // Delete service (all services are global)
   app.delete("/api/services/:id", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -710,7 +699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Cannot delete system services" });
       }
 
-      await storage.deleteService(req.params.id, req.user.id);
+      await storage.deleteService(req.params.id);
       
       res.json({ success: true, message: "Service deleted successfully" });
     } catch (error: any) {
@@ -719,14 +708,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Rotate service secret (generates new secret)
+  // Rotate service secret (generates new secret, all services are global)
   app.post("/api/services/:id/rotate-secret", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -742,7 +731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
       // Update the service with the new encrypted secret and preview
-      await storage.updateService(req.params.id, req.user.id, { secret: encryptedSecret, secretPreview });
+      await storage.updateService(req.params.id, { secret: encryptedSecret, secretPreview });
       
       res.json({
         success: true,

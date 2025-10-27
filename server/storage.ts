@@ -25,14 +25,14 @@ export interface IStorage {
   getApiKeyByKey(key: string): Promise<ApiKey | undefined>;
   getAllApiKeys(): Promise<ApiKey[]>;
 
-  // Service operations
+  // Service operations (all services are global)
   createService(service: InsertService & { secret?: string; secretPreview?: string; userId?: string | null }): Promise<Service>;
   getService(id: string, userId: string): Promise<Service | undefined>;
   getServiceById(id: string): Promise<Service | undefined>; // Get service by ID (for JWT signing and verification)
   getAllServicesByUser(userId: string): Promise<Service[]>;
   getAllServices(userId: string): Promise<Service[]>; // Get all services (global + user-specific)
-  updateService(id: string, userId: string, service: Partial<Service>): Promise<Service>;
-  deleteService(id: string, userId: string): Promise<void>;
+  updateService(id: string, updateData: Partial<Service>): Promise<Service>;
+  deleteService(id: string): Promise<void>;
 
   // RBAC Model operations
   createRbacModel(model: InsertRbacModel & { createdBy?: string | null }): Promise<RbacModel>;
@@ -132,10 +132,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserCount(): Promise<number> {
-    // Exclude system user from count (system user is used for AuthHub service ownership)
+    // Count all users
     const allUsers = await db.select().from(users);
-    const regularUsers = allUsers.filter(user => user.id !== AUTHHUB_SYSTEM_USER_ID);
-    return regularUsers.length;
+    return allUsers.length;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
@@ -224,17 +223,19 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(services).where(eq(services.userId, userId));
   }
 
-  async updateService(id: string, userId: string, updateData: Partial<Service>): Promise<Service> {
+  async updateService(id: string, updateData: Partial<Service>): Promise<Service> {
+    // All services are global - no userId filtering needed
     const [service] = await db
       .update(services)
       .set(updateData)
-      .where(and(eq(services.id, id), eq(services.userId, userId)))
+      .where(eq(services.id, id))
       .returning();
     return service;
   }
 
-  async deleteService(id: string, userId: string): Promise<void> {
-    await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
+  async deleteService(id: string): Promise<void> {
+    // All services are global - no userId filtering needed
+    await db.delete(services).where(eq(services.id, id));
   }
 
   async getAllServices(userId: string): Promise<Service[]> {
