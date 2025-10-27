@@ -635,8 +635,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const services = await storage.getAllServicesByUser(req.user.id);
-      res.json(services);
+      const userServices = await storage.getAllServicesByUser(req.user.id);
+      const globalServices = await storage.getAllGlobalServices();
+      
+      // Combine user-specific services with global services
+      // Global services don't have userId, so we add it for consistency
+      const combinedServices = [
+        ...userServices,
+        ...globalServices.map(gs => ({
+          ...gs,
+          userId: req.user!.id, // Add userId for consistency in response
+          isSystem: false, // Global services are not system services
+        }))
+      ];
+      
+      console.log("Admin services found:", combinedServices.length, "(", userServices.length, "user +", globalServices.length, "global)");
+      
+      res.json(combinedServices);
     } catch (error: any) {
       console.error("Get admin services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
