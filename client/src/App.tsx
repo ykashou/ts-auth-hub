@@ -17,6 +17,7 @@ import AdminRbacDetailPage from "@/pages/admin-rbac-detail";
 import AdminRoleAssignmentsPage from "@/pages/admin-role-assignments";
 import AdminLoginEditorPage from "@/pages/admin/login-editor";
 import AdminLoginConfigsPage from "@/pages/admin/login-configs";
+import AdminAuditLogsPage from "@/pages/admin/audit-logs";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/admin/login-editor/:configId" component={AdminLoginEditorPage} />
       <Route path="/admin/login-editor" component={AdminLoginEditorPage} />
       <Route path="/admin/auth-configs" component={AdminLoginConfigsPage} />
+      <Route path="/admin/audit-logs" component={AdminAuditLogsPage} />
       <Route path="/services" component={ServicesPage} />
       <Route path="/admin/service-configs" component={ConfigPage} />
       <Route path="/settings" component={SettingsPage} />

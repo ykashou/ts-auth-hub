@@ -5,9 +5,10 @@ import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { User, Shield, Bell, Palette, Lock } from "lucide-react";
+import { User, Shield, Bell, Palette, Lock, FileText } from "lucide-react";
 import type { User as UserType } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function Settings() {
   const [, setLocation] = useLocation();
@@ -117,6 +118,33 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground">
                     You have full administrative access to all features and settings.
                   </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Audit Logs (Admin Only) */}
+            {userRole === 'admin' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Audit Logs
+                  </CardTitle>
+                  <CardDescription>
+                    View security and activity logs
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Access detailed logs of all system activities, user actions, and security events.
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => setLocation("/admin/audit-logs")}
+                    data-testid="button-view-audit-logs"
+                  >
+                    View Audit Logs
+                  </Button>
                 </CardContent>
               </Card>
             )}
