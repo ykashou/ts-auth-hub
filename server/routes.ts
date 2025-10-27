@@ -1773,6 +1773,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== AUDIT LOG ROUTES ====================
+
+  // Admin: Get all audit logs with filters and pagination
+  app.get("/api/admin/audit-logs", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const {
+        event,
+        severity,
+        actorId,
+        targetType,
+        startDate,
+        endDate,
+        limit = "50",
+        offset = "0"
+      } = req.query;
+
+      const filters: any = {
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+      };
+
+      if (event) filters.event = event;
+      if (severity) filters.severity = severity;
+      if (actorId) filters.actorId = actorId;
+      if (targetType) filters.targetType = targetType;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+
+      const result = await storage.getAllAuditLogs(filters);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Get audit logs error:", error);
+      res.status(500).json({ error: "Failed to fetch audit logs" });
+    }
+  });
+
+  // Admin: Get single audit log detail
+  app.get("/api/admin/audit-logs/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const log = await storage.getAuditLog(id);
+      
+      if (!log) {
+        return res.status(404).json({ error: "Audit log not found" });
+      }
+      
+      res.json(log);
+    } catch (error: any) {
+      console.error("Get audit log detail error:", error);
+      res.status(500).json({ error: "Failed to fetch audit log" });
+    }
+  });
+
+  // Admin: Export audit logs as JSON
+  app.get("/api/admin/audit-logs/export/json", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const {
+        event,
+        severity,
+        actorId,
+        targetType,
+        startDate,
+        endDate,
+      } = req.query;
+
+      const filters: any = {};
+
+      if (event) filters.event = event;
+      if (severity) filters.severity = severity;
+      if (actorId) filters.actorId = actorId;
+      if (targetType) filters.targetType = targetType;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+
+      const result = await storage.getAllAuditLogs(filters);
+      
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename=audit-logs-${new Date().toISOString()}.json`);
+      res.json(result.logs);
+    } catch (error: any) {
+      console.error("Export audit logs error:", error);
+      res.status(500).json({ error: "Failed to export audit logs" });
+    }
+  });
+
+  // Get recent audit logs (for dashboard)
+  app.get("/api/admin/audit-logs/recent", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { limit = "10" } = req.query;
+      const logs = await storage.getRecentAuditLogs(parseInt(limit as string));
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Get recent audit logs error:", error);
+      res.status(500).json({ error: "Failed to fetch recent audit logs" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
