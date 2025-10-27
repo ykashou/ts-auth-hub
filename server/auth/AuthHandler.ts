@@ -1,6 +1,5 @@
 import { strategyRegistry } from "./StrategyRegistry";
 import { storage } from "../storage";
-import { seedServices } from "../seed";
 import jwt from "jsonwebtoken";
 import { decryptSecret } from "../crypto";
 
@@ -50,26 +49,7 @@ export class AuthHandler {
   }
   
   private async runPostAuthHooks(user: any, isNewUser: boolean): Promise<void> {
-    // Auto-seed services if user has none
-    try {
-      const userServices = await storage.getAllServicesByUser(user.id);
-      if (userServices.length === 0) {
-        await seedServices(user.id);
-      }
-    } catch (seedError) {
-      console.error("Failed to seed services for user:", seedError);
-      // Continue even if seeding fails
-    }
-    
-    // If this is the first admin (during registration), seed default RBAC models
-    if (isNewUser && user.role === 'admin') {
-      try {
-        await storage.seedDefaultRbacModels(user.id);
-      } catch (seedError) {
-        console.error("Failed to seed default RBAC models:", seedError);
-        // Continue even if seeding fails
-      }
-    }
+    // No per-user seeding needed - services and RBAC models are seeded globally on startup
   }
   
   private async generateAuthToken(userId: string, email: string | null, role: "admin" | "user", serviceId?: string): Promise<string> {

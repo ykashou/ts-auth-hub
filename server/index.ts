@@ -50,20 +50,20 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Seed AuthHub service (the application itself) on startup
+  // Seed default services (global defaults with userId = null) on startup
   try {
-    await storage.seedAuthHubService();
-    log("[Server] AuthHub service seeded successfully");
+    await storage.seedDefaultServices();
+    log("[Server] Default services seeded successfully");
   } catch (error) {
-    console.error("[Server] Failed to seed AuthHub service:", error);
+    console.error("[Server] Failed to seed default services:", error);
   }
 
-  // Seed default global services on startup
+  // Seed default RBAC models on startup
   try {
-    await storage.seedDefaultGlobalServices();
-    log("[Server] Default global services seeded successfully");
+    await storage.seedDefaultRbacModels();
+    log("[Server] Default RBAC models seeded successfully");
   } catch (error) {
-    console.error("[Server] Failed to seed default global services:", error);
+    console.error("[Server] Failed to seed default RBAC models:", error);
   }
 
   // Serve the widget SDK file

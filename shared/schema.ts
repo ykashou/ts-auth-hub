@@ -48,7 +48,7 @@ export const rbacModels = pgTable("rbac_models", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description").notNull(),
-  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

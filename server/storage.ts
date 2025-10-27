@@ -35,7 +35,7 @@ export interface IStorage {
   deleteService(id: string, userId: string): Promise<void>;
 
   // RBAC Model operations
-  createRbacModel(model: InsertRbacModel & { createdBy: string }): Promise<RbacModel>;
+  createRbacModel(model: InsertRbacModel & { createdBy?: string | null }): Promise<RbacModel>;
   getRbacModel(id: string): Promise<RbacModel | undefined>;
   getAllRbacModels(): Promise<RbacModel[]>;
   updateRbacModel(id: string, updates: Partial<RbacModel>): Promise<RbacModel>;
@@ -237,131 +237,62 @@ export class DatabaseStorage implements IStorage {
     await db.delete(services).where(and(eq(services.id, id), eq(services.userId, userId)));
   }
 
-  /**
-   * Seeds the AuthHub service (the application itself)
-   * Creates system user and AuthHub service with login configuration
-   */
-  async seedAuthHubService(): Promise<void> {
-    // First, ensure system user exists
-    const existingUser = await this.getUser(AUTHHUB_SYSTEM_USER_ID);
-    if (!existingUser) {
-      await db.insert(users).values({
-        id: AUTHHUB_SYSTEM_USER_ID,
-        email: null,
-        password: null,
-        role: "admin", // System user is admin
-      });
-      console.log("[Storage] Created AuthHub system user");
-    }
-
-    // Check if AuthHub service already exists
-    const existingService = await this.getServiceById(AUTHHUB_SERVICE_ID);
-    if (existingService) {
-      console.log("[Storage] AuthHub service already exists");
-      
-      // Ensure login config exists for AuthHub
-      await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
-      return;
-    }
-
-    // Generate and encrypt secret for AuthHub service
-    const secret = `sk_${randomBytes(32).toString('hex')}`;
-    const secretPreview = `${secret.substring(0, 10)}...${secret.substring(secret.length - 4)}`;
-    
-    // Encrypt secret using centralized crypto function
-    const encryptedSecret = encryptSecret(secret);
-
-    // Create AuthHub service
-    await db.insert(services).values({
-      id: AUTHHUB_SERVICE_ID,
-      userId: AUTHHUB_SYSTEM_USER_ID,
-      name: AUTHHUB_SERVICE.name,
-      description: AUTHHUB_SERVICE.description,
-      url: AUTHHUB_SERVICE.url,
-      redirectUrl: AUTHHUB_SERVICE.redirectUrl,
-      icon: AUTHHUB_SERVICE.icon,
-      color: AUTHHUB_SERVICE.color,
-      secret: encryptedSecret,
-      secretPreview,
-      isSystem: true, // Mark as system service - cannot be deleted
-    });
-    
-    console.log("[Storage] Created AuthHub service");
-
-    // Create login configuration for AuthHub
-    await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
+  async getAllServices(userId: string): Promise<Service[]> {
+    return await db.select().from(services).where(
+      or(
+        isNull(services.userId),
+        eq(services.userId, userId)
+      )
+    );
   }
 
-  /**
-   * Seeds default global services (Git Garden, Quest Armory, etc.)
-   * These are admin-managed services that appear in the global service catalog
-   */
-  async seedDefaultGlobalServices(): Promise<void> {
-    for (const serviceConfig of DEFAULT_GLOBAL_SERVICES) {
-      // Check if service already exists
-      const existing = await this.getGlobalService(serviceConfig.id);
-      if (existing) {
-        continue; // Skip if already exists
+  async seedDefaultServices(): Promise<void> {
+    const { DEFAULT_SERVICES, generateServiceSecret } = await import("./seed");
+
+    for (const serviceConfig of DEFAULT_SERVICES) {
+      const existing = await db
+        .select()
+        .from(services)
+        .where(and(
+          eq(services.name, serviceConfig.name),
+          isNull(services.userId)
+        ))
+        .limit(1);
+
+      if (existing.length > 0) {
+        console.log(`[Storage] Global service "${serviceConfig.name}" already exists, skipping...`);
+        continue;
       }
 
-      // Generate and encrypt secret for service
-      const secret = `sk_${randomBytes(32).toString('hex')}`;
-      const secretPreview = `${secret.substring(0, 10)}...${secret.substring(secret.length - 4)}`;
-      const encryptedSecret = encryptSecret(secret);
+      const { encryptedSecret, secretPreview, secret } = generateServiceSecret();
 
-      // Create global service
-      await db.insert(globalServices).values({
-        id: serviceConfig.id,
+      await db.insert(services).values({
+        id: serviceConfig.name === AUTHHUB_SERVICE.name ? AUTHHUB_SERVICE_ID : undefined,
         name: serviceConfig.name,
         description: serviceConfig.description,
         url: serviceConfig.url,
-        redirectUrl: serviceConfig.redirectUrl,
         icon: serviceConfig.icon,
         color: serviceConfig.color,
+        userId: null,
         secret: encryptedSecret,
         secretPreview,
+        redirectUrl: serviceConfig.url,
+        isSystem: serviceConfig.isSystem || false,
       });
 
       console.log(`[Storage] Created global service: ${serviceConfig.name}`);
+      console.log(`   Secret: ${secret}`);
+
+      if (serviceConfig.name === AUTHHUB_SERVICE.name) {
+        await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
+      }
     }
-  }
 
-  // Global Service operations (admin-managed, no userId)
-  async createGlobalService(insertService: InsertGlobalService & { secret?: string; secretPreview?: string }): Promise<GlobalService> {
-    const [service] = await db
-      .insert(globalServices)
-      .values(insertService)
-      .returning();
-    return service;
-  }
-
-  async getGlobalService(id: string): Promise<GlobalService | undefined> {
-    const [service] = await db
-      .select()
-      .from(globalServices)
-      .where(eq(globalServices.id, id));
-    return service || undefined;
-  }
-
-  async getAllGlobalServices(): Promise<GlobalService[]> {
-    return await db.select().from(globalServices);
-  }
-
-  async updateGlobalService(id: string, updateData: Partial<GlobalService>): Promise<GlobalService> {
-    const [service] = await db
-      .update(globalServices)
-      .set(updateData)
-      .where(eq(globalServices.id, id))
-      .returning();
-    return service;
-  }
-
-  async deleteGlobalService(id: string): Promise<void> {
-    await db.delete(globalServices).where(eq(globalServices.id, id));
+    console.log("[Storage] Default services seeding completed");
   }
 
   // RBAC Model operations
-  async createRbacModel(insertModel: InsertRbacModel & { createdBy: string }): Promise<RbacModel> {
+  async createRbacModel(insertModel: InsertRbacModel & { createdBy?: string | null }): Promise<RbacModel> {
     const [model] = await db
       .insert(rbacModels)
       .values(insertModel)
@@ -532,7 +463,7 @@ export class DatabaseStorage implements IStorage {
     return allModels.length;
   }
 
-  async seedDefaultRbacModels(userId: string): Promise<void> {
+  async seedDefaultRbacModels(): Promise<void> {
     // Check if models already exist
     const modelCount = await this.getRbacModelCount();
     if (modelCount > 0) {
@@ -543,7 +474,7 @@ export class DatabaseStorage implements IStorage {
     const cmsModel = await this.createRbacModel({
       name: "Content Management System",
       description: "Comprehensive RBAC model for CMS platforms with granular content, media, user, and settings management",
-      createdBy: userId,
+      createdBy: null,
     });
 
     // Create roles for CMS
@@ -642,7 +573,7 @@ export class DatabaseStorage implements IStorage {
     const analyticsModel = await this.createRbacModel({
       name: "Analytics Platform",
       description: "Enterprise analytics RBAC model with dashboards, reports, data sources, alerts, and collaboration features",
-      createdBy: userId,
+      createdBy: null,
     });
 
     // Create roles for Analytics
@@ -746,7 +677,7 @@ export class DatabaseStorage implements IStorage {
     const ecommerceModel = await this.createRbacModel({
       name: "E-Commerce Platform",
       description: "Complete e-commerce RBAC model covering products, orders, customers, inventory, marketing, and financial operations",
-      createdBy: userId,
+      createdBy: null,
     });
 
     // Create roles for E-Commerce

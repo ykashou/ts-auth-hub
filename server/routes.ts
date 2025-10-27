@@ -2,10 +2,12 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, type User } from "@shared/schema";
+import { db } from "./db";
+import { services } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, type User } from "@shared/schema";
+import { eq, isNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { seedServices } from "./seed";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
@@ -174,23 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role,
       });
 
-      // Auto-seed default services for new user
-      try {
-        await seedServices(user.id);
-      } catch (seedError) {
-        console.error("Failed to seed services for new user:", seedError);
-        // Continue even if seeding fails - user can create services manually
-      }
-
-      // If this is the first admin, seed default RBAC models
-      if (role === 'admin') {
-        try {
-          await storage.seedDefaultRbacModels(user.id);
-        } catch (seedError) {
-          console.error("Failed to seed default RBAC models:", seedError);
-          // Continue even if seeding fails - admin can create models manually
-        }
-      }
+      // No per-user seeding needed - services and RBAC models are seeded globally on startup
 
       // Generate JWT token (with service secret if serviceId provided)
       const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
@@ -594,25 +580,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("Getting services for user:", req.user.id);
-      const userServices = await storage.getAllServicesByUser(req.user.id);
-      const globalServices = await storage.getAllGlobalServices();
+      const allServices = await storage.getAllServices(req.user.id);
       
-      // Combine user-specific services with global services
-      // Global services don't have userId, so we add it for consistency
-      const combinedServices = [
-        ...userServices,
-        ...globalServices.map(gs => ({
-          ...gs,
-          userId: req.user!.id, // Add userId for consistency in response
-          isSystem: false, // Global services are not system services
-        }))
-      ];
-      
-      console.log("Found services:", combinedServices.length, "(", userServices.length, "user +", globalServices.length, "global)");
+      console.log("Found services:", allServices.length);
       
       // Fetch RBAC model for each service
       const servicesWithRbacModels = await Promise.all(
-        combinedServices.map(async (service) => {
+        allServices.map(async (service) => {
           const rbacModel = await storage.getRbacModelForService(service.id);
           return {
             ...service,
@@ -635,23 +609,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const userServices = await storage.getAllServicesByUser(req.user.id);
-      const globalServices = await storage.getAllGlobalServices();
+      const allServices = await storage.getAllServices(req.user.id);
       
-      // Combine user-specific services with global services
-      // Global services don't have userId, so we add it for consistency
-      const combinedServices = [
-        ...userServices,
-        ...globalServices.map(gs => ({
-          ...gs,
-          userId: req.user!.id, // Add userId for consistency in response
-          isSystem: false, // Global services are not system services
-        }))
-      ];
+      console.log("Admin services found:", allServices.length);
       
-      console.log("Admin services found:", combinedServices.length, "(", userServices.length, "user +", globalServices.length, "global)");
-      
-      res.json(combinedServices);
+      res.json(allServices);
     } catch (error: any) {
       console.error("Get admin services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
@@ -827,7 +789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new global service (admin only)
   app.post("/api/admin/global-services", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const validatedData = insertGlobalServiceSchema.parse(req.body);
+      const validatedData = insertServiceSchema.parse(req.body);
       
       // Generate a unique secret for the service (for JWT signing and widget authentication)
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
@@ -841,11 +803,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set redirect URL to service URL if not provided
       const redirectUrl = validatedData.redirectUrl || validatedData.url;
       
-      const service = await storage.createGlobalService({
+      const service = await storage.createService({
         ...validatedData,
         redirectUrl,
         secret: encryptedSecret, // Store encrypted secret
         secretPreview,
+        userId: null as any, // Global service
       });
       
       // Return service with plaintext secret (only time it's shown in full)
@@ -862,8 +825,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all global services (admin only)
   app.get("/api/admin/global-services", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const services = await storage.getAllGlobalServices();
-      res.json(services);
+      // Get all services with userId = null (global services)
+      const allServices = await db.select().from(services).where(isNull(services.userId));
+      res.json(allServices);
     } catch (error: any) {
       console.error("Get global services error:", error);
       res.status(500).json({ error: "Failed to fetch global services" });
@@ -873,9 +837,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single global service by ID (admin only)
   app.get("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
       
@@ -889,28 +853,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update global service (admin only)
   app.patch("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
 
       // Use partial schema to allow partial updates
-      const validatedData = insertGlobalServiceSchema.partial().parse(req.body);
+      const validatedData = insertServiceSchema.partial().parse(req.body);
       
       // Set default color only if color field is explicitly provided but empty
       if ("color" in validatedData && (!validatedData.color || validatedData.color.trim() === '')) {
         validatedData.color = 'hsl(var(--primary))';
       }
       
-      // Preserve the existing secrets - they should never be updated via PATCH
+      // Preserve the existing secrets and userId - they should never be updated via PATCH
       const updateData = {
         ...validatedData,
         secret: service.secret,
         secretPreview: service.secretPreview,
+        userId: null, // Keep as global service
       };
       
-      const updatedService = await storage.updateGlobalService(req.params.id, updateData);
+      const [updatedService] = await db.update(services).set(updateData).where(eq(services.id, req.params.id)).returning();
       
       res.json(updatedService);
     } catch (error: any) {
@@ -922,13 +887,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete global service (admin only)
   app.delete("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
 
-      await storage.deleteGlobalService(req.params.id);
+      await db.delete(services).where(eq(services.id, req.params.id));
       
       res.json({ success: true, message: "Global service deleted successfully" });
     } catch (error: any) {
@@ -940,9 +905,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rotate global service secret (admin only)
   app.post("/api/admin/global-services/:id/rotate-secret", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
 
@@ -956,7 +921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
       // Update the service with the new encrypted secret and preview
-      await storage.updateGlobalService(req.params.id, { secret: encryptedSecret, secretPreview });
+      await db.update(services).set({ secret: encryptedSecret, secretPreview }).where(eq(services.id, req.params.id));
       
       res.json({
         success: true,
