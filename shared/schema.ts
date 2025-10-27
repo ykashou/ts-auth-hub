@@ -245,6 +245,89 @@ export const serviceAuthMethods = pgTable("service_auth_methods", {
   uniqueConfigMethod: unique().on(table.loginConfigId, table.authMethodId),
 }));
 
+// ==================== AUDIT LOG TABLES ====================
+
+// Audit log event category enum
+export const auditLogEventEnum = pgEnum("audit_log_event", [
+  "auth.login",
+  "auth.logout",
+  "auth.register",
+  "auth.uuid_auth",
+  "auth.failed_login",
+  "user.created",
+  "user.updated",
+  "user.deleted",
+  "user.role_changed",
+  "service.created",
+  "service.updated",
+  "service.deleted",
+  "service.secret_rotated",
+  "service.rbac_assigned",
+  "service.rbac_removed",
+  "service.login_config_assigned",
+  "service.login_config_removed",
+  "rbac_model.created",
+  "rbac_model.updated",
+  "rbac_model.deleted",
+  "rbac_role.created",
+  "rbac_role.deleted",
+  "rbac_permission.created",
+  "rbac_permission.deleted",
+  "rbac_role_permission.assigned",
+  "rbac_role_permission.revoked",
+  "user_role.assigned",
+  "user_role.revoked",
+  "login_config.created",
+  "login_config.updated",
+  "login_config.deleted",
+  "audit_log.viewed",
+  "audit_log.searched",
+  "audit_log.filtered",
+  "audit_log.detail_viewed",
+  "audit_log.exported",
+  "audit_log.paused",
+  "audit_log.resumed",
+  "admin.action",
+]);
+
+// Audit log severity enum
+export const auditLogSeverityEnum = pgEnum("audit_log_severity", [
+  "info",       // Normal operations (login, view)
+  "warning",    // Important changes (role change, config update)
+  "error",      // Failed operations (failed login, validation errors)
+  "critical",   // Security-sensitive actions (secret rotation, user deletion)
+]);
+
+// Audit logs table
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Event identification
+  event: auditLogEventEnum("event").notNull(),
+  severity: auditLogSeverityEnum("severity").notNull().default("info"),
+  
+  // Who performed the action
+  actorId: varchar("actor_id").references(() => users.id, { onDelete: "set null" }),
+  actorEmail: varchar("actor_email"), // Cached for display even if user deleted
+  actorRole: varchar("actor_role"), // Role at time of action
+  
+  // What was affected
+  targetType: varchar("target_type"), // "user", "service", "rbac_model", etc.
+  targetId: varchar("target_id"), // ID of affected resource
+  targetName: varchar("target_name"), // Cached name for display
+  
+  // Action details
+  action: varchar("action", { length: 500 }).notNull(), // Human-readable description
+  details: text("details"), // Additional context (JSON string)
+  
+  // Request context
+  ipAddress: varchar("ip_address"),
+  userAgent: varchar("user_agent", { length: 1000 }),
+  
+  // Timestamp
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas for login page editor
 export const insertAuthMethodSchema = createInsertSchema(authMethods);
 export const insertLoginPageConfigSchema = createInsertSchema(loginPageConfig).omit({
@@ -256,6 +339,12 @@ export const insertServiceAuthMethodSchema = createInsertSchema(serviceAuthMetho
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+// Insert schema for audit logs
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Login schema
@@ -296,3 +385,5 @@ export type InsertServiceAuthMethod = z.infer<typeof insertServiceAuthMethodSche
 export type ServiceAuthMethod = typeof serviceAuthMethods.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;

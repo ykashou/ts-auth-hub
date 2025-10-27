@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import { encryptSecret, decryptSecret } from "./crypto";
 import { authHandler } from "./auth/AuthHandler";
 import { strategyRegistry } from "./auth/StrategyRegistry";
+import { auditRegistration, auditFromRequest, auditLogin, auditFailedLogin, auditLogout } from "./audit";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -176,6 +177,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role,
       });
 
+      // Audit the registration
+      await auditRegistration(user.id, user.email, user.role, req);
+
       // No per-user seeding needed - services and RBAC models are seeded globally on startup
 
       // Generate JWT token (with service secret if serviceId provided)
@@ -249,9 +253,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Unified authentication endpoint (replaces separate /login, /uuid-login, etc.)
   app.post("/api/auth/authenticate", async (req, res) => {
+    const { method, serviceId, credentials } = req.body;
+    
     try {
-      const { method, serviceId, credentials } = req.body;
-      
       if (!method) {
         return res.status(400).json({ error: "Authentication method is required" });
       }
@@ -259,10 +263,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Authenticate using strategy pattern
       const result = await authHandler.authenticate(method, credentials || {}, serviceId);
       
+      // Audit the successful authentication
+      await auditLogin(result.user.id, result.user.email, req, method === "uuid" ? "uuid" : "email");
+      
       res.json(result);
     } catch (error: any) {
       console.error("Authentication error:", error);
+      
+      // Audit failed login if credentials were provided
+      if (credentials?.email || credentials?.uuid) {
+        const identifier = credentials.email || credentials.uuid || "unknown";
+        await auditFailedLogin(identifier, error.message || "Authentication failed", req);
+      }
+      
       res.status(401).json({ error: error.message || "Authentication failed" });
+    }
+  });
+
+  // Logout endpoint (for audit logging purposes)
+  // Note: JWT is stateless, so this doesn't invalidate the token server-side
+  // It primarily exists for audit logging
+  app.post("/api/auth/logout", async (req, res) => {
+    try {
+      console.log("[LOGOUT] Starting logout process");
+      // Try to verify token but don't fail if it's invalid/expired
+      const token = req.headers.authorization?.replace("Bearer ", "");
+      console.log("[LOGOUT] Token present:", !!token);
+      
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          console.log("[LOGOUT] Token decoded successfully:", decoded.email || decoded.id);
+          // Attach user to request for audit logging
+          (req as any).user = {
+            id: decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+          };
+        } catch (jwtError) {
+          // Token is invalid/expired, but we still want to log the logout attempt
+          console.log("[LOGOUT] Token verification failed:", jwtError);
+        }
+      }
+      
+      console.log("[LOGOUT] User attached to request:", !!(req as any).user);
+      // Audit the logout (will work even with expired tokens if we could decode them)
+      await auditLogout(req);
+      console.log("[LOGOUT] Audit logout completed");
+      
+      res.json({ 
+        success: true, 
+        message: "Logged out successfully" 
+      });
+    } catch (error: any) {
+      console.error("[LOGOUT ERROR]", error);
+      res.status(500).json({ error: "Logout failed" });
     }
   });
 
@@ -447,6 +502,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.updateUser(id, updates);
       const { password, ...sanitizedUser } = updatedUser;
 
+      // Audit the update
+      await auditFromRequest(req, {
+        event: role && user.role !== role ? "user.role_changed" : "user.updated",
+        severity: role && user.role !== role ? "warning" : "info",
+        action: role && user.role !== role 
+          ? `User role changed from ${user.role} to ${role}: ${user.email || id}`
+          : `User updated: ${user.email || id}`,
+        targetType: "user",
+        targetId: id,
+        targetName: user.email || id,
+        details: { updates },
+      });
+
       res.json(sanitizedUser);
     } catch (error: any) {
       console.error("Update user error:", error);
@@ -472,6 +540,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Cannot delete the last admin" });
         }
       }
+
+      // Audit the deletion before deleting
+      await auditFromRequest(req, {
+        event: "user.deleted",
+        severity: "critical",
+        action: `User deleted: ${user.email || id}`,
+        targetType: "user",
+        targetId: id,
+        targetName: user.email || id,
+        details: { role: user.role },
+      });
 
       // Delete user (CASCADE will delete associated services)
       await storage.deleteUser(id);
@@ -674,6 +753,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update service (all services are global)
       const updatedService = await storage.updateService(req.params.id, updateData);
       
+      // Audit the service update
+      await auditFromRequest(req, {
+        event: "service.updated",
+        severity: "info",
+        action: `Service updated: ${updatedService.name}`,
+        targetType: "service",
+        targetId: updatedService.id,
+        targetName: updatedService.name,
+        details: validatedData,
+      });
+      
       res.json(updatedService);
     } catch (error: any) {
       console.error("Update service error:", error);
@@ -698,6 +788,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (service.isSystem) {
         return res.status(403).json({ error: "Cannot delete system services" });
       }
+
+      // Audit the service deletion before deleting
+      await auditFromRequest(req, {
+        event: "service.deleted",
+        severity: "critical",
+        action: `Service deleted: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
+      });
 
       await storage.deleteService(req.params.id);
       
@@ -732,6 +832,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Update the service with the new encrypted secret and preview
       await storage.updateService(req.params.id, { secret: encryptedSecret, secretPreview });
+      
+      // Audit the secret rotation
+      await auditFromRequest(req, {
+        event: "service.secret_rotated",
+        severity: "warning",
+        action: `Service secret rotated: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
+      });
       
       res.json({
         success: true,
@@ -811,6 +921,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secret: encryptedSecret, // Store encrypted secret
         secretPreview,
         userId: null as any, // Global service
+      });
+      
+      // Audit the service creation
+      await auditFromRequest(req, {
+        event: "service.created",
+        severity: "info",
+        action: `Service created: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
       });
       
       // Return service with plaintext secret (only time it's shown in full)
@@ -895,6 +1015,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Global service not found" });
       }
 
+      // Audit the deletion before deleting
+      await auditFromRequest(req, {
+        event: "service.deleted",
+        severity: "critical",
+        action: `Service deleted: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
+      });
+
       await db.delete(services).where(eq(services.id, req.params.id));
       
       res.json({ success: true, message: "Global service deleted successfully" });
@@ -962,6 +1092,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.assignRbacModelToService(serviceId, rbacModelId);
 
+      // Audit the RBAC assignment
+      await auditFromRequest(req, {
+        event: "service.rbac_assigned",
+        severity: "info",
+        action: `RBAC model '${model.name}' assigned to service '${service.name}'`,
+        targetType: "service",
+        targetId: serviceId,
+        targetName: service.name,
+        details: { rbacModelId, rbacModelName: model.name },
+      });
+
       res.json({
         success: true,
         message: "RBAC model assigned to service successfully",
@@ -983,7 +1124,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
+      // Get current RBAC model for audit trail
+      const currentModel = await storage.getRbacModelForService(serviceId);
+
       await storage.removeRbacModelFromService(serviceId);
+
+      // Audit the RBAC removal
+      await auditFromRequest(req, {
+        event: "service.rbac_removed",
+        severity: "warning",
+        action: `RBAC model removed from service '${service.name}'`,
+        targetType: "service",
+        targetId: serviceId,
+        targetName: service.name,
+        details: currentModel ? { rbacModelId: currentModel.id, rbacModelName: currentModel.name } : {},
+      });
 
       res.json({
         success: true,
@@ -1145,6 +1300,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         const assignment = await storage.assignUserToServiceRole(userId, serviceId, roleId);
+        
+        // Audit the user-role assignment
+        await auditFromRequest(req, {
+          event: "rbac.user_role_assigned",
+          severity: "info",
+          action: `User '${user.email || user.id}' assigned to role '${role.name}' in service '${service.name}'`,
+          targetType: "user",
+          targetId: userId,
+          targetName: user.email || user.id,
+          details: { serviceId, serviceName: service.name, roleId, roleName: role.name },
+        });
+        
         res.json(assignment);
       } catch (dbError: any) {
         // Check if this is a unique constraint violation
@@ -1167,7 +1334,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id: assignmentId } = req.params;
 
+      // Get assignment details for audit before deleting
+      const assignments = await storage.getAllUserServiceRoles();
+      const assignment = assignments.find(a => a.id === assignmentId);
+
       await storage.removeUserFromServiceRole(assignmentId);
+
+      // Audit the user-role removal
+      if (assignment) {
+        await auditFromRequest(req, {
+          event: "rbac.user_role_revoked",
+          severity: "warning",
+          action: `User role assignment revoked`,
+          targetType: "user",
+          targetId: assignment.userId,
+          details: { 
+            assignmentId, 
+            serviceId: assignment.serviceId, 
+            roleId: assignment.roleId 
+          },
+        });
+      }
 
       res.json({
         success: true,
@@ -1266,6 +1453,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: userId,
       });
 
+      // Audit the RBAC model creation
+      await auditFromRequest(req, {
+        event: "rbac.model_created",
+        severity: "info",
+        action: `RBAC model created: ${model.name}`,
+        targetType: "rbac_model",
+        targetId: model.id,
+        targetName: model.name,
+      });
+
       res.status(201).json(model);
     } catch (error: any) {
       console.error("Create RBAC model error:", error);
@@ -1291,6 +1488,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (description !== undefined) updates.description = description;
 
       const updatedModel = await storage.updateRbacModel(id, updates);
+      
+      // Audit the RBAC model update
+      await auditFromRequest(req, {
+        event: "rbac.model_updated",
+        severity: "info",
+        action: `RBAC model updated: ${updatedModel.name}`,
+        targetType: "rbac_model",
+        targetId: updatedModel.id,
+        targetName: updatedModel.name,
+        details: updates,
+      });
+      
       res.json(updatedModel);
     } catch (error: any) {
       console.error("Update RBAC model error:", error);
@@ -1308,6 +1517,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!model) {
         return res.status(404).json({ error: "RBAC model not found" });
       }
+
+      // Audit the RBAC model deletion before deleting
+      await auditFromRequest(req, {
+        event: "rbac.model_deleted",
+        severity: "critical",
+        action: `RBAC model deleted: ${model.name}`,
+        targetType: "rbac_model",
+        targetId: model.id,
+        targetName: model.name,
+      });
 
       await storage.deleteRbacModel(id);
       res.json({ success: true, message: "RBAC model deleted successfully" });
@@ -1418,6 +1637,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
       });
 
+      // Audit the role creation
+      await auditFromRequest(req, {
+        event: "rbac.role_created",
+        severity: "info",
+        action: `Role created: ${role.name}`,
+        targetType: "rbac_role",
+        targetId: role.id,
+        targetName: role.name,
+        details: { rbacModelId: modelId },
+      });
+
       res.status(201).json(role);
     } catch (error: any) {
       console.error("Create role error:", error);
@@ -1458,6 +1688,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Role not found" });
       }
 
+      // Audit the role deletion before deleting
+      await auditFromRequest(req, {
+        event: "rbac.role_deleted",
+        severity: "warning",
+        action: `Role deleted: ${role.name}`,
+        targetType: "rbac_role",
+        targetId: role.id,
+        targetName: role.name,
+      });
+
       await storage.deleteRole(id);
       res.json({ success: true, message: "Role deleted successfully" });
     } catch (error: any) {
@@ -1494,6 +1734,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rbacModelId: modelId,
         name,
         description,
+      });
+
+      // Audit the permission creation
+      await auditFromRequest(req, {
+        event: "rbac.permission_created",
+        severity: "info",
+        action: `Permission created: ${permission.name}`,
+        targetType: "rbac_permission",
+        targetId: permission.id,
+        targetName: permission.name,
+        details: { rbacModelId: modelId },
       });
 
       res.status(201).json(permission);
@@ -1535,6 +1786,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!permission) {
         return res.status(404).json({ error: "Permission not found" });
       }
+
+      // Audit the permission deletion before deleting
+      await auditFromRequest(req, {
+        event: "rbac.permission_deleted",
+        severity: "warning",
+        action: `Permission deleted: ${permission.name}`,
+        targetType: "rbac_permission",
+        targetId: permission.id,
+        targetName: permission.name,
+      });
 
       await storage.deletePermission(id);
       res.json({ success: true, message: "Permission deleted successfully" });
@@ -1670,6 +1931,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.createServiceAuthMethods(serviceAuthMethodsData);
       
+      // Audit the login config creation
+      await auditFromRequest(req, {
+        event: "login_config.created",
+        severity: "info",
+        action: `Login configuration created: ${newConfig.name}`,
+        targetType: "login_config",
+        targetId: newConfig.id,
+        targetName: newConfig.name,
+      });
+      
       res.status(201).json(newConfig);
     } catch (error: any) {
       console.error("Create login config error:", error);
@@ -1686,6 +1957,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         updatedBy: (req as any).user.id,
       });
+      
+      // Audit the login config update
+      await auditFromRequest(req, {
+        event: "login_config.updated",
+        severity: "info",
+        action: `Login configuration updated: ${updated.name}`,
+        targetType: "login_config",
+        targetId: updated.id,
+        targetName: updated.name,
+        details: validatedData,
+      });
+      
       res.json(updated);
     } catch (error: any) {
       console.error("Update login config error:", error);
@@ -1702,6 +1985,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
       }
+      
+      // Audit the login config deletion before deleting
+      await auditFromRequest(req, {
+        event: "login_config.deleted",
+        severity: "critical",
+        action: `Login configuration deleted: ${config.name}`,
+        targetType: "login_config",
+        targetId: config.id,
+        targetName: config.name,
+      });
       
       // Delete the configuration (services using it will have null loginConfigId via CASCADE)
       await storage.deleteLoginPageConfig(id);
@@ -1736,6 +2029,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Assign the config to the service (multiple services can share same config)
       const updated = await storage.assignLoginConfigToService(configId, serviceId);
+      
+      // Audit the login config assignment
+      await auditFromRequest(req, {
+        event: "service.login_config_assigned",
+        severity: "info",
+        action: `Login config '${config.name}' assigned to service '${service.name}'`,
+        targetType: "service",
+        targetId: serviceId,
+        targetName: service.name,
+        details: { loginConfigId: configId, loginConfigName: config.name },
+      });
+      
       res.json(updated);
     } catch (error: any) {
       console.error("Assign login config error:", error);
@@ -1770,6 +2075,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Update auth methods order error:", error);
       res.status(500).json({ error: "Failed to update order" });
+    }
+  });
+
+  // ==================== AUDIT LOG ROUTES ====================
+
+  // Admin: Get all audit logs with filters and pagination
+  app.get("/api/admin/audit-logs", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const {
+        event,
+        severity,
+        actorId,
+        targetType,
+        startDate,
+        endDate,
+        limit = "50",
+        offset = "0"
+      } = req.query;
+
+      const filters: any = {
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+      };
+
+      if (event) filters.event = event;
+      if (severity) filters.severity = severity;
+      if (actorId) filters.actorId = actorId;
+      if (targetType) filters.targetType = targetType;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+
+      const result = await storage.getAllAuditLogs(filters);
+
+      // Meta-logging: Track audit log viewing/filtering
+      const hasFilters = event || severity || actorId || targetType || startDate || endDate;
+      await auditFromRequest(req, {
+        event: hasFilters ? "audit_log.filtered" : "audit_log.viewed",
+        severity: "info",
+        action: hasFilters
+          ? `Admin viewed filtered audit logs (${result.total} results)`
+          : `Admin viewed audit logs (${result.total} results)`,
+        details: hasFilters ? { filters } : undefined,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Get audit logs error:", error);
+      res.status(500).json({ error: "Failed to fetch audit logs" });
+    }
+  });
+
+  // Admin: Get single audit log detail
+  app.get("/api/admin/audit-logs/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const log = await storage.getAuditLog(id);
+      
+      if (!log) {
+        return res.status(404).json({ error: "Audit log not found" });
+      }
+
+      // Meta-logging: Track audit log detail viewing
+      await auditFromRequest(req, {
+        event: "audit_log.detail_viewed",
+        severity: "info",
+        action: `Admin viewed audit log detail: ${log.event}`,
+        targetType: "audit_log",
+        targetId: id,
+        details: { viewedEvent: log.event },
+      });
+      
+      res.json(log);
+    } catch (error: any) {
+      console.error("Get audit log detail error:", error);
+      res.status(500).json({ error: "Failed to fetch audit log" });
+    }
+  });
+
+  // Admin: Export audit logs as JSON
+  app.get("/api/admin/audit-logs/export/json", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const {
+        event,
+        severity,
+        actorId,
+        targetType,
+        startDate,
+        endDate,
+      } = req.query;
+
+      const filters: any = {};
+
+      if (event) filters.event = event;
+      if (severity) filters.severity = severity;
+      if (actorId) filters.actorId = actorId;
+      if (targetType) filters.targetType = targetType;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+
+      const result = await storage.getAllAuditLogs(filters);
+
+      // Meta-logging: Track audit log export
+      await auditFromRequest(req, {
+        event: "audit_log.exported",
+        severity: "warning",
+        action: `Admin exported ${result.logs.length} audit logs`,
+        details: { 
+          exportCount: result.logs.length,
+          filters: Object.keys(filters).length > 0 ? filters : undefined,
+        },
+      });
+      
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename=audit-logs-${new Date().toISOString()}.json`);
+      res.json(result.logs);
+    } catch (error: any) {
+      console.error("Export audit logs error:", error);
+      res.status(500).json({ error: "Failed to export audit logs" });
+    }
+  });
+
+  // Get recent audit logs (for dashboard)
+  app.get("/api/admin/audit-logs/recent", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { limit = "10" } = req.query;
+      const logs = await storage.getRecentAuditLogs(parseInt(limit as string));
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Get recent audit logs error:", error);
+      res.status(500).json({ error: "Failed to fetch recent audit logs" });
+    }
+  });
+
+  // Pause audit log streaming
+  app.post("/api/admin/audit-logs/pause", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      await auditFromRequest(req, {
+        event: "audit_log.paused",
+        severity: "info",
+        action: "Admin paused audit log streaming",
+        details: { 
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      res.json({ success: true, message: "Audit log streaming paused" });
+    } catch (error: any) {
+      console.error("Pause audit logs error:", error);
+      res.status(500).json({ error: "Failed to pause audit logs" });
+    }
+  });
+
+  // Resume audit log streaming
+  app.post("/api/admin/audit-logs/resume", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      await auditFromRequest(req, {
+        event: "audit_log.resumed",
+        severity: "info",
+        action: "Admin resumed audit log streaming",
+        details: { 
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      res.json({ success: true, message: "Audit log streaming resumed" });
+    } catch (error: any) {
+      console.error("Resume audit logs error:", error);
+      res.status(500).json({ error: "Failed to resume audit logs" });
     }
   });
 

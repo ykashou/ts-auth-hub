@@ -1,5 +1,5 @@
 // Database storage implementation following javascript_database blueprint
-import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod } from "@shared/schema";
+import { users, apiKeys, services, rbacModels, roles, permissions, rolePermissions, serviceRbacModels, userServiceRoles, authMethods, loginPageConfig, serviceAuthMethods, auditLogs, type User, type InsertUser, type ApiKey, type InsertApiKey, type Service, type InsertService, type RbacModel, type InsertRbacModel, type Role, type InsertRole, type Permission, type InsertPermission, type RolePermission, type UserServiceRole, type AuthMethod, type LoginPageConfig, type ServiceAuthMethod, type InsertLoginPageConfig, type InsertServiceAuthMethod, type AuditLog, type InsertAuditLog } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray, isNull, asc, sql, or } from "drizzle-orm";
 import { randomBytes } from "crypto";
@@ -104,6 +104,21 @@ export interface IStorage {
   updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void>;
   getAllAuthMethods(): Promise<AuthMethod[]>;
   createServiceAuthMethods(data: InsertServiceAuthMethod[]): Promise<void>;
+
+  // Audit Log operations
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLog(id: string): Promise<AuditLog | undefined>;
+  getAllAuditLogs(filters?: {
+    event?: string;
+    severity?: string;
+    actorId?: string;
+    targetType?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ logs: AuditLog[]; total: number }>;
+  getRecentAuditLogs(limit?: number): Promise<AuditLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1583,6 +1598,93 @@ export class DatabaseStorage implements IStorage {
     if (data.length > 0) {
       await db.insert(serviceAuthMethods).values(data);
     }
+  }
+
+  // Audit Log operations
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [auditLog] = await db
+      .insert(auditLogs)
+      .values(log)
+      .returning();
+    return auditLog;
+  }
+
+  async getAuditLog(id: string): Promise<AuditLog | undefined> {
+    const [log] = await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.id, id))
+      .limit(1);
+    return log || undefined;
+  }
+
+  async getAllAuditLogs(filters?: {
+    event?: string;
+    severity?: string;
+    actorId?: string;
+    targetType?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ logs: AuditLog[]; total: number }> {
+    const conditions = [];
+
+    if (filters?.event) {
+      conditions.push(eq(auditLogs.event, filters.event as any));
+    }
+    if (filters?.severity) {
+      conditions.push(eq(auditLogs.severity, filters.severity as any));
+    }
+    if (filters?.actorId) {
+      conditions.push(eq(auditLogs.actorId, filters.actorId));
+    }
+    if (filters?.targetType) {
+      conditions.push(eq(auditLogs.targetType, filters.targetType));
+    }
+    if (filters?.startDate) {
+      conditions.push(sql`${auditLogs.createdAt} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${auditLogs.createdAt} <= ${filters.endDate}`);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(auditLogs)
+      .where(whereClause);
+
+    // Get paginated logs
+    let query = db
+      .select()
+      .from(auditLogs)
+      .where(whereClause)
+      .orderBy(sql`${auditLogs.createdAt} DESC`);
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
+    }
+
+    const logs = await query;
+
+    return {
+      logs,
+      total: countResult?.count || 0,
+    };
+  }
+
+  async getRecentAuditLogs(limit: number = 10): Promise<AuditLog[]> {
+    return await db
+      .select()
+      .from(auditLogs)
+      .orderBy(sql`${auditLogs.createdAt} DESC`)
+      .limit(limit);
   }
 }
 

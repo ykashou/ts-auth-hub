@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Layout } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Layout, Settings } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +16,22 @@ export default function Navbar() {
   const userRole = getUserRole();
   const isAdmin = userRole === 'admin';
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call backend logout endpoint for audit logging
+      // Important: Keep the token until after the request completes
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+    } catch (error) {
+      console.error("Logout audit failed:", error);
+      // Continue with logout even if audit fails
+    }
+    
+    // Clear token and redirect AFTER the logout request completes
     clearToken();
     toast({
       title: "Logged out",
@@ -167,15 +182,24 @@ export default function Navbar() {
               </DropdownMenu>
             )}
 
+            {/* Settings Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setLocation("/settings")}
+              data-testid="button-settings"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+
             {/* Logout Button */}
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={handleLogout}
               data-testid="button-logout"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
