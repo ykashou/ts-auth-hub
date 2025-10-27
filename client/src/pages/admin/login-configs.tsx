@@ -9,6 +9,7 @@ import { Edit, Loader2, Shield, Plus, FileText } from "lucide-react";
 import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 // Extended type with service information
 type LoginConfigWithService = LoginPageConfig & {
@@ -52,25 +53,21 @@ export default function LoginConfigurations() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {/* Header Section */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Login Configurations</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manage authentication page configurations for your services
-              </p>
-            </div>
-            <Button
-              onClick={() => {
-                // Navigate to editor to create new configuration
-                setLocation("/admin/login-editor");
-              }}
-              data-testid="button-create-config"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Configuration
-            </Button>
-          </div>
+          <PageHeader 
+            title="Login Configurations"
+            subtitle="Manage authentication page configurations for your services"
+            action={
+              <Button
+                onClick={() => {
+                  setLocation("/admin/login-editor");
+                }}
+                data-testid="button-create-config"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Configuration
+              </Button>
+            }
+          />
 
           {/* Configurations Table */}
           <Card data-testid="card-configs-table">
