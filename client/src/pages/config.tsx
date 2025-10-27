@@ -19,6 +19,7 @@ import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/PageHeader";
 
 // Popular icon options for services
 const ICON_OPTIONS = [
@@ -448,21 +449,18 @@ export default function Config() {
       <Navbar />
 
       <main className="container mx-auto px-6 py-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div>
-              <CardTitle>Configured Services</CardTitle>
-              <CardDescription>
-                Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
-              </CardDescription>
-            </div>
-            <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
-              <DialogTrigger asChild>
-                <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Service
-                </Button>
-              </DialogTrigger>
+        <PageHeader 
+          title="Service Configurations"
+          subtitle="Manage service cards that appear to authenticated users. Each service has a secret for widget authentication."
+          action={
+            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Service
+            </Button>
+          }
+        />
+
+        <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
@@ -667,8 +665,9 @@ export default function Config() {
                   </form>
                 </Form>
               </DialogContent>
-            </Dialog>
-          </CardHeader>
+        </Dialog>
+
+        <Card>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-12">
