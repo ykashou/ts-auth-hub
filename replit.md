@@ -13,7 +13,7 @@ AuthHub is a centralized authentication service providing a single source of tru
 ### UI/UX Decisions
 AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme (light mode: HSL 248° 100% 28%; dark mode: HSL 230% 75% 62%). It uses the Poppins font family and a consistent 0.8rem border radius for all components, emphasizing a clean, card-based layout with minimal shadows. A unified navigation system is present across all authenticated pages.
 
-**Navbar Design**: The navigation bar (`client/src/components/Navbar.tsx`) uses a modern, centered card-based design with pill-shaped rounded corners (`rounded-full`), limited width (`max-w-7xl`), and subtle shadow (`shadow-sm`). The navbar has padding from the viewport top (`pt-4`) and spans only a portion of the screen width rather than full-width, creating a professional floating effect. It remains sticky at the top when scrolling.
+**Navbar Design**: The navigation bar (`client/src/components/Navbar.tsx`) uses a modern, centered card-based design with pill-shaped rounded corners (`rounded-full`), limited width (`max-w-7xl`), and medium shadow (`shadow-md`). The navbar has padding from the viewport top (`pt-4`) and spans only a portion of the screen width rather than full-width, creating a professional floating effect. It remains sticky at the top when scrolling.
 
 **PageHeader Component**: A standardized header component (`client/src/components/PageHeader.tsx`) provides consistent title, subtitle, and action button layout across admin pages. Pages use `space-y-6` containers to manage vertical spacing, eliminating hardcoded margins. Implementation requires all page content (headers, cards, forms, dialogs) to be wrapped in a single `space-y-6` container for uniform spacing rhythm.
 

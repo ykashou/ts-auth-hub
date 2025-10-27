@@ -48,7 +48,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-10 px-4 sm:px-6 lg:px-8 pt-4">
-      <div className="max-w-7xl mx-auto bg-card border border-border rounded-full shadow-sm" data-testid="navbar-container">
+      <div className="max-w-7xl mx-auto bg-card border border-border rounded-full shadow-md" data-testid="navbar-container">
         <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
