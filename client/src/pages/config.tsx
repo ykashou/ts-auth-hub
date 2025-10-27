@@ -669,6 +669,12 @@ export default function Config() {
         </Dialog>
 
         <Card>
+          <CardHeader>
+            <CardTitle>All Services</CardTitle>
+            <CardDescription>
+              Configure service cards, authentication settings, and manage API secrets
+            </CardDescription>
+          </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-12">
