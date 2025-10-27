@@ -270,6 +270,15 @@ export class DatabaseStorage implements IStorage {
 
       if (existing.length > 0) {
         console.log(`[Storage] Global service "${serviceConfig.name}" already exists, skipping...`);
+        
+        // Ensure AuthHub has a login config even if the service already exists
+        if (serviceConfig.name === AUTHHUB_SERVICE.name) {
+          const existingConfig = await this.getLoginPageConfigByServiceId(AUTHHUB_SERVICE_ID);
+          if (!existingConfig) {
+            console.log(`[Storage] AuthHub exists but has no login config, seeding...`);
+            await this.seedLoginPageConfigForService(AUTHHUB_SERVICE_ID);
+          }
+        }
         continue;
       }
 
