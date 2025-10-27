@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import { useLocation } from "wouter";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function WidgetDocsPage() {
   const { toast } = useToast();
@@ -195,13 +196,13 @@ function App() {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <PageHeader 
+          title="Widget Integration"
+          subtitle="Integrate AuthHub authentication into your website using our JavaScript SDK"
+        />
+        
         {/* Introduction */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-3">AuthHub Integration</h2>
-          <p className="text-muted-foreground mb-4">
-            Integrate AuthHub authentication into your website or application with your choice of two integration patterns:
-            a <strong>popup widget</strong> for seamless SPA experiences, or a <strong>redirect flow</strong> for standard OAuth integration.
-          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
