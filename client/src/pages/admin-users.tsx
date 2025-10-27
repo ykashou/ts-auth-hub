@@ -41,12 +41,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Copy, Search, MoreVertical, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Download, UserCog } from "lucide-react";
+import { Copy, Search, MoreVertical, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Download, UserCog, Plus } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 type User = {
   id: string;
@@ -315,12 +316,24 @@ export default function AdminUsers() {
       <Navbar />
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground">User Management</h1>
-          <p className="text-muted-foreground mt-2">
-            View and manage all registered users
-          </p>
-        </div>
+        <PageHeader 
+          title="User Management"
+          subtitle="View and manage all registered users"
+          action={
+            <Button
+              onClick={() => {
+                toast({
+                  title: "Feature Coming Soon",
+                  description: "Admin user creation will be available in a future update. Users can self-register via the registration page.",
+                });
+              }}
+              data-testid="button-add-user"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+          }
+        />
 
         <Card>
           <CardHeader className="flex flex-col gap-4 space-y-0 pb-4">
