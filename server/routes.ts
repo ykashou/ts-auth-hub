@@ -1840,6 +1840,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (endDate) filters.endDate = new Date(endDate as string);
 
       const result = await storage.getAllAuditLogs(filters);
+
+      // Meta-logging: Track audit log viewing/filtering
+      const hasFilters = event || severity || actorId || targetType || startDate || endDate;
+      await auditFromRequest(req, {
+        event: hasFilters ? "audit_log.filtered" : "audit_log.viewed",
+        severity: "info",
+        action: hasFilters
+          ? `Admin viewed filtered audit logs (${result.total} results)`
+          : `Admin viewed audit logs (${result.total} results)`,
+        details: hasFilters ? { filters } : undefined,
+      });
+
       res.json(result);
     } catch (error: any) {
       console.error("Get audit logs error:", error);
@@ -1856,6 +1868,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!log) {
         return res.status(404).json({ error: "Audit log not found" });
       }
+
+      // Meta-logging: Track audit log detail viewing
+      await auditFromRequest(req, {
+        event: "audit_log.detail_viewed",
+        severity: "info",
+        action: `Admin viewed audit log detail: ${log.event}`,
+        targetType: "audit_log",
+        targetId: id,
+        details: { viewedEvent: log.event },
+      });
       
       res.json(log);
     } catch (error: any) {
@@ -1886,6 +1908,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (endDate) filters.endDate = new Date(endDate as string);
 
       const result = await storage.getAllAuditLogs(filters);
+
+      // Meta-logging: Track audit log export
+      await auditFromRequest(req, {
+        event: "audit_log.exported",
+        severity: "warning",
+        action: `Admin exported ${result.logs.length} audit logs`,
+        details: { 
+          exportCount: result.logs.length,
+          filters: Object.keys(filters).length > 0 ? filters : undefined,
+        },
+      });
       
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Content-Disposition", `attachment; filename=audit-logs-${new Date().toISOString()}.json`);
