@@ -208,8 +208,11 @@ export default function LoginPage() {
 
   const uuidLoginMutation = useMutation({
     mutationFn: async (data: UuidLoginForm) => {
-      const response = await apiRequest("POST", "/api/auth/uuid-login", { 
-        uuid: data.accountId || undefined,
+      const response = await apiRequest("POST", "/api/auth/authenticate", { 
+        method: "uuid",
+        credentials: {
+          uuid: data.accountId || undefined,
+        },
         // Only pass serviceId for OAuth redirect flows (when redirectUri exists)
         serviceId: redirectUri ? serviceId : undefined,
       });
@@ -251,8 +254,10 @@ export default function LoginPage() {
 
   const generateNewUuidMutation = useMutation({
     mutationFn: async () => {
-      // Call without UUID to auto-generate
-      const response = await apiRequest("POST", "/api/auth/uuid-login", {
+      // Call without UUID to auto-generate secure UUID4
+      const response = await apiRequest("POST", "/api/auth/authenticate", {
+        method: "uuid",
+        credentials: {},
         // Only pass serviceId for OAuth redirect flows (when redirectUri exists)
         serviceId: redirectUri ? serviceId : undefined,
       });
@@ -404,7 +409,7 @@ export default function LoginPage() {
               <div className="space-y-4">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground mb-3">
-                    GENERATE NEW ACCOUNT ID
+                    GENERATE NEW ACCOUNT ID (UUID4)
                   </p>
                   <Button
                     type="button"
