@@ -250,14 +250,22 @@ export class DatabaseStorage implements IStorage {
     const { DEFAULT_SERVICES, generateServiceSecret } = await import("./seed");
 
     for (const serviceConfig of DEFAULT_SERVICES) {
-      const existing = await db
-        .select()
-        .from(services)
-        .where(and(
-          eq(services.name, serviceConfig.name),
-          isNull(services.userId)
-        ))
-        .limit(1);
+      // For AuthHub, check by ID; for others, check by name
+      const checkId = serviceConfig.name === AUTHHUB_SERVICE.name ? AUTHHUB_SERVICE_ID : null;
+      
+      let existing;
+      if (checkId) {
+        existing = await db.select().from(services).where(eq(services.id, checkId)).limit(1);
+      } else {
+        existing = await db
+          .select()
+          .from(services)
+          .where(and(
+            eq(services.name, serviceConfig.name),
+            isNull(services.userId)
+          ))
+          .limit(1);
+      }
 
       if (existing.length > 0) {
         console.log(`[Storage] Global service "${serviceConfig.name}" already exists, skipping...`);
@@ -267,7 +275,7 @@ export class DatabaseStorage implements IStorage {
       const { encryptedSecret, secretPreview, secret } = generateServiceSecret();
 
       await db.insert(services).values({
-        id: serviceConfig.name === AUTHHUB_SERVICE.name ? AUTHHUB_SERVICE_ID : undefined,
+        id: checkId || undefined,
         name: serviceConfig.name,
         description: serviceConfig.description,
         url: serviceConfig.url,
