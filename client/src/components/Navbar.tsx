@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Layout } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Layout, Settings } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -167,15 +167,24 @@ export default function Navbar() {
               </DropdownMenu>
             )}
 
+            {/* Settings Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setLocation("/settings")}
+              data-testid="button-settings"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+
             {/* Logout Button */}
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={handleLogout}
               data-testid="button-logout"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
