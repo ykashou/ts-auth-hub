@@ -1647,18 +1647,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Create new login page configuration for a service
+  // Admin: Create new login page configuration
   app.post("/api/admin/login-config", verifyToken, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertLoginPageConfigSchema.parse(req.body);
-      
-      // Check if config already exists for this service
-      if (validatedData.serviceId) {
-        const existing = await storage.getLoginPageConfigByServiceId(validatedData.serviceId);
-        if (existing) {
-          return res.status(409).json({ error: "Configuration already exists for this service" });
-        }
-      }
       
       const newConfig = await storage.createLoginPageConfig({
         ...validatedData,
