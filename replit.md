@@ -48,6 +48,15 @@ AuthHub features a Quest Log-inspired interface with an "Arcane Blue" theme (lig
     *   **Popup Widget Flow**: JavaScript SDK with popup-based authentication using PostMessage.
     *   **OAuth Redirect Flow with RBAC**: Standard redirect-based authentication. When a `service_id` is provided, AuthHub signs the JWT with the service's secret, including RBAC data (role, permissions, RBAC model). External services can verify tokens locally. A token verification endpoint (`GET /api/services/:serviceId/verify-token`) is available. Admins assign users to roles within specific services.
 9.  **API Documentation**: Comprehensive, copy-to-clipboard API documentation for SaaS integration, covering OAuth redirect flow, JWT token structure with RBAC fields, token verification, and permission checking examples.
+10. **Audit Logging with Pause/Play Control**: Comprehensive audit logging system tracks all security and activity events across the platform. Features include:
+    *   **Configurable Auto-Refresh**: Adjustable refresh intervals (3s, 5s, 10s, 30s, 1m, Off) for real-time log monitoring
+    *   **Pause/Play Streaming Control**: Single-button toggle to pause/resume auto-refresh, with both actions logged as audit events
+    *   **Event Filtering**: Filter logs by severity (info, warning, error, critical) and event type (login, logout, user operations, service operations, RBAC operations)
+    *   **Search Functionality**: Full-text search across actions, actors, and targets
+    *   **Clickable Entries**: Opens sidebar with full audit log details in JSON or YAML format
+    *   **Export Capability**: Download filtered audit logs in JSON format
+    *   **Meta-Logging**: All audit log interactions (viewed, filtered, searched, paused, resumed, exported) are themselves logged as audit events
+    *   **Comprehensive Event Coverage**: Logs authentication events (login, logout, failed_login, register), user management (created, updated, deleted, role_changed), service operations (created, updated, deleted, secret_rotated, RBAC/config assignments), RBAC operations (model/role/permission CRUD, user-role assignments), and login config operations (created, updated, deleted)
 
 ### System Design Choices
 AuthHub uses a client-server architecture. The frontend is built with React, TypeScript, Tailwind CSS, Shadcn UI, Wouter, and TanStack Query. The backend uses Express.js and Node.js. PostgreSQL is the database, managed with Drizzle ORM. Shared types and Zod schemas ensure data consistency.
