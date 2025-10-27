@@ -1706,15 +1706,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Prevent deleting default config
       const config = await storage.getLoginPageConfigById(id);
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
       }
-      if (!config.serviceId) {
-        return res.status(400).json({ error: "Cannot delete default configuration" });
-      }
       
+      // Delete the configuration (services using it will have null loginConfigId via CASCADE)
       await storage.deleteLoginPageConfig(id);
       res.json({ success: true });
     } catch (error: any) {
@@ -1723,11 +1720,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Assign login config to service
+  // Admin: Assign login config to service (multiple services can share same config)
   app.post("/api/admin/login-config/:configId/assign-service", verifyToken, requireAdmin, async (req, res) => {
     try {
       const { configId } = req.params;
       const { serviceId } = req.body;
+      
+      if (!serviceId) {
+        return res.status(400).json({ error: "serviceId is required" });
+      }
       
       // Validate configId exists
       const config = await storage.getLoginPageConfigById(configId);
@@ -1735,22 +1736,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Login configuration not found" });
       }
       
-      // If assigning to a service (not null), check if service exists
-      if (serviceId) {
-        const service = await storage.getServiceById(serviceId);
-        if (!service) {
-          return res.status(404).json({ error: "Service not found" });
-        }
-        
-        // Check if another config is already assigned to this service
-        const existingConfig = await storage.getLoginConfigForService(serviceId);
-        if (existingConfig && existingConfig.id !== configId) {
-          // Unassign the existing config first
-          await storage.assignLoginConfigToService(existingConfig.id, null);
-        }
+      // Validate service exists
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
       }
       
-      // Assign the config to the service
+      // Assign the config to the service (multiple services can share same config)
       const updated = await storage.assignLoginConfigToService(configId, serviceId);
       res.json(updated);
     } catch (error: any) {

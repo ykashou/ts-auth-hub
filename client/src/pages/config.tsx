@@ -52,7 +52,7 @@ function ServiceRbacBadge({ serviceId }: { serviceId: string }) {
 }
 
 // Component to display login config badge for a service
-function ServiceLoginConfigBadge({ serviceId }: { serviceId: string }) {
+function ServiceLoginConfigBadge({ service }: { service: Service }) {
   const { data: configs = [], isLoading } = useQuery<LoginPageConfig[]>({
     queryKey: ["/api/admin/login-configs"],
   });
@@ -61,14 +61,18 @@ function ServiceLoginConfigBadge({ serviceId }: { serviceId: string }) {
     return <span className="text-xs text-muted-foreground">Loading...</span>;
   }
 
-  const assignedConfig = configs.find(config => config.serviceId === serviceId);
+  if (!service.loginConfigId) {
+    return <span className="text-xs text-muted-foreground">None</span>;
+  }
+
+  const assignedConfig = configs.find(config => config.id === service.loginConfigId);
 
   if (!assignedConfig) {
     return <span className="text-xs text-muted-foreground">None</span>;
   }
 
   return (
-    <Badge variant="outline" className="gap-1" data-testid={`badge-login-config-${serviceId}`}>
+    <Badge variant="outline" className="gap-1" data-testid={`badge-login-config-${service.id}`}>
       {assignedConfig.title}
     </Badge>
   );
@@ -350,9 +354,8 @@ export default function Config() {
       setPreviousRbacModelId("");
     }
 
-    // Fetch the login config for this service
-    const assignedConfig = loginConfigs.find(config => config.serviceId === service.id);
-    const configId = assignedConfig?.id || "";
+    // Get the login config assigned to this service
+    const configId = service.loginConfigId || "";
     setSelectedLoginConfigId(configId);
     setPreviousLoginConfigId(configId); // Track the original config ID
   };
@@ -735,7 +738,7 @@ export default function Config() {
                             <ServiceRbacBadge serviceId={service.id} />
                           </TableCell>
                           <TableCell>
-                            <ServiceLoginConfigBadge serviceId={service.id} />
+                            <ServiceLoginConfigBadge service={service} />
                           </TableCell>
                           <TableCell>
                             {service.secretPreview ? (

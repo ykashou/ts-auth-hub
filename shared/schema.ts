@@ -38,6 +38,7 @@ export const services = pgTable("services", {
   color: text("color"),
   secret: text("secret"), // AES-256-GCM encrypted secret for JWT signing (encrypted at application layer)
   secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
+  loginConfigId: varchar("login_config_id"), // Optional - multiple services can share the same login config
   isSystem: boolean("is_system").notNull().default(false), // System services cannot be deleted
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -196,13 +197,9 @@ export const authMethods = pgTable("auth_methods", {
 });
 
 // Login Page Configuration table
-// Configurations can optionally be assigned to services
-// Only the default AuthHub login config is tied to a service by default
+// Configurations are standalone entities that can be assigned to multiple services
 export const loginPageConfig = pgTable("login_page_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
-  // Service Association - OPTIONAL (can be assigned later from service management)
-  serviceId: varchar("service_id").references(() => services.id, { onDelete: "cascade" }).unique(),
   
   // Branding
   title: varchar("title").notNull().default("Welcome to AuthHub"),

@@ -99,7 +99,7 @@ export interface IStorage {
   createLoginPageConfig(config: InsertLoginPageConfig): Promise<LoginPageConfig>;
   updateLoginPageConfig(id: string, data: Partial<LoginPageConfig>): Promise<LoginPageConfig>;
   deleteLoginPageConfig(id: string): Promise<void>;
-  assignLoginConfigToService(configId: string, serviceId: string | null): Promise<LoginPageConfig>;
+  assignLoginConfigToService(configId: string, serviceId: string | null): Promise<Service>;
   getLoginConfigForService(serviceId: string): Promise<LoginPageConfig | undefined>;
   updateServiceAuthMethod(id: string, data: Partial<ServiceAuthMethod>): Promise<ServiceAuthMethod>;
   updateServiceAuthMethodsOrder(updates: Array<{ id: string; displayOrder: number }>): Promise<void>;
@@ -1052,17 +1052,19 @@ export class DatabaseStorage implements IStorage {
       return existing;
     }
     
-    // Create login page configuration for this service
+    // Create standalone login page configuration
     const implementedMethods = strategyRegistry.getImplementedIds();
     
     const [config] = await db.insert(loginPageConfig).values({
-      serviceId,
       title: "Welcome to AuthHub",
       description: "Choose your preferred authentication method",
       defaultMethod: implementedMethods[0] || "uuid",
     }).returning();
     
-    console.log(`[Storage] Created login config for service ${serviceId}`);
+    console.log(`[Storage] Created login config ${config.id} for service ${serviceId}`);
+    
+    // Assign the config to the service
+    await db.update(services).set({ loginConfigId: config.id }).where(eq(services.id, serviceId));
     
     // Seed service auth methods for this config
     const allAuthMethods = await db.select().from(authMethods);
@@ -1077,7 +1079,7 @@ export class DatabaseStorage implements IStorage {
     
     if (serviceAuthMethodsData.length > 0) {
       await db.insert(serviceAuthMethods).values(serviceAuthMethodsData);
-      console.log(`[Storage] Created ${serviceAuthMethodsData.length} service auth methods for service ${serviceId}`);
+      console.log(`[Storage] Created ${serviceAuthMethodsData.length} service auth methods for config ${config.id}`);
     }
     
     return config;
@@ -1157,20 +1159,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLoginPageConfigByServiceId(serviceId: string): Promise<LoginPageConfig | undefined> {
-    const [config] = await db
-      .select()
-      .from(loginPageConfig)
-      .where(eq(loginPageConfig.serviceId, serviceId))
-      .limit(1);
-    return config || undefined;
+    // Get the service and find its login config
+    const service = await this.getServiceById(serviceId);
+    if (!service || !service.loginConfigId) {
+      return undefined;
+    }
+    
+    return await this.getLoginPageConfigById(service.loginConfigId);
   }
 
   async getAllLoginPageConfigs(): Promise<any[]> {
-    // Fetch all configs with service information and method counts
+    // Fetch all configs - they are now standalone entities
     const configs = await db
       .select({
         id: loginPageConfig.id,
-        serviceId: loginPageConfig.serviceId,
         title: loginPageConfig.title,
         description: loginPageConfig.description,
         logoUrl: loginPageConfig.logoUrl,
@@ -1178,12 +1180,8 @@ export class DatabaseStorage implements IStorage {
         defaultMethod: loginPageConfig.defaultMethod,
         createdAt: loginPageConfig.createdAt,
         updatedAt: loginPageConfig.updatedAt,
-        serviceName: services.name,
-        serviceIcon: services.icon,
-        serviceColor: services.color,
       })
-      .from(loginPageConfig)
-      .leftJoin(services, eq(loginPageConfig.serviceId, services.id));
+      .from(loginPageConfig);
 
     // For each config, count the enabled methods
     const configsWithCounts = await Promise.all(
@@ -1271,24 +1269,29 @@ export class DatabaseStorage implements IStorage {
       .where(eq(loginPageConfig.id, id));
   }
 
-  async assignLoginConfigToService(configId: string, serviceId: string | null): Promise<LoginPageConfig> {
-    // First, clear any existing assignment for this config
-    // This ensures we don't have conflicts with the unique constraint
+  async assignLoginConfigToService(configId: string, serviceId: string | null): Promise<Service> {
+    // Update the service's loginConfigId field to point to this config
+    // Multiple services can now share the same login config
+    if (!serviceId) {
+      throw new Error("serviceId is required");
+    }
+    
     const [updated] = await db
-      .update(loginPageConfig)
-      .set({ serviceId: serviceId, updatedAt: new Date() })
-      .where(eq(loginPageConfig.id, configId))
+      .update(services)
+      .set({ loginConfigId: configId })
+      .where(eq(services.id, serviceId))
       .returning();
     return updated;
   }
 
   async getLoginConfigForService(serviceId: string): Promise<LoginPageConfig | undefined> {
-    const [config] = await db
-      .select()
-      .from(loginPageConfig)
-      .where(eq(loginPageConfig.serviceId, serviceId))
-      .limit(1);
-    return config;
+    // Get the service's loginConfigId and fetch that config
+    const service = await this.getServiceById(serviceId);
+    if (!service || !service.loginConfigId) {
+      return undefined;
+    }
+    
+    return await this.getLoginPageConfigById(service.loginConfigId);
   }
 
   async getAllAuthMethods(): Promise<AuthMethod[]> {
