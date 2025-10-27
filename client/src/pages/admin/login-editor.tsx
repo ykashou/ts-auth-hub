@@ -147,6 +147,25 @@ function LoginPagePreview({
     return IconComponent || Shield;
   };
 
+  // Compute derived state before early returns to maintain hook count consistency
+  const config = loginConfigData?.config;
+  const enabledMethods = methodsState.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
+  const primaryMethods = enabledMethods.filter(m => m.methodCategory === "primary" || m.methodCategory === "secondary");
+  const alternativeMethods = enabledMethods.filter(m => m.methodCategory !== "primary" && m.methodCategory !== "secondary");
+  const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
+  
+  // Set initial active method when component mounts or when defaultMethod changes
+  // This must run BEFORE any conditional returns to maintain hook order
+  useEffect(() => {
+    if (!activeMethodId && primaryMethods.length > 0) {
+      setActiveMethodId(defaultMethod);
+    }
+  }, [defaultMethod, activeMethodId, primaryMethods.length]);
+  
+  // Use activeMethodId for showing forms, fallback to defaultMethod
+  const displayMethod = activeMethodId || defaultMethod;
+
+  // Now safe to do early returns - all hooks have been called
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center bg-background">
@@ -167,24 +186,6 @@ function LoginPagePreview({
       </div>
     );
   }
-
-  const { config } = loginConfigData;
-  // Use methodsState from parent instead of fetched methods for real-time updates
-  const enabledMethods = methodsState.filter(m => m.enabled).sort((a, b) => a.displayOrder - b.displayOrder);
-  const primaryMethods = enabledMethods.filter(m => m.methodCategory === "primary" || m.methodCategory === "secondary");
-  // Alternative methods are anything that's NOT primary or secondary
-  const alternativeMethods = enabledMethods.filter(m => m.methodCategory !== "primary" && m.methodCategory !== "secondary");
-  const defaultMethod = formData.defaultMethod || primaryMethods[0]?.authMethodId || "uuid";
-  
-  // Set initial active method when component mounts or when defaultMethod changes
-  useEffect(() => {
-    if (!activeMethodId && primaryMethods.length > 0) {
-      setActiveMethodId(defaultMethod);
-    }
-  }, [defaultMethod]); // Only depend on defaultMethod to avoid infinite loops
-  
-  // Use activeMethodId for showing forms, fallback to defaultMethod
-  const displayMethod = activeMethodId || defaultMethod;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
