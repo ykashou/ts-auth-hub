@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Globe } from "lucide-react";
+import { Shield, Boxes, Settings2, FileText, Code2, LogOut, Home, Users, ShieldCheck, ChevronDown, Layout } from "lucide-react";
 import { useLocation } from "wouter";
 import { clearToken, getUserRole } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -28,18 +28,18 @@ export default function Navbar() {
   const userManagementItems = [
     { path: "/admin/users", label: "Users", icon: Users, testId: "button-user-management" },
     { path: "/admin/rbac", label: "RBAC Models", icon: Shield, testId: "button-rbac-models" },
-    { path: "/admin/role-assignments", label: "Role Assignments", icon: ShieldCheck, testId: "button-role-assignments" },
+    { path: "/admin/roles", label: "Role Assignments", icon: ShieldCheck, testId: "button-role-assignments" },
   ];
 
   const serviceManagementItems = [
-    { path: "/services", label: "Services", icon: Boxes, testId: "button-services" },
-    { path: "/config", label: "Config", icon: Settings2, testId: "button-config" },
-    { path: "/admin/global-services", label: "Global Services", icon: Globe, testId: "button-global-services" },
+    { path: "/services", label: "Service List", icon: Boxes, testId: "button-services" },
+    { path: "/admin/service-configs", label: "Service Configurations", icon: Settings2, testId: "button-config" },
+    { path: "/admin/auth-configs", label: "Authentication Variants", icon: Layout, testId: "button-login-configs" },
   ];
 
   const documentationItems = [
-    { path: "/api-docs", label: "API Docs", icon: FileText, testId: "button-api-docs" },
-    { path: "/widget-docs", label: "Widget", icon: Code2, testId: "button-widget-docs" },
+    { path: "/docs/api", label: "API Docs", icon: FileText, testId: "button-api-docs" },
+    { path: "/docs/widget", label: "Widget", icon: Code2, testId: "button-widget-docs" },
   ];
 
   const isUserManagementActive = userManagementItems.some(item => location === item.path);

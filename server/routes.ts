@@ -2,11 +2,15 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertGlobalServiceSchema, type User } from "@shared/schema";
+import { db } from "./db";
+import { services } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertApiKeySchema, uuidLoginSchema, insertServiceSchema, insertLoginPageConfigSchema, insertServiceAuthMethodSchema, type User } from "@shared/schema";
+import { eq, isNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { seedServices } from "./seed";
 import { encryptSecret, decryptSecret } from "./crypto";
+import { authHandler } from "./auth/AuthHandler";
+import { strategyRegistry } from "./auth/StrategyRegistry";
 
 // Extend Express Request type to include user from JWT
 declare global {
@@ -172,23 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role,
       });
 
-      // Auto-seed default services for new user
-      try {
-        await seedServices(user.id);
-      } catch (seedError) {
-        console.error("Failed to seed services for new user:", seedError);
-        // Continue even if seeding fails - user can create services manually
-      }
-
-      // If this is the first admin, seed default RBAC models
-      if (role === 'admin') {
-        try {
-          await storage.seedDefaultRbacModels(user.id);
-        } catch (seedError) {
-          console.error("Failed to seed default RBAC models:", seedError);
-          // Continue even if seeding fails - admin can create models manually
-        }
-      }
+      // No per-user seeding needed - services and RBAC models are seeded globally on startup
 
       // Generate JWT token (with service secret if serviceId provided)
       const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
@@ -209,122 +197,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Login user with email/password
+  // Login user with email/password - LEGACY ENDPOINT
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { serviceId, ...credentials } = req.body;
-      const validatedData = loginSchema.parse(credentials);
-
-      // Find user by email
-      const user = await storage.getUserByEmail(validatedData.email);
-      if (!user || !user.password) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(validatedData.password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      // Auto-seed services if user has none (for existing users from before auto-seeding was implemented)
-      try {
-        const userServices = await storage.getAllServicesByUser(user.id);
-        if (userServices.length === 0) {
-          await seedServices(user.id);
-        }
-      } catch (seedError) {
-        console.error("Failed to seed services for user on login:", seedError);
-        // Continue even if seeding fails
-      }
-
-      // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email, user.role, serviceId);
-
-      // Return user info (without password) and token
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-        },
-      });
+      const result = await authHandler.authenticate("email", credentials, serviceId);
+      res.json(result);
     } catch (error: any) {
       console.error("Login error:", error);
-      res.status(400).json({ error: error.message || "Login failed" });
+      res.status(401).json({ error: error.message || "Login failed" });
     }
   });
 
-  // Login user with UUID (anonymous authentication)
+  // Login user with UUID (anonymous authentication) - LEGACY ENDPOINT
   // If UUID is provided: login if exists, auto-register if not
   // If no UUID provided: generate new UUID and auto-register
   app.post("/api/auth/uuid-login", async (req, res) => {
     try {
-      const { serviceId, ...uuidData } = req.body;
-      const validatedData = uuidLoginSchema.parse(uuidData);
-      let user;
-      let isNewUser = false;
-
-      if (validatedData.uuid) {
-        // UUID provided - try to find it
-        user = await storage.getUser(validatedData.uuid);
-        
-        // If UUID doesn't exist, auto-register it
-        if (!user) {
-          // Check if this is the first user - if so, promote to admin
-          const userCount = await storage.getUserCount();
-          const role = userCount === 0 ? "admin" : "user";
-          user = await storage.createUserWithUuid(validatedData.uuid, role);
-          isNewUser = true;
-        }
-      } else {
-        // No UUID provided - generate new anonymous user
-        // Check if this is the first user - if so, promote to admin
-        const userCount = await storage.getUserCount();
-        const role = userCount === 0 ? "admin" : "user";
-        user = await storage.createAnonymousUser(role);
-        isNewUser = true;
-      }
-
-      // Auto-seed services if user has none (for new users or existing users from before auto-seeding)
-      try {
-        const userServices = await storage.getAllServicesByUser(user.id);
-        if (userServices.length === 0) {
-          await seedServices(user.id);
-        }
-      } catch (seedError) {
-        console.error("Failed to seed services for user:", seedError);
-        // Continue even if seeding fails - user can create services manually
-      }
-
-      // If this is the first admin, seed default RBAC models
-      if (user.role === 'admin' && isNewUser) {
-        try {
-          await storage.seedDefaultRbacModels(user.id);
-        } catch (seedError) {
-          console.error("Failed to seed default RBAC models:", seedError);
-          // Continue even if seeding fails - admin can create models manually
-        }
-      }
-
-      // Generate JWT token (with service secret if serviceId provided)
-      const token = await generateAuthToken(user.id, user.email || null, user.role, serviceId);
-
-      // Return user info (without password) and token
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-        },
-      });
+      const { serviceId, ...credentials } = req.body;
+      const result = await authHandler.authenticate("uuid", credentials, serviceId);
+      res.json(result);
     } catch (error: any) {
       console.error("UUID login error:", error);
-      res.status(400).json({ error: error.message || "UUID login failed" });
+      res.status(401).json({ error: error.message || "UUID login failed" });
+    }
+  });
+
+  // ==================== NEW UNIFIED AUTHENTICATION ENDPOINTS ====================
+  
+  // Get all available authentication methods (auto-discovered from registry + placeholders)
+  app.get("/api/auth/methods", async (req, res) => {
+    try {
+      // Import placeholder methods
+      const { placeholderMethods } = await import("./auth/StrategyRegistry");
+      
+      // Get implemented strategies metadata
+      const implementedMethods = strategyRegistry.getAllMetadata();
+      
+      // Combine implemented + placeholders
+      const allMethods = [
+        ...implementedMethods.map(m => ({ ...m, implemented: true })),
+        ...placeholderMethods.map(m => ({ ...m, implemented: false }))
+      ];
+      
+      res.json(allMethods);
+    } catch (error: any) {
+      console.error("Get auth methods error:", error);
+      res.status(500).json({ error: "Failed to fetch authentication methods" });
+    }
+  });
+
+  // Unified authentication endpoint (replaces separate /login, /uuid-login, etc.)
+  app.post("/api/auth/authenticate", async (req, res) => {
+    try {
+      const { method, serviceId, credentials } = req.body;
+      
+      if (!method) {
+        return res.status(400).json({ error: "Authentication method is required" });
+      }
+      
+      // Authenticate using strategy pattern
+      const result = await authHandler.authenticate(method, credentials || {}, serviceId);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Authentication error:", error);
+      res.status(401).json({ error: error.message || "Authentication failed" });
     }
   });
 
@@ -642,12 +580,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("Getting services for user:", req.user.id);
-      const services = await storage.getAllServicesByUser(req.user.id);
-      console.log("Found services:", services.length);
+      const allServices = await storage.getAllServices(req.user.id);
+      
+      console.log("Found services:", allServices.length);
       
       // Fetch RBAC model for each service
       const servicesWithRbacModels = await Promise.all(
-        services.map(async (service) => {
+        allServices.map(async (service) => {
           const rbacModel = await storage.getRbacModelForService(service.id);
           return {
             ...service,
@@ -670,22 +609,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const services = await storage.getAllServicesByUser(req.user.id);
-      res.json(services);
+      const allServices = await storage.getAllServices(req.user.id);
+      
+      console.log("Admin services found:", allServices.length);
+      
+      res.json(allServices);
     } catch (error: any) {
       console.error("Get admin services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
     }
   });
 
-  // Get service by ID (includes secret for display)
+  // Get service by ID (all services are global)
   app.get("/api/services/:id", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -698,14 +640,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update service
+  // Update service (all services are global)
   app.patch("/api/services/:id", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      // Get service by ID (all services are global)
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -728,7 +671,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secretPreview: service.secretPreview, // Preserve existing secret preview
       };
       
-      const updatedService = await storage.updateService(req.params.id, req.user.id, updateData);
+      // Update service (all services are global)
+      const updatedService = await storage.updateService(req.params.id, updateData);
       
       res.json(updatedService);
     } catch (error: any) {
@@ -737,20 +681,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete service
+  // Delete service (all services are global)
   app.delete("/api/services/:id", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
 
-      await storage.deleteService(req.params.id, req.user.id);
+      // Prevent deletion of system services (marked with isSystem flag)
+      if (service.isSystem) {
+        return res.status(403).json({ error: "Cannot delete system services" });
+      }
+
+      await storage.deleteService(req.params.id);
       
       res.json({ success: true, message: "Service deleted successfully" });
     } catch (error: any) {
@@ -759,14 +708,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Rotate service secret (generates new secret)
+  // Rotate service secret (generates new secret, all services are global)
   app.post("/api/services/:id/rotate-secret", verifyToken, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -782,7 +731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
       // Update the service with the new encrypted secret and preview
-      await storage.updateService(req.params.id, req.user.id, { secret: encryptedSecret, secretPreview });
+      await storage.updateService(req.params.id, { secret: encryptedSecret, secretPreview });
       
       res.json({
         success: true,
@@ -842,7 +791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new global service (admin only)
   app.post("/api/admin/global-services", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const validatedData = insertGlobalServiceSchema.parse(req.body);
+      const validatedData = insertServiceSchema.parse(req.body);
       
       // Generate a unique secret for the service (for JWT signing and widget authentication)
       const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
@@ -856,11 +805,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set redirect URL to service URL if not provided
       const redirectUrl = validatedData.redirectUrl || validatedData.url;
       
-      const service = await storage.createGlobalService({
+      const service = await storage.createService({
         ...validatedData,
         redirectUrl,
         secret: encryptedSecret, // Store encrypted secret
         secretPreview,
+        userId: null as any, // Global service
       });
       
       // Return service with plaintext secret (only time it's shown in full)
@@ -877,8 +827,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all global services (admin only)
   app.get("/api/admin/global-services", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const services = await storage.getAllGlobalServices();
-      res.json(services);
+      // Get all services with userId = null (global services)
+      const allServices = await db.select().from(services).where(isNull(services.userId));
+      res.json(allServices);
     } catch (error: any) {
       console.error("Get global services error:", error);
       res.status(500).json({ error: "Failed to fetch global services" });
@@ -888,9 +839,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single global service by ID (admin only)
   app.get("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
       
@@ -904,28 +855,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update global service (admin only)
   app.patch("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
 
       // Use partial schema to allow partial updates
-      const validatedData = insertGlobalServiceSchema.partial().parse(req.body);
+      const validatedData = insertServiceSchema.partial().parse(req.body);
       
       // Set default color only if color field is explicitly provided but empty
       if ("color" in validatedData && (!validatedData.color || validatedData.color.trim() === '')) {
         validatedData.color = 'hsl(var(--primary))';
       }
       
-      // Preserve the existing secrets - they should never be updated via PATCH
+      // Preserve the existing secrets and userId - they should never be updated via PATCH
       const updateData = {
         ...validatedData,
         secret: service.secret,
         secretPreview: service.secretPreview,
+        userId: null, // Keep as global service
       };
       
-      const updatedService = await storage.updateGlobalService(req.params.id, updateData);
+      const [updatedService] = await db.update(services).set(updateData).where(eq(services.id, req.params.id)).returning();
       
       res.json(updatedService);
     } catch (error: any) {
@@ -937,13 +889,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete global service (admin only)
   app.delete("/api/admin/global-services/:id", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
 
-      await storage.deleteGlobalService(req.params.id);
+      await db.delete(services).where(eq(services.id, req.params.id));
       
       res.json({ success: true, message: "Global service deleted successfully" });
     } catch (error: any) {
@@ -955,9 +907,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rotate global service secret (admin only)
   app.post("/api/admin/global-services/:id/rotate-secret", verifyToken, requireAdmin, async (req, res) => {
     try {
-      const service = await storage.getGlobalService(req.params.id);
+      const service = await storage.getServiceById(req.params.id);
       
-      if (!service) {
+      if (!service || service.userId !== null) {
         return res.status(404).json({ error: "Global service not found" });
       }
 
@@ -971,7 +923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
       
       // Update the service with the new encrypted secret and preview
-      await storage.updateGlobalService(req.params.id, { secret: encryptedSecret, secretPreview });
+      await db.update(services).set({ secret: encryptedSecret, secretPreview }).where(eq(services.id, req.params.id));
       
       res.json({
         success: true,
@@ -986,7 +938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== Service-RBAC Model Assignment Routes ====================
   
-  // Assign RBAC model to a service
+  // Assign RBAC model to a service (all services are global)
   app.post("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
     try {
       const { id: serviceId } = req.params;
@@ -996,8 +948,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "rbacModelId is required" });
       }
 
-      // Verify the service belongs to the user
-      const service = await storage.getService(serviceId, req.user!.id);
+      // Verify the service exists (all services are global)
+      const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
@@ -1020,13 +972,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Remove RBAC model from a service
+  // Remove RBAC model from a service (all services are global)
   app.delete("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
     try {
       const { id: serviceId } = req.params;
 
-      // Verify the service belongs to the user
-      const service = await storage.getService(serviceId, req.user!.id);
+      // Verify the service exists (all services are global)
+      const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
@@ -1043,13 +995,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get RBAC model for a service
+  // Get RBAC model for a service (all services are global)
   app.get("/api/services/:id/rbac-model", verifyToken, async (req, res) => {
     try {
       const { id: serviceId } = req.params;
 
-      // Verify the service belongs to the user
-      const service = await storage.getService(serviceId, req.user!.id);
+      // Verify the service exists (all services are global)
+      const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
@@ -1633,6 +1585,191 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Set role permissions error:", error);
       res.status(500).json({ error: "Failed to update role permissions" });
+    }
+  });
+
+  // ==================== LOGIN PAGE CONFIGURATION ROUTES ====================
+
+  // Public endpoint: Get login page configuration for a service
+  // Now requires serviceId - login configurations are service-specific
+  app.get("/api/login-config", async (req, res) => {
+    try {
+      const { serviceId } = req.query;
+      
+      if (!serviceId) {
+        return res.status(400).json({ error: "serviceId is required" });
+      }
+      
+      const config = await storage.getLoginPageConfigByServiceId(serviceId as string);
+      
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found for this service" });
+      }
+      
+      // Get enabled auth methods for this config
+      const methods = await storage.getEnabledServiceAuthMethods(config.id);
+      
+      res.json({ config, methods });
+    } catch (error: any) {
+      console.error("Get login config error:", error);
+      res.status(500).json({ error: "Failed to fetch login configuration" });
+    }
+  });
+
+  // Admin: Get all login page configurations
+  app.get("/api/admin/login-configs", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const configs = await storage.getAllLoginPageConfigs();
+      res.json(configs);
+    } catch (error: any) {
+      console.error("Get login configs error:", error);
+      res.status(500).json({ error: "Failed to fetch login configurations" });
+    }
+  });
+
+  // Admin: Get login page configuration by ID
+  app.get("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const config = await storage.getLoginPageConfigById(id);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      // Also fetch associated auth methods (all, including disabled)
+      const methods = await storage.getServiceAuthMethods(config.id);
+      
+      res.json({ config, methods });
+    } catch (error: any) {
+      console.error("Get login config error:", error);
+      res.status(500).json({ error: "Failed to fetch login configuration" });
+    }
+  });
+
+  // Admin: Create new login page configuration
+  app.post("/api/admin/login-config", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertLoginPageConfigSchema.parse(req.body);
+      
+      const newConfig = await storage.createLoginPageConfig({
+        ...validatedData,
+        updatedBy: (req as any).user.id,
+      });
+      
+      // Auto-create default service auth methods entries
+      const allMethods = await storage.getAllAuthMethods();
+      const serviceAuthMethodsData = allMethods.map((method, index) => ({
+        loginConfigId: newConfig.id,
+        authMethodId: method.id,
+        enabled: method.implemented,
+        showComingSoonBadge: !method.implemented,
+        displayOrder: index,
+        methodCategory: method.id === "uuid" ? "primary" : method.id === "email" ? "secondary" : "alternative",
+      }));
+      
+      await storage.createServiceAuthMethods(serviceAuthMethodsData);
+      
+      res.status(201).json(newConfig);
+    } catch (error: any) {
+      console.error("Create login config error:", error);
+      res.status(400).json({ error: error.message || "Failed to create configuration" });
+    }
+  });
+
+  // Admin: Update login page configuration
+  app.patch("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertLoginPageConfigSchema.partial().parse(req.body);
+      const updated = await storage.updateLoginPageConfig(id, {
+        ...validatedData,
+        updatedBy: (req as any).user.id,
+      });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update login config error:", error);
+      res.status(400).json({ error: error.message || "Failed to update configuration" });
+    }
+  });
+
+  // Admin: Delete login page configuration
+  app.delete("/api/admin/login-config/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const config = await storage.getLoginPageConfigById(id);
+      if (!config) {
+        return res.status(404).json({ error: "Configuration not found" });
+      }
+      
+      // Delete the configuration (services using it will have null loginConfigId via CASCADE)
+      await storage.deleteLoginPageConfig(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete login config error:", error);
+      res.status(500).json({ error: "Failed to delete configuration" });
+    }
+  });
+
+  // Admin: Assign login config to service (multiple services can share same config)
+  app.post("/api/admin/login-config/:configId/assign-service", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { configId } = req.params;
+      const { serviceId } = req.body;
+      
+      if (!serviceId) {
+        return res.status(400).json({ error: "serviceId is required" });
+      }
+      
+      // Validate configId exists
+      const config = await storage.getLoginPageConfigById(configId);
+      if (!config) {
+        return res.status(404).json({ error: "Login configuration not found" });
+      }
+      
+      // Validate service exists
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      // Assign the config to the service (multiple services can share same config)
+      const updated = await storage.assignLoginConfigToService(configId, serviceId);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Assign login config error:", error);
+      res.status(500).json({ error: "Failed to assign login configuration" });
+    }
+  });
+
+  // Admin: Update service auth method (toggle enabled, change button text, etc.)
+  app.patch("/api/admin/service-auth-method/:id", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertServiceAuthMethodSchema.partial().parse(req.body);
+      const updated = await storage.updateServiceAuthMethod(id, validatedData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update service auth method error:", error);
+      res.status(400).json({ error: error.message || "Failed to update auth method" });
+    }
+  });
+
+  // Admin: Update display order of auth methods (drag-and-drop)
+  app.put("/api/admin/service-auth-methods/order", verifyToken, requireAdmin, async (req, res) => {
+    try {
+      const { updates } = req.body;
+      
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ error: "updates must be an array" });
+      }
+      
+      await storage.updateServiceAuthMethodsOrder(updates);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Update auth methods order error:", error);
+      res.status(500).json({ error: "Failed to update order" });
     }
   });
 

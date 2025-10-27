@@ -1,18 +1,25 @@
-import { db } from "./db";
-import { services } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
-import crypto from "crypto";
 import { encryptSecret } from "./crypto";
+import { AUTHHUB_SERVICE } from "@shared/constants";
+import crypto from "crypto";
 
-interface DefaultService {
+export interface DefaultService {
   name: string;
   description: string;
   url: string;
   icon: string;
   color: string;
+  isSystem?: boolean;
 }
 
-const DEFAULT_SERVICES: DefaultService[] = [
+export const DEFAULT_SERVICES: DefaultService[] = [
+  {
+    name: AUTHHUB_SERVICE.name,
+    description: AUTHHUB_SERVICE.description,
+    url: AUTHHUB_SERVICE.url,
+    icon: AUTHHUB_SERVICE.icon,
+    color: AUTHHUB_SERVICE.color,
+    isSystem: true,
+  },
   {
     name: "Git Garden",
     description: "Git-based portfolio-as-a-service platform",
@@ -64,50 +71,14 @@ const DEFAULT_SERVICES: DefaultService[] = [
   },
 ];
 
-export async function seedServices(userId: string) {
-  console.log(`🌱 Starting database seeding for user ${userId}...`);
-
-  for (const defaultService of DEFAULT_SERVICES) {
-    try {
-      // Check if this user already has a service with this name
-      const existing = await db
-        .select()
-        .from(services)
-        .where(and(
-          eq(services.name, defaultService.name),
-          eq(services.userId, userId)
-        ))
-        .limit(1);
-
-      if (existing.length > 0) {
-        console.log(`⏭️  Service "${defaultService.name}" already exists for this user, skipping...`);
-        continue;
-      }
-
-      // Generate secret
-      const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
-      
-      // Encrypt the secret for secure storage
-      const encryptedSecret = encryptSecret(plaintextSecret);
-      
-      // Create truncated preview for display
-      const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
-
-      // Create service with redirect URL defaulting to service URL
-      await db.insert(services).values({
-        ...defaultService,
-        userId,
-        secret: encryptedSecret,
-        secretPreview,
-        redirectUrl: defaultService.url,
-      });
-
-      console.log(`✅ Created service: "${defaultService.name}"`);
-      console.log(`   Secret: ${plaintextSecret}`);
-    } catch (error) {
-      console.error(`❌ Failed to create service "${defaultService.name}":`, error);
-    }
-  }
-
-  console.log("\n✨ Database seeding completed for user!");
+export function generateServiceSecret(): { secret: string; secretPreview: string; encryptedSecret: string } {
+  const plaintextSecret = `sk_${crypto.randomBytes(24).toString('hex')}`;
+  const encryptedSecret = encryptSecret(plaintextSecret);
+  const secretPreview = `${plaintextSecret.substring(0, 12)}...${plaintextSecret.substring(plaintextSecret.length - 6)}`;
+  
+  return {
+    secret: plaintextSecret,
+    secretPreview,
+    encryptedSecret,
+  };
 }

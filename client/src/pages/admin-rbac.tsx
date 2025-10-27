@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 type RbacModel = {
   id: string;
@@ -198,25 +199,24 @@ export default function AdminRbac() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">RBAC Models</h1>
-            <p className="text-muted-foreground mt-1">
-              Create and manage role-based access control models
-            </p>
-          </div>
-          <Button 
-            onClick={() => setCreateDialogOpen(true)}
-            data-testid="button-create-model"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Model
-          </Button>
-        </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          <PageHeader 
+            title="RBAC Models"
+            subtitle="Create and manage role-based access control models"
+            action={
+              <Button 
+                onClick={() => setCreateDialogOpen(true)}
+                data-testid="button-create-model"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Model
+              </Button>
+            }
+          />
 
-        {/* Search Bar */}
-        <div className="mb-6">
+          {/* Search Bar */}
+        <div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -441,7 +441,8 @@ export default function AdminRbac() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
-import { getUserRole } from "@/lib/auth";
+import { getUserRole, getToken } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Service = {
   id: string;
@@ -312,7 +318,7 @@ export default function AdminRbacDetail() {
   // Handle export downloads
   const handleExport = async (format: 'json' | 'yaml') => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       if (!token) {
         toast({ title: "Error", description: "Not authenticated", variant: "destructive" });
         return;
@@ -460,7 +466,7 @@ export default function AdminRbacDetail() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <Button
             variant="outline"
@@ -698,22 +704,23 @@ export default function AdminRbacDetail() {
                   className="w-64"
                   data-testid="input-search-visualization"
                 />
-                <Button
-                  variant="outline"
-                  onClick={() => handleExport('json')}
-                  data-testid="button-export-json"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export JSON
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExport('yaml')}
-                  data-testid="button-export-yaml"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export YAML
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" data-testid="button-export">
+                      <Download className="mr-2 h-4 w-4" />
+                      Export
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleExport('json')} data-testid="button-export-json">
+                      Export JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport('yaml')} data-testid="button-export-yaml">
+                      Export YAML
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -1194,7 +1201,7 @@ export default function AdminRbacDetail() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </main>
     </div>
   );
 }

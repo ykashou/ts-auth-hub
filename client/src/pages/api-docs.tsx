@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import { useLocation } from "wouter";
 import Navbar from "@/components/Navbar";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function ApiDocsPage() {
   const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
@@ -106,8 +107,12 @@ export default function ApiDocsPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
+          <PageHeader 
+            title="API Documentation"
+            subtitle="Integrate AuthHub into your SaaS products using our REST API"
+          />
 
           {/* Introduction */}
           <Card>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertServiceSchema, type Service, type InsertService, type RbacModel } from "@shared/schema";
+import { insertServiceSchema, type Service, type InsertService, type RbacModel, type LoginPageConfig } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { useLocation } from "wouter";
 import { isAuthenticated, getUserRole } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/PageHeader";
 
 // Popular icon options for services
 const ICON_OPTIONS = [
@@ -51,6 +52,33 @@ function ServiceRbacBadge({ serviceId }: { serviceId: string }) {
   );
 }
 
+// Component to display login config badge for a service
+function ServiceLoginConfigBadge({ service }: { service: Service }) {
+  const { data: configs = [], isLoading } = useQuery<LoginPageConfig[]>({
+    queryKey: ["/api/admin/login-configs"],
+  });
+
+  if (isLoading) {
+    return <span className="text-xs text-muted-foreground">Loading...</span>;
+  }
+
+  if (!service.loginConfigId) {
+    return <span className="text-xs text-muted-foreground">None</span>;
+  }
+
+  const assignedConfig = configs.find(config => config.id === service.loginConfigId);
+
+  if (!assignedConfig) {
+    return <span className="text-xs text-muted-foreground">None</span>;
+  }
+
+  return (
+    <Badge variant="outline" className="gap-1" data-testid={`badge-login-config-${service.id}`}>
+      {assignedConfig.title}
+    </Badge>
+  );
+}
+
 export default function Config() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -61,6 +89,8 @@ export default function Config() {
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
   const [selectedRbacModelId, setSelectedRbacModelId] = useState<string>("");
   const [previousRbacModelId, setPreviousRbacModelId] = useState<string>("");
+  const [selectedLoginConfigId, setSelectedLoginConfigId] = useState<string>("");
+  const [previousLoginConfigId, setPreviousLoginConfigId] = useState<string>("");
 
   // Check authentication and admin role
   useEffect(() => {
@@ -84,6 +114,11 @@ export default function Config() {
   // Fetch all RBAC models (admin endpoint)
   const { data: rbacModels = [] } = useQuery<RbacModel[]>({
     queryKey: ["/api/admin/rbac/models"],
+  });
+
+  // Fetch all login configs (admin endpoint)
+  const { data: loginConfigs = [] } = useQuery<LoginPageConfig[]>({
+    queryKey: ["/api/admin/login-configs"],
   });
 
   // Sort services alphabetically by name
@@ -141,14 +176,15 @@ export default function Config() {
       return await apiRequest("PATCH", `/api/services/${id}`, data);
     },
     onSuccess: async (_, { id }) => {
-      // Update RBAC model assignment if changed
+      // Update RBAC model assignment and login config if changed
       try {
         if (editingService) {
           await updateRbacModelAssignment(id);
+          await updateLoginConfigAssignment(id);
         }
-      } catch (rbacError) {
-        // RBAC assignment failed, but service update succeeded
-        console.error("[Config] RBAC assignment failed in onSuccess:", rbacError);
+      } catch (assignmentError) {
+        // Assignment failed, but service update succeeded
+        console.error("[Config] Assignment failed in onSuccess:", assignmentError);
         // Don't reset the form state so user can try again
         return;
       }
@@ -159,9 +195,12 @@ export default function Config() {
       // Invalidate RBAC model queries - both general list and specific model services
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rbac/models"] });
       
+      // Invalidate login config queries
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/login-configs"] });
+      
       // Invalidate the specific service's RBAC model badge query
       queryClient.invalidateQueries({ 
-        queryKey: ["/api/services", data.id, "rbac-model"],
+        queryKey: ["/api/services", id, "rbac-model"],
         refetchType: 'active'
       });
       
@@ -188,6 +227,8 @@ export default function Config() {
       setEditingService(null);
       setSelectedRbacModelId("");
       setPreviousRbacModelId("");
+      setSelectedLoginConfigId("");
+      setPreviousLoginConfigId("");
       form.reset();
     },
     onError: (error: any) => {
@@ -221,6 +262,34 @@ export default function Config() {
       toast({
         title: "RBAC model assignment failed",
         description: error.message || "Failed to update RBAC model assignment",
+        variant: "destructive",
+      });
+      throw error; // Re-throw to prevent success toast
+    }
+  };
+
+  // Helper function to update login config assignment
+  const updateLoginConfigAssignment = async (serviceId: string) => {
+    console.log("[Config] updateLoginConfigAssignment called with serviceId:", serviceId, "selectedLoginConfigId:", selectedLoginConfigId);
+    try {
+      if (selectedLoginConfigId) {
+        // Assign the selected login config to the service
+        console.log("[Config] Assigning login config:", selectedLoginConfigId, "to service:", serviceId);
+        const result = await apiRequest("POST", `/api/admin/login-config/${selectedLoginConfigId}/assign-service`, { serviceId });
+        console.log("[Config] Login config assignment result:", result);
+      } else if (previousLoginConfigId) {
+        // Unassign the previous login config
+        console.log("[Config] Removing login config from service:", serviceId);
+        await apiRequest("POST", `/api/admin/login-config/${previousLoginConfigId}/assign-service`, { serviceId: null });
+      } else {
+        console.log("[Config] No login config to assign or remove");
+      }
+    } catch (error: any) {
+      console.error("[Config] Failed to update login config assignment:", error);
+      // Show a toast for login config assignment failure
+      toast({
+        title: "Login config assignment failed",
+        description: error.message || "Failed to update login configuration assignment",
         variant: "destructive",
       });
       throw error; // Re-throw to prevent success toast
@@ -285,6 +354,11 @@ export default function Config() {
       setSelectedRbacModelId("");
       setPreviousRbacModelId("");
     }
+
+    // Get the login config assigned to this service
+    const configId = service.loginConfigId || "";
+    setSelectedLoginConfigId(configId);
+    setPreviousLoginConfigId(configId); // Track the original config ID
   };
 
   const handleDelete = (id: string) => {
@@ -299,6 +373,8 @@ export default function Config() {
       setEditingService(null);
       setSelectedRbacModelId("");
       setPreviousRbacModelId("");
+      setSelectedLoginConfigId("");
+      setPreviousLoginConfigId("");
       form.reset();
     }
   };
@@ -372,22 +448,20 @@ export default function Config() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="container mx-auto px-6 py-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div>
-              <CardTitle>Configured Services</CardTitle>
-              <CardDescription>
-                Manage service cards that appear to authenticated users. Each service has a secret for widget authentication.
-              </CardDescription>
-            </div>
-            <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
-              <DialogTrigger asChild>
-                <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Service
-                </Button>
-              </DialogTrigger>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          <PageHeader 
+            title="Service Configurations"
+            subtitle="Manage service cards that appear to authenticated users. Each service has a secret for widget authentication."
+            action={
+              <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-service">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Service
+              </Button>
+            }
+          />
+
+          <Dialog open={isAddDialogOpen || !!editingService} onOpenChange={handleDialogClose}>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
@@ -541,6 +615,34 @@ export default function Config() {
                       </p>
                     </div>
 
+                    {/* Login Config Selector - shown for both create and edit */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Authentication Configuration (Optional)
+                      </label>
+                      <Select 
+                        value={selectedLoginConfigId || "none"} 
+                        onValueChange={(value) => setSelectedLoginConfigId(value === "none" ? "" : value)}
+                      >
+                        <SelectTrigger data-testid="select-login-config">
+                          <SelectValue placeholder="No authentication config assigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" data-testid="option-no-login-config">
+                            None
+                          </SelectItem>
+                          {loginConfigs.map((config) => (
+                            <SelectItem key={config.id} value={config.id} data-testid={`option-login-config-${config.id}`}>
+                              {config.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        Assign an authentication configuration to customize the login page for this service
+                      </p>
+                    </div>
+
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         type="button"
@@ -564,8 +666,9 @@ export default function Config() {
                   </form>
                 </Form>
               </DialogContent>
-            </Dialog>
-          </CardHeader>
+        </Dialog>
+
+        <Card>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-12">
@@ -594,6 +697,7 @@ export default function Config() {
                       <TableHead className="font-semibold">Description</TableHead>
                       <TableHead className="font-semibold">URL</TableHead>
                       <TableHead className="font-semibold">RBAC Model</TableHead>
+                      <TableHead className="font-semibold">Login Config</TableHead>
                       <TableHead className="font-semibold">Secret</TableHead>
                       <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
@@ -632,6 +736,9 @@ export default function Config() {
                           </TableCell>
                           <TableCell>
                             <ServiceRbacBadge serviceId={service.id} />
+                          </TableCell>
+                          <TableCell>
+                            <ServiceLoginConfigBadge service={service} />
                           </TableCell>
                           <TableCell>
                             {service.secretPreview ? (
@@ -764,6 +871,7 @@ export default function Config() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </main>
     </div>
   );

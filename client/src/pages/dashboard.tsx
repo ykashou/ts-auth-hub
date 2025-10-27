@@ -16,6 +16,7 @@ import { useLocation } from "wouter";
 import type { User, Service } from "@shared/schema";
 import Navbar from "@/components/Navbar";
 import { queryClient } from "@/lib/queryClient";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,22 +94,19 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {/* Header Section */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                {isAdmin ? 'Monitor user activity and system overview' : 'Your account dashboard'}
-              </p>
-            </div>
-            <Badge 
-              variant={isAdmin ? 'default' : 'secondary'}
-              className="text-sm px-3 py-1"
-              data-testid="badge-user-role"
-            >
-              {isAdmin ? 'Admin' : 'User'}
-            </Badge>
-          </div>
+          <PageHeader 
+            title="Dashboard"
+            subtitle={isAdmin ? 'Monitor user activity and system overview' : 'Your account dashboard'}
+            action={
+              <Badge 
+                variant={isAdmin ? 'default' : 'secondary'}
+                className="text-sm px-3 py-1"
+                data-testid="badge-user-role"
+              >
+                {isAdmin ? 'Admin' : 'User'}
+              </Badge>
+            }
+          />
 
           {/* Current User Account Info - Always shown */}
           {currentUser && (
@@ -257,7 +255,7 @@ export default function DashboardPage() {
                   variant="outline"
                   size="sm"
                   className="w-full mt-3"
-                  onClick={() => setLocation("/config")}
+                  onClick={() => setLocation("/admin/service-configs")}
                   data-testid="button-manage-services"
                 >
                   <Settings className="w-3 h-3 mr-2" />
@@ -279,7 +277,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="justify-start"
-                    onClick={() => setLocation("/config")}
+                    onClick={() => setLocation("/admin/service-configs")}
                     data-testid="button-add-service"
                   >
                     <Box className="w-4 h-4 mr-2" />
@@ -288,7 +286,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="justify-start"
-                    onClick={() => setLocation("/widget-docs")}
+                    onClick={() => setLocation("/docs/widget")}
                     data-testid="button-widget-docs"
                   >
                     <Code className="w-4 h-4 mr-2" />
@@ -297,7 +295,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="justify-start"
-                    onClick={() => setLocation("/api-docs")}
+                    onClick={() => setLocation("/docs/api")}
                     data-testid="button-api-docs"
                   >
                     <FileText className="w-4 h-4 mr-2" />

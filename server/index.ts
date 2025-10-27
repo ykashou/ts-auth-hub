@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { storage } from "./storage";
 
 const app = express();
 
@@ -48,6 +49,22 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // Seed default services (global defaults with userId = null) on startup
+  try {
+    await storage.seedDefaultServices();
+    log("[Server] Default services seeded successfully");
+  } catch (error) {
+    console.error("[Server] Failed to seed default services:", error);
+  }
+
+  // Seed default RBAC models on startup
+  try {
+    await storage.seedDefaultRbacModels();
+    log("[Server] Default RBAC models seeded successfully");
+  } catch (error) {
+    console.error("[Server] Failed to seed default RBAC models:", error);
+  }
 
   // Serve the widget SDK file
   app.use('/authhub-widget.js', express.static('client/public/authhub-widget.js'));

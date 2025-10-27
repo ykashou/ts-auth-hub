@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, pgEnum, uniqueIndex, boolean, integer, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -25,10 +25,11 @@ export const apiKeys = pgTable("api_keys", {
 });
 
 // Services table - configured service cards that appear after login
-// Each service belongs to a specific user
+// Services with userId = null are global default services available to all users
+// Services with userId set are user-specific services
 export const services = pgTable("services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Nullable - null means global service
   name: text("name").notNull(),
   description: text("description").notNull(),
   url: text("url").notNull(),
@@ -37,21 +38,8 @@ export const services = pgTable("services", {
   color: text("color"),
   secret: text("secret"), // AES-256-GCM encrypted secret for JWT signing (encrypted at application layer)
   secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-// Global Services table - Admin-managed service catalog (no userId)
-// Services exist once in the catalog and users get access via junction table
-export const globalServices = pgTable("global_services", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  description: text("description").notNull(),
-  url: text("url").notNull(),
-  redirectUrl: text("redirect_url"), // Redirect URL after authentication (defaults to service URL)
-  icon: text("icon").notNull().default("Globe"),
-  color: text("color"),
-  secret: text("secret"), // AES-256-GCM encrypted secret for JWT signing (encrypted at application layer)
-  secretPreview: text("secret_preview"), // Truncated secret for display (e.g., "sk_abc...xyz")
+  loginConfigId: varchar("login_config_id"), // Optional - multiple services can share the same login config
+  isSystem: boolean("is_system").notNull().default(false), // System services cannot be deleted
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -61,7 +49,7 @@ export const rbacModels = pgTable("rbac_models", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description").notNull(),
-  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -135,23 +123,7 @@ export const insertServiceSchema = createInsertSchema(services).omit({
   createdAt: true,
   secret: true, // Secret is auto-generated, not provided by user
   secretPreview: true, // Preview is auto-generated from secret
-}).extend({
-  name: z.string().min(1, "Service name is required"),
-  description: z.string().min(1, "Description is required"),
-  url: z.string().url("Invalid URL format"),
-  redirectUrl: z.preprocess(
-    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-    z.string().url("Invalid URL format").optional()
-  ),
-  icon: z.string().default("Globe"),
-  color: z.string().optional(),
-});
-
-export const insertGlobalServiceSchema = createInsertSchema(globalServices).omit({
-  id: true,
-  createdAt: true,
-  secret: true, // Secret is auto-generated, not provided by user
-  secretPreview: true, // Preview is auto-generated from secret
+  isSystem: true, // System flag is controlled by application, not user
 }).extend({
   name: z.string().min(1, "Service name is required"),
   description: z.string().min(1, "Description is required"),
@@ -202,6 +174,90 @@ export const insertUserServiceRoleSchema = createInsertSchema(userServiceRoles).
   assignedAt: true, // Auto-generated timestamp
 });
 
+// ==================== LOGIN PAGE EDITOR TABLES ====================
+
+// Authentication Methods table - Global definitions auto-synced from StrategyRegistry
+// NOTE: Methods are auto-discovered from registered strategies + placeholders
+export const authMethods = pgTable("auth_methods", {
+  id: varchar("id").primaryKey(), // "uuid", "email", "nostr", "bluesky", "webauthn", "magic_link"
+  name: varchar("name").notNull(), // Display name: "UUID Login", "Email Login", etc.
+  description: varchar("description").notNull(), // Description shown to users
+  icon: varchar("icon").notNull(), // Lucide icon name: "KeyRound", "Mail", "Zap", etc.
+  category: varchar("category").notNull().default("standard"), // "standard" | "alternative"
+  
+  // Global defaults
+  implemented: boolean("implemented").notNull().default(false), // Is backend strategy registered?
+  defaultButtonText: varchar("default_button_text").notNull(), // Default: "Login with Nostr"
+  defaultButtonVariant: varchar("default_button_variant").notNull().default("outline"),
+  defaultHelpText: varchar("default_help_text"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Login Page Configuration table
+// Configurations are standalone entities that can be assigned to multiple services
+export const loginPageConfig = pgTable("login_page_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Branding
+  title: varchar("title").notNull().unique().default("Welcome to AuthHub"),
+  description: varchar("description").notNull().default("Choose your preferred authentication method"),
+  logoUrl: varchar("logo_url"), // Optional custom logo URL
+  primaryColor: varchar("primary_color"), // CSS color value
+  
+  // Default behavior
+  defaultMethod: varchar("default_method").notNull().default("uuid"), // "uuid" | "email" | "nostr" | etc.
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id), // Admin who made last change
+});
+
+// Service Auth Methods table - Service-specific overrides and ordering
+export const serviceAuthMethods = pgTable("service_auth_methods", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Relations
+  loginConfigId: varchar("login_config_id").notNull().references(() => loginPageConfig.id, { onDelete: "cascade" }),
+  authMethodId: varchar("auth_method_id").notNull().references(() => authMethods.id, { onDelete: "cascade" }),
+  
+  // Service-specific settings
+  enabled: boolean("enabled").notNull().default(true), // Is this method visible for this service?
+  showComingSoonBadge: boolean("show_coming_soon_badge").notNull().default(false),
+  methodCategory: varchar("method_category").notNull().default("alternative"), // "primary" | "secondary" | "alternative"
+  
+  // Optional overrides (null = use defaults from auth_methods table)
+  buttonText: varchar("button_text"), // Override default button text
+  buttonVariant: varchar("button_variant"), // Override default variant
+  helpText: varchar("help_text"), // Override default help text
+  
+  // Display order within this config (for drag-and-drop ordering)
+  displayOrder: integer("display_order").notNull().default(0),
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Unique constraint: one entry per config+method combination
+  uniqueConfigMethod: unique().on(table.loginConfigId, table.authMethodId),
+}));
+
+// Insert schemas for login page editor
+export const insertAuthMethodSchema = createInsertSchema(authMethods);
+export const insertLoginPageConfigSchema = createInsertSchema(loginPageConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertServiceAuthMethodSchema = createInsertSchema(serviceAuthMethods).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -220,8 +276,6 @@ export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertService = z.infer<typeof insertServiceSchema>;
 export type Service = typeof services.$inferSelect;
-export type InsertGlobalService = z.infer<typeof insertGlobalServiceSchema>;
-export type GlobalService = typeof globalServices.$inferSelect;
 export type InsertRbacModel = z.infer<typeof insertRbacModelSchema>;
 export type RbacModel = typeof rbacModels.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
@@ -234,5 +288,11 @@ export type InsertServiceRbacModel = z.infer<typeof insertServiceRbacModelSchema
 export type ServiceRbacModel = typeof serviceRbacModels.$inferSelect;
 export type InsertUserServiceRole = z.infer<typeof insertUserServiceRoleSchema>;
 export type UserServiceRole = typeof userServiceRoles.$inferSelect;
+export type InsertAuthMethod = z.infer<typeof insertAuthMethodSchema>;
+export type AuthMethod = typeof authMethods.$inferSelect;
+export type InsertLoginPageConfig = z.infer<typeof insertLoginPageConfigSchema>;
+export type LoginPageConfig = typeof loginPageConfig.$inferSelect;
+export type InsertServiceAuthMethod = z.infer<typeof insertServiceAuthMethodSchema>;
+export type ServiceAuthMethod = typeof serviceAuthMethods.$inferSelect;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type UuidLogin = z.infer<typeof uuidLoginSchema>;
