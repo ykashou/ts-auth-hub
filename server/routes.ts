@@ -712,6 +712,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update service (all services are global)
       const updatedService = await storage.updateService(req.params.id, updateData);
       
+      // Audit the service update
+      await auditFromRequest(req, {
+        event: "service.updated",
+        severity: "info",
+        action: `Service updated: ${updatedService.name}`,
+        targetType: "service",
+        targetId: updatedService.id,
+        targetName: updatedService.name,
+        details: validatedData,
+      });
+      
       res.json(updatedService);
     } catch (error: any) {
       console.error("Update service error:", error);
@@ -736,6 +747,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (service.isSystem) {
         return res.status(403).json({ error: "Cannot delete system services" });
       }
+
+      // Audit the service deletion before deleting
+      await auditFromRequest(req, {
+        event: "service.deleted",
+        severity: "critical",
+        action: `Service deleted: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
+      });
 
       await storage.deleteService(req.params.id);
       
@@ -770,6 +791,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Update the service with the new encrypted secret and preview
       await storage.updateService(req.params.id, { secret: encryptedSecret, secretPreview });
+      
+      // Audit the secret rotation
+      await auditFromRequest(req, {
+        event: "service.secret_rotated",
+        severity: "warning",
+        action: `Service secret rotated: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
+      });
       
       res.json({
         success: true,
@@ -849,6 +880,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secret: encryptedSecret, // Store encrypted secret
         secretPreview,
         userId: null as any, // Global service
+      });
+      
+      // Audit the service creation
+      await auditFromRequest(req, {
+        event: "service.created",
+        severity: "info",
+        action: `Service created: ${service.name}`,
+        targetType: "service",
+        targetId: service.id,
+        targetName: service.name,
       });
       
       // Return service with plaintext secret (only time it's shown in full)
