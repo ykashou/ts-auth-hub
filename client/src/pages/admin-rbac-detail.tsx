@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
-import { getUserRole } from "@/lib/auth";
+import { getUserRole, getToken } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -312,7 +312,7 @@ export default function AdminRbacDetail() {
   // Handle export downloads
   const handleExport = async (format: 'json' | 'yaml') => {
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       if (!token) {
         toast({ title: "Error", description: "Not authenticated", variant: "destructive" });
         return;
