@@ -16,13 +16,27 @@ export default function Navbar() {
   const userRole = getUserRole();
   const isAdmin = userRole === 'admin';
 
-  const handleLogout = () => {
-    clearToken();
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully",
-    });
-    setLocation("/login");
+  const handleLogout = async () => {
+    try {
+      // Call backend logout endpoint for audit logging
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+    } catch (error) {
+      console.error("Logout audit failed:", error);
+      // Continue with logout even if audit fails
+    } finally {
+      // Clear token and redirect
+      clearToken();
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully",
+      });
+      setLocation("/login");
+    }
   };
 
   const userManagementItems = [

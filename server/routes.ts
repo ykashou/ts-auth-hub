@@ -280,6 +280,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Logout endpoint (for audit logging purposes)
+  // Note: JWT is stateless, so this doesn't invalidate the token server-side
+  // It primarily exists for audit logging
+  app.post("/api/auth/logout", verifyToken, async (req, res) => {
+    try {
+      // Audit the logout
+      await auditLogout(req);
+      
+      res.json({ 
+        success: true, 
+        message: "Logged out successfully" 
+      });
+    } catch (error: any) {
+      console.error("Logout error:", error);
+      res.status(500).json({ error: "Logout failed" });
+    }
+  });
+
   // Verify user credentials (for SaaS products)
   app.post("/api/auth/verify", verifyApiKey, async (req, res) => {
     try {
@@ -1051,6 +1069,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.assignRbacModelToService(serviceId, rbacModelId);
 
+      // Audit the RBAC assignment
+      await auditFromRequest(req, {
+        event: "service.rbac_assigned",
+        severity: "info",
+        action: `RBAC model '${model.name}' assigned to service '${service.name}'`,
+        targetType: "service",
+        targetId: serviceId,
+        targetName: service.name,
+        details: { rbacModelId, rbacModelName: model.name },
+      });
+
       res.json({
         success: true,
         message: "RBAC model assigned to service successfully",
@@ -1072,7 +1101,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
+      // Get current RBAC model for audit trail
+      const currentModel = await storage.getRbacModelForService(serviceId);
+
       await storage.removeRbacModelFromService(serviceId);
+
+      // Audit the RBAC removal
+      await auditFromRequest(req, {
+        event: "service.rbac_removed",
+        severity: "warning",
+        action: `RBAC model removed from service '${service.name}'`,
+        targetType: "service",
+        targetId: serviceId,
+        targetName: service.name,
+        details: currentModel ? { rbacModelId: currentModel.id, rbacModelName: currentModel.name } : {},
+      });
 
       res.json({
         success: true,
@@ -1234,6 +1277,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         const assignment = await storage.assignUserToServiceRole(userId, serviceId, roleId);
+        
+        // Audit the user-role assignment
+        await auditFromRequest(req, {
+          event: "rbac.user_role_assigned",
+          severity: "info",
+          action: `User '${user.email || user.id}' assigned to role '${role.name}' in service '${service.name}'`,
+          targetType: "user",
+          targetId: userId,
+          targetName: user.email || user.id,
+          details: { serviceId, serviceName: service.name, roleId, roleName: role.name },
+        });
+        
         res.json(assignment);
       } catch (dbError: any) {
         // Check if this is a unique constraint violation
@@ -1256,7 +1311,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id: assignmentId } = req.params;
 
+      // Get assignment details for audit before deleting
+      const assignments = await storage.getAllUserServiceRoles();
+      const assignment = assignments.find(a => a.id === assignmentId);
+
       await storage.removeUserFromServiceRole(assignmentId);
+
+      // Audit the user-role removal
+      if (assignment) {
+        await auditFromRequest(req, {
+          event: "rbac.user_role_revoked",
+          severity: "warning",
+          action: `User role assignment revoked`,
+          targetType: "user",
+          targetId: assignment.userId,
+          details: { 
+            assignmentId, 
+            serviceId: assignment.serviceId, 
+            roleId: assignment.roleId 
+          },
+        });
+      }
 
       res.json({
         success: true,
@@ -1355,6 +1430,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: userId,
       });
 
+      // Audit the RBAC model creation
+      await auditFromRequest(req, {
+        event: "rbac.model_created",
+        severity: "info",
+        action: `RBAC model created: ${model.name}`,
+        targetType: "rbac_model",
+        targetId: model.id,
+        targetName: model.name,
+      });
+
       res.status(201).json(model);
     } catch (error: any) {
       console.error("Create RBAC model error:", error);
@@ -1380,6 +1465,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (description !== undefined) updates.description = description;
 
       const updatedModel = await storage.updateRbacModel(id, updates);
+      
+      // Audit the RBAC model update
+      await auditFromRequest(req, {
+        event: "rbac.model_updated",
+        severity: "info",
+        action: `RBAC model updated: ${updatedModel.name}`,
+        targetType: "rbac_model",
+        targetId: updatedModel.id,
+        targetName: updatedModel.name,
+        details: updates,
+      });
+      
       res.json(updatedModel);
     } catch (error: any) {
       console.error("Update RBAC model error:", error);
@@ -1397,6 +1494,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!model) {
         return res.status(404).json({ error: "RBAC model not found" });
       }
+
+      // Audit the RBAC model deletion before deleting
+      await auditFromRequest(req, {
+        event: "rbac.model_deleted",
+        severity: "critical",
+        action: `RBAC model deleted: ${model.name}`,
+        targetType: "rbac_model",
+        targetId: model.id,
+        targetName: model.name,
+      });
 
       await storage.deleteRbacModel(id);
       res.json({ success: true, message: "RBAC model deleted successfully" });
@@ -1507,6 +1614,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
       });
 
+      // Audit the role creation
+      await auditFromRequest(req, {
+        event: "rbac.role_created",
+        severity: "info",
+        action: `Role created: ${role.name}`,
+        targetType: "rbac_role",
+        targetId: role.id,
+        targetName: role.name,
+        details: { rbacModelId: modelId },
+      });
+
       res.status(201).json(role);
     } catch (error: any) {
       console.error("Create role error:", error);
@@ -1547,6 +1665,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Role not found" });
       }
 
+      // Audit the role deletion before deleting
+      await auditFromRequest(req, {
+        event: "rbac.role_deleted",
+        severity: "warning",
+        action: `Role deleted: ${role.name}`,
+        targetType: "rbac_role",
+        targetId: role.id,
+        targetName: role.name,
+      });
+
       await storage.deleteRole(id);
       res.json({ success: true, message: "Role deleted successfully" });
     } catch (error: any) {
@@ -1583,6 +1711,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rbacModelId: modelId,
         name,
         description,
+      });
+
+      // Audit the permission creation
+      await auditFromRequest(req, {
+        event: "rbac.permission_created",
+        severity: "info",
+        action: `Permission created: ${permission.name}`,
+        targetType: "rbac_permission",
+        targetId: permission.id,
+        targetName: permission.name,
+        details: { rbacModelId: modelId },
       });
 
       res.status(201).json(permission);
@@ -1624,6 +1763,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!permission) {
         return res.status(404).json({ error: "Permission not found" });
       }
+
+      // Audit the permission deletion before deleting
+      await auditFromRequest(req, {
+        event: "rbac.permission_deleted",
+        severity: "warning",
+        action: `Permission deleted: ${permission.name}`,
+        targetType: "rbac_permission",
+        targetId: permission.id,
+        targetName: permission.name,
+      });
 
       await storage.deletePermission(id);
       res.json({ success: true, message: "Permission deleted successfully" });
@@ -1759,6 +1908,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.createServiceAuthMethods(serviceAuthMethodsData);
       
+      // Audit the login config creation
+      await auditFromRequest(req, {
+        event: "login_config.created",
+        severity: "info",
+        action: `Login configuration created: ${newConfig.name}`,
+        targetType: "login_config",
+        targetId: newConfig.id,
+        targetName: newConfig.name,
+      });
+      
       res.status(201).json(newConfig);
     } catch (error: any) {
       console.error("Create login config error:", error);
@@ -1775,6 +1934,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         updatedBy: (req as any).user.id,
       });
+      
+      // Audit the login config update
+      await auditFromRequest(req, {
+        event: "login_config.updated",
+        severity: "info",
+        action: `Login configuration updated: ${updated.name}`,
+        targetType: "login_config",
+        targetId: updated.id,
+        targetName: updated.name,
+        details: validatedData,
+      });
+      
       res.json(updated);
     } catch (error: any) {
       console.error("Update login config error:", error);
@@ -1791,6 +1962,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
       }
+      
+      // Audit the login config deletion before deleting
+      await auditFromRequest(req, {
+        event: "login_config.deleted",
+        severity: "critical",
+        action: `Login configuration deleted: ${config.name}`,
+        targetType: "login_config",
+        targetId: config.id,
+        targetName: config.name,
+      });
       
       // Delete the configuration (services using it will have null loginConfigId via CASCADE)
       await storage.deleteLoginPageConfig(id);
@@ -1825,6 +2006,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Assign the config to the service (multiple services can share same config)
       const updated = await storage.assignLoginConfigToService(configId, serviceId);
+      
+      // Audit the login config assignment
+      await auditFromRequest(req, {
+        event: "service.login_config_assigned",
+        severity: "info",
+        action: `Login config '${config.name}' assigned to service '${service.name}'`,
+        targetType: "service",
+        targetId: serviceId,
+        targetName: service.name,
+        details: { loginConfigId: configId, loginConfigName: config.name },
+      });
+      
       res.json(updated);
     } catch (error: any) {
       console.error("Assign login config error:", error);
