@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertGlobalServiceSchema, type GlobalService, type InsertGlobalService } from "@shared/schema";
+import { insertServiceSchema, type Service, type InsertService } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ export default function AdminGlobalServicesPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingService, setEditingService] = useState<GlobalService | null>(null);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [secretServiceName, setSecretServiceName] = useState<string>("");
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function AdminGlobalServicesPage() {
   }
 
   // Fetch all global services (admin endpoint)
-  const { data: services = [], isLoading } = useQuery<GlobalService[]>({
+  const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/admin/global-services"],
   });
 
@@ -61,8 +61,8 @@ export default function AdminGlobalServicesPage() {
   );
 
   // Form for adding/editing services
-  const form = useForm<InsertGlobalService>({
-    resolver: zodResolver(insertGlobalServiceSchema),
+  const form = useForm<InsertService>({
+    resolver: zodResolver(insertServiceSchema),
     defaultValues: {
       name: "",
       description: "",
@@ -75,7 +75,7 @@ export default function AdminGlobalServicesPage() {
 
   // Create service mutation
   const createMutation = useMutation({
-    mutationFn: async (data: InsertGlobalService) => {
+    mutationFn: async (data: InsertService) => {
       const response = await apiRequest("POST", "/api/admin/global-services", data);
       return response;
     },
@@ -106,7 +106,7 @@ export default function AdminGlobalServicesPage() {
 
   // Update service mutation
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertGlobalService> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertService> }) => {
       return await apiRequest("PATCH", `/api/admin/global-services/${id}`, data);
     },
     onSuccess: (data) => {
@@ -180,7 +180,7 @@ export default function AdminGlobalServicesPage() {
     },
   });
 
-  const onSubmit = (data: InsertGlobalService) => {
+  const onSubmit = (data: InsertService) => {
     // Clean up empty redirectUrl to prevent validation errors
     const cleanedData = {
       ...data,
@@ -194,7 +194,7 @@ export default function AdminGlobalServicesPage() {
     }
   };
 
-  const handleEdit = (service: GlobalService) => {
+  const handleEdit = (service: Service) => {
     setEditingService(service);
     form.reset({
       name: service.name,

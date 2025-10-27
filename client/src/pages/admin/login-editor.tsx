@@ -20,7 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { HexColorPicker } from "react-colorful";
 import { getUserRole } from "@/lib/auth";
-import type { GlobalService } from "@shared/schema";
+import type { Service } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Navbar from "@/components/Navbar";
