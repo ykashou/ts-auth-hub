@@ -647,10 +647,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const service = await storage.getService(req.params.id, req.user.id);
+      // Get service by ID (works for both user services and global services)
+      const service = await storage.getServiceById(req.params.id);
       
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Check if user has access to this service:
+      // 1. User owns the service (userId matches), OR
+      // 2. It's a global service (userId is null)
+      if (service.userId !== null && service.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Use partial schema to allow partial updates
@@ -670,7 +678,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secretPreview: service.secretPreview, // Preserve existing secret preview
       };
       
-      const updatedService = await storage.updateService(req.params.id, req.user.id, updateData);
+      // Update service - for global services, pass null as userId
+      const updatedService = await storage.updateService(
+        req.params.id, 
+        service.userId, 
+        updateData
+      );
       
       res.json(updatedService);
     } catch (error: any) {
